@@ -1,0 +1,1174 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,minimum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="format-detection" content="telephone=no">
+<meta name="theme-color" content="#0a0d12">
+<title>T-BOX</title>
+
+<script>
+  (function(){
+    if (typeof window.VConsole === 'undefined') {
+      window.VConsole = function(){
+        this.destroy = function(){}; this.hide = function(){};
+        this.show = function(){}; this.log = function(){};
+        this.info = function(){}; this.warn = function(){};
+        this.error = function(){}; this.debug = function(){};
+      };
+    }
+    if (typeof window.vConsole === 'undefined') window.vConsole = window.VConsole;
+  })();
+</script>
+
+<script src="version.js"></script>
+
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;
+    margin:0;padding:0;}
+  html{height:100%;overflow:hidden;
+    -webkit-text-size-adjust:100%;
+    text-size-adjust:100%;}
+  body{height:100%;overflow:hidden;
+    background:#0a0d12;
+    font-family:"Rajdhani","Oswald",system-ui,-apple-system,sans-serif;
+    color:#fff;
+    user-select:none;-webkit-user-select:none;
+    -webkit-touch-callout:none;
+    -webkit-user-drag:none;
+    overscroll-behavior:none;
+    touch-action:manipulation;
+    position:fixed;inset:0;}
+
+  #bg{position:fixed;inset:0;z-index:0;
+    background:radial-gradient(ellipse at 50% 25%, #1c2328 0%, #0e1216 55%, #06080b 100%);}
+  #particles{position:fixed;inset:0;z-index:1;pointer-events:none;}
+  #grid{position:fixed;inset:0;z-index:1;pointer-events:none;opacity:.06;
+    background-image:
+      linear-gradient(rgba(200,215,225,.6) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(200,215,225,.6) 1px, transparent 1px);
+    background-size:80px 80px;
+    mask-image:radial-gradient(ellipse at 50% 60%, #000 0%, transparent 70%);
+    -webkit-mask-image:radial-gradient(ellipse at 50% 60%, #000 0%, transparent 70%);
+    animation:gridMove 24s linear infinite;}
+  @keyframes gridMove{
+    0%{background-position:0 0, 0 0;}
+    100%{background-position:80px 80px, 80px 80px;}
+  }
+  #vignette{position:fixed;inset:0;z-index:2;pointer-events:none;
+    background:
+      radial-gradient(ellipse at 50% 50%,
+        rgba(0,0,0,0) 40%, rgba(0,0,0,.35) 75%, rgba(0,0,0,.75) 100%);}
+  #ui{position:fixed;inset:0;z-index:5;pointer-events:none;}
+  #device{position:absolute;left:22px;top:22px;
+    font-size:11px;letter-spacing:2.5px;opacity:.6;
+    font-family:"Rajdhani",sans-serif;font-weight:600;
+    text-shadow:0 1px 4px rgba(0,0,0,.9);
+    pointer-events:auto;cursor:pointer;
+    transition:opacity .2s, color .2s;
+    text-transform:uppercase;}
+  #device:hover{opacity:1;color:#c8d7e0;}
+  #device b{color:#c8d7e0;font-weight:700;}
+  #version{position:absolute;right:22px;top:22px;
+    font-size:11px;letter-spacing:2.5px;opacity:.6;
+    font-family:"Rajdhani",sans-serif;font-weight:600;
+    text-shadow:0 1px 4px rgba(0,0,0,.9);
+    pointer-events:auto;cursor:pointer;
+    transition:opacity .2s, color .2s;
+    text-transform:uppercase;}
+  #version:hover{opacity:1;color:#c8d7e0;}
+  #version b{color:#c8d7e0;font-weight:700;}
+  #titleWrap{position:absolute;left:50%;top:34%;transform:translate(-50%,-50%);
+    text-align:center;pointer-events:auto;cursor:default;}
+  #title{
+    font-family:"Oswald",sans-serif;font-weight:700;
+    font-size:clamp(72px, 14vw, 140px);
+    letter-spacing:16px;line-height:1;
+    color:#ffffff;
+    text-shadow:
+      0 0 24px rgba(200,215,225,.25),
+      0 0 60px rgba(200,215,225,.12),
+      0 4px 24px rgba(0,0,0,.9);
+    transition:transform .15s, text-shadow .3s;
+    will-change:transform;}
+  #title.shake{animation:titleShake .35s ease-in-out;}
+  @keyframes titleShake{
+    0%,100%{transform:translate(0,0) rotate(0deg);}
+    20%{transform:translate(-4px,2px) rotate(-1.2deg);}
+    40%{transform:translate(4px,-2px) rotate(1.2deg);}
+    60%{transform:translate(-3px,3px) rotate(-.8deg);}
+    80%{transform:translate(3px,-3px) rotate(.8deg);}
+  }
+  #title.rainbow{animation:rainbowMove 2.4s linear infinite;}
+  @keyframes rainbowMove{
+    0%{color:#ff3b5c;}25%{color:#ffcc33;}
+    50%{color:#4fd1ff;}75%{color:#7ea8ff;}
+    100%{color:#ff3b5c;}
+  }
+  #subtitle{
+    margin-top:20px;
+    font-family:"Rajdhani",sans-serif;font-weight:600;
+    font-size:clamp(11px,1.5vw,14px);
+    letter-spacing:10px;opacity:.55;
+    text-transform:uppercase;
+    text-shadow:0 1px 4px rgba(0,0,0,.9);
+    color:#c8d7e0;}
+  #hiddenText{
+    margin-top:16px;font-size:11px;letter-spacing:4px;
+    color:#c8d7e0;opacity:0;transition:opacity .4s;
+    font-family:"Rajdhani",sans-serif;font-weight:600;
+    text-shadow:0 0 12px rgba(200,215,225,.5);
+    text-transform:uppercase;}
+  #hiddenText.show{opacity:.85;}
+
+  /* ============================================================
+   * ★ 主菜单按钮条：占满屏幕宽 + 贴在一起 + 竖线分割
+   * ============================================================ */
+  #btns{
+    position:absolute;
+    left:0;
+    right:0;
+    bottom:0;
+    display:flex;
+    justify-content:stretch;
+    align-items:stretch;
+    padding:0;
+    pointer-events:auto;
+    background:linear-gradient(180deg, rgba(10,14,20,.85), rgba(6,8,11,.95));
+    border-top:1px solid rgba(200,215,225,.18);
+    box-shadow:0 -4px 16px rgba(0,0,0,.5);}
+
+  .btn{
+    position:relative;
+    flex:1 1 0;
+    display:flex;align-items:center;justify-content:center;gap:6px;
+    height:30px;
+    padding:0 6px;
+    background:transparent;
+    border:none;
+    border-right:1px solid rgba(200,215,225,.18);
+    color:#d8e2ea;
+    font-family:"Oswald",sans-serif;font-weight:600;
+    font-size:11px;letter-spacing:1.5px;
+    cursor:pointer;text-transform:uppercase;
+    transition:background .15s, color .15s;
+    user-select:none;
+    white-space:nowrap;
+    overflow:hidden;}
+  .btn:last-child{border-right:none;}
+  .btn:hover{
+    background:rgba(200,215,225,.1);
+    color:#ffffff;}
+  .btn:active{
+    background:rgba(200,215,225,.2);}
+
+  .btn .ico{
+    width:13px;height:13px;flex-shrink:0;opacity:.85;
+    transition:opacity .15s;}
+  .btn .ico *{
+    stroke:#d8e2ea;fill:none;stroke-width:2;
+    stroke-linecap:round;stroke-linejoin:round;
+    transition:stroke .15s;}
+  .btn:hover .ico{opacity:1;}
+  .btn:hover .ico *{stroke:#fff;}
+
+  #btnChar{
+    color:#4fd1ff;}
+  #btnChar .ico *{stroke:#4fd1ff;}
+  #btnChar:hover{
+    background:rgba(79,209,255,.12);
+    color:#fff;}
+  #btnChar:hover .ico *{stroke:#fff;}
+
+  /* ============================================================
+   * 弹窗
+   * ============================================================ */
+  .modal{
+    position:fixed;inset:0;z-index:20;
+    display:none;align-items:center;justify-content:center;
+    background:rgba(6,8,11,.82);
+    backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+    pointer-events:auto;}
+  .modal.on{display:flex;}
+  .panel{
+    width:min(660px, 94vw);max-height:86vh;overflow-y:auto;
+    background:linear-gradient(180deg, rgba(28,35,42,.98), rgba(16,20,25,.98));
+    border:1px solid rgba(200,215,225,.28);
+    border-radius:2px;padding:26px 28px;
+    box-shadow:0 0 60px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.05);
+    animation:panelIn .22s ease-out;}
+  @keyframes panelIn{
+    from{opacity:0;transform:translateY(12px) scale(.98);}
+    to{opacity:1;transform:translateY(0) scale(1);}
+  }
+  .panel h2{
+    margin:0 0 18px 0;
+    font-family:"Oswald",sans-serif;font-weight:700;
+    font-size:18px;letter-spacing:5px;color:#ffffff;
+    text-transform:uppercase;
+    border-bottom:1px solid rgba(200,215,225,.18);
+    padding-bottom:12px;}
+  .panel .section{
+    margin-top:20px;
+    font-family:"Oswald",sans-serif;font-weight:600;
+    font-size:12px;letter-spacing:4px;color:#c8d7e0;
+    text-transform:uppercase;opacity:.7;
+    padding-bottom:6px;}
+  .panel .row{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:9px 0;border-bottom:1px solid rgba(255,255,255,.05);
+    font-size:13px;letter-spacing:1px;gap:10px;}
+  .panel .row:last-child{border-bottom:none;}
+  .panel .row .lbl{opacity:.75;font-family:"Rajdhani",sans-serif;font-weight:600;
+    text-transform:uppercase;letter-spacing:1.5px;flex-shrink:0;}
+  .panel .row .val{color:#d8e2ea;font-weight:700;font-family:"Rajdhani",sans-serif;}
+  .panel p{margin:8px 0;font-size:12.5px;line-height:1.75;
+    font-family:"Rajdhani",sans-serif;letter-spacing:.5px;opacity:.8;}
+  .panel p.hl{color:#ffffff;font-weight:700;letter-spacing:2px;
+    text-transform:uppercase;font-family:"Oswald",sans-serif;}
+  .panel .close{
+    margin-top:20px;display:inline-block;
+    padding:9px 22px;
+    background:linear-gradient(180deg, rgba(58,72,82,.9), rgba(34,42,50,.9));
+    border:1px solid rgba(200,215,225,.4);
+    border-radius:2px;color:#ffffff;
+    font-family:"Oswald",sans-serif;font-weight:600;font-size:12px;
+    letter-spacing:3px;cursor:pointer;
+    text-transform:uppercase;
+    transition:background .15s, box-shadow .15s;}
+  .panel .close:hover{
+    background:linear-gradient(180deg, rgba(78,94,106,.95), rgba(44,54,64,.95));
+    box-shadow:0 0 18px rgba(200,215,225,.25);}
+  .panel .close.danger{border-color:rgba(255,80,80,.5);color:#ff6b6b;}
+  .panel .close.danger:hover{
+    background:rgba(255,80,80,.15);
+    box-shadow:0 0 18px rgba(255,80,80,.3);}
+  .panel .close.disabled{
+    opacity:.35;cursor:not-allowed;pointer-events:none;}
+  .panel .seg{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end;}
+  .panel .seg div{
+    padding:6px 12px;border:1px solid rgba(200,215,225,.25);border-radius:2px;
+    font-size:11px;letter-spacing:1px;cursor:pointer;
+    font-family:"Rajdhani",sans-serif;font-weight:600;
+    text-transform:uppercase;
+    transition:background .15s,border-color .15s,color .15s;}
+  .panel .seg div.on{background:rgba(200,215,225,.18);border-color:#c8d7e0;color:#fff;}
+  .panel input[type=range]{width:140px;accent-color:#c8d7e0;}
+  .panel .kbd{
+    display:inline-block;padding:2px 8px;
+    border:1px solid rgba(200,215,225,.28);border-radius:2px;
+    font-family:"Oswald",sans-serif;font-size:11px;letter-spacing:1.5px;
+    margin:0 2px;background:rgba(255,255,255,.04);color:#e8eef3;
+    text-transform:uppercase;}
+  .panel .footer{display:flex;gap:10px;justify-content:flex-end;margin-top:20px;}
+
+  #perfWarn{
+    display:none;
+    margin-top:8px;
+    padding:8px 12px;
+    background:rgba(255,60,90,.12);
+    border:1px solid rgba(255,60,90,.5);
+    border-radius:3px;
+    font-family:"Rajdhani",sans-serif;
+    font-size:11px;letter-spacing:1.5px;
+    color:#ff3b5c;
+    line-height:1.7;
+    text-transform:uppercase;}
+  #perfWarn .hl{color:#fff;font-weight:700;}
+
+  #toast{position:fixed;left:50%;top:12%;transform:translateX(-50%);
+    z-index:30;pointer-events:none;
+    padding:12px 26px;
+    background:linear-gradient(180deg, rgba(28,35,42,.95), rgba(16,20,25,.95));
+    border:1px solid rgba(200,215,225,.4);border-radius:2px;
+    font-family:"Rajdhani",sans-serif;font-weight:600;
+    font-size:13px;letter-spacing:3px;color:#ffffff;
+    text-transform:uppercase;
+    box-shadow:0 0 30px rgba(0,0,0,.6);
+    opacity:0;transition:opacity .3s, transform .3s;}
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(6px);}
+  #flash{position:fixed;inset:0;z-index:25;pointer-events:none;
+    background:radial-gradient(circle at 50% 50%, rgba(255,60,90,.35), transparent 70%);
+    opacity:0;transition:opacity .25s;}
+
+  @media (max-width: 640px){
+    #title{letter-spacing:10px;font-size:clamp(52px, 17vw, 88px);}
+    #subtitle{letter-spacing:6px;font-size:10px;}
+    .btn{font-size:9px;letter-spacing:1px;gap:3px;height:28px;}
+    .btn .ico{width:11px;height:11px;}
+    #device, #version{font-size:10px;letter-spacing:1.5px;}
+    #device{left:14px;} #version{right:14px;}
+    .panel{padding:20px 18px;}
+    .panel input[type=range]{width:100px;}
+  }
+</style>
+</head>
+<body>
+<div id="bg"></div>
+<canvas id="particles"></canvas>
+<div id="grid"></div>
+<div id="vignette"></div>
+
+<div id="ui">
+  <div id="device"><span data-i18n="device">设备：</span><b>—</b></div>
+  <div id="version"><span data-i18n="version">版本：</span><b id="versionLabel">V1.0.0 · Stable</b></div>
+
+  <div id="titleWrap">
+    <div id="title">T-BOX</div>
+    <div id="subtitle" data-i18n="subtitle">T-BOX · PROS SANDBOX</div>
+    <div id="hiddenText" data-i18n="hiddenText">Hidden Area · 你找到了隐藏区域</div>
+  </div>
+
+  <div id="btns">
+    <div class="btn" id="btnStart">
+      <svg class="ico" viewBox="0 0 24 24"><polygon points="6,4 20,12 6,20"/></svg>
+      <span data-i18n="start">开始游戏</span>
+    </div>
+    <div class="btn" id="btnChar">
+      <svg class="ico" viewBox="0 0 24 24">
+        <circle cx="12" cy="8" r="4"/>
+        <path d="M4 20c0-4 4-6 8-6s8 2 8 6"/>
+      </svg>
+      <span data-i18n="charEdit">角色编辑</span>
+    </div>
+    <div class="btn" id="btnLayout">
+      <svg class="ico" viewBox="0 0 24 24">
+        <rect x="3" y="3" width="7" height="7"/>
+        <rect x="14" y="3" width="7" height="7"/>
+        <rect x="3" y="14" width="7" height="7"/>
+        <rect x="14" y="14" width="7" height="7"/>
+      </svg>
+      <span data-i18n="layoutEdit">布局编辑</span>
+    </div>
+    <div class="btn" id="btnSettings">
+      <svg class="ico" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+      </svg>
+      <span data-i18n="settings">设置</span>
+    </div>
+    <div class="btn" id="btnControls">
+      <svg class="ico" viewBox="0 0 24 24">
+        <rect x="2" y="6" width="20" height="12" rx="2"/>
+        <line x1="6" y1="10" x2="6" y2="10"/><line x1="10" y1="10" x2="10" y2="10"/>
+        <line x1="14" y1="10" x2="14" y2="10"/><line x1="18" y1="10" x2="18" y2="10"/>
+        <line x1="7" y1="14" x2="17" y2="14"/>
+      </svg>
+      <span data-i18n="controls">操作</span>
+    </div>
+    <div class="btn" id="btnAbout">
+      <svg class="ico" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="12" y1="16" x2="12" y2="12"/>
+        <line x1="12" y1="8" x2="12" y2="8"/>
+      </svg>
+      <span data-i18n="about">关于</span>
+    </div>
+  </div>
+</div>
+
+<!-- ========== 设置弹窗 ========== -->
+<div class="modal" id="mSettings">
+  <div class="panel">
+    <h2 data-i18n="settingsTitle">设置 · Settings</h2>
+
+    <div class="section" data-i18n="graphics">画面</div>
+    <div class="row"><span class="lbl" data-i18n="quality">画质</span><span class="seg" id="segQuality"><div data-v="low" data-i18n="qualityLow">低</div><div data-v="mid" data-i18n="qualityMid">中</div><div data-v="high" data-i18n="qualityHigh">高</div><div data-v="ultra" data-i18n="qualityUltra">超</div><div data-v="auto" data-i18n="qualityAuto">自动</div></span></div>
+    <div class="row"><span class="lbl" data-i18n="resolution">分辨率缩放</span><span><input type="range" id="resScale" min="50" max="200" value="100"> <span class="val" id="resScaleVal">100%</span></span></div>
+    <div class="row"><span class="lbl" data-i18n="aa">抗锯齿</span><span class="seg" id="segAA"><div data-v="off" data-i18n="off">关</div><div data-v="low" data-i18n="aaLow">低</div><div data-v="high" data-i18n="aaHigh">高</div></span></div>
+    <div class="row"><span class="lbl" data-i18n="lighting">光影</span><span class="seg" id="segLighting"><div data-v="0" data-i18n="off">关</div><div data-v="1" data-i18n="on">开</div></span></div>
+    <div class="row"><span class="lbl" data-i18n="shadow">影子</span><span class="seg" id="segShadow"><div data-v="0" data-i18n="off">关</div><div data-v="1" data-i18n="on">开</div></span></div>
+    <div class="row"><span class="lbl" data-i18n="shadowQ">影子质量</span><span class="seg" id="segShadowQ"><div data-v="low" data-i18n="qualityLow">低</div><div data-v="mid" data-i18n="qualityMid">中</div><div data-v="high" data-i18n="qualityHigh">高</div><div data-v="ultra" data-i18n="qualityUltra">超</div></span></div>
+    <div class="row"><span class="lbl" data-i18n="fog">雾效</span><span class="seg" id="segFog"><div data-v="0" data-i18n="off">关</div><div data-v="1" data-i18n="on">开</div></span></div>
+    <div class="row"><span class="lbl" data-i18n="bloom">泛光</span><span class="seg" id="segBloom"><div data-v="0" data-i18n="off">关</div><div data-v="1" data-i18n="on">开</div></span></div>
+    <div class="row"><span class="lbl" data-i18n="vignette">暗角</span><span class="seg" id="segVignette"><div data-v="0" data-i18n="off">关</div><div data-v="1" data-i18n="on">开</div></span></div>
+    <div class="row"><span class="lbl" data-i18n="speedLines">速度线</span><span class="seg" id="segSpeedLines"><div data-v="0" data-i18n="off">关</div><div data-v="1" data-i18n="on">开</div></span></div>
+    <div class="row"><span class="lbl" data-i18n="hdr">HDR</span><span class="seg" id="segHDR"><div data-v="0" data-i18n="off">关</div><div data-v="1" data-i18n="on">开</div></span></div>
+
+    <div id="perfWarn"></div>
+
+    <div class="section" data-i18n="camera">相机</div>
+    <div class="row"><span class="lbl" data-i18n="fov">FOV</span><span><input type="range" id="fov" min="60" max="120" value="120"> <span class="val" id="fovVal">120</span></span></div>
+    <div class="row"><span class="lbl" data-i18n="defaultView">默认视角</span><span class="seg" id="segView"><div data-v="fps">FPS</div><div data-v="tps">TPS</div></span></div>
+    <div class="row"><span class="lbl" data-i18n="tpsDist">TPS 距离</span><span><input type="range" id="tpsDist" min="20" max="80" value="45"> <span class="val" id="tpsDistVal">4.5</span></span></div>
+    <div class="row"><span class="lbl" data-i18n="tpsH">TPS 高度</span><span><input type="range" id="tpsH" min="10" max="25" value="16"> <span class="val" id="tpsHVal">1.6</span></span></div>
+    <div class="row"><span class="lbl" data-i18n="camSmooth">相机平滑</span><span class="seg" id="segCamSmooth"><div data-v="0" data-i18n="off">关</div><div data-v="1" data-i18n="on">开</div></span></div>
+    <div class="row"><span class="lbl" data-i18n="viewShake">视角震动</span><span class="seg" id="segShake"><div data-v="off" data-i18n="shakeOff">关</div><div data-v="low" data-i18n="shakeLow">低</div><div data-v="mid" data-i18n="shakeMid">中</div><div data-v="high" data-i18n="shakeHigh">高</div></span></div>
+    <div class="row"><span class="lbl" data-i18n="shakeAmount">相机摇晃强度</span><span><input type="range" id="shakeAmount" min="0" max="200" value="100"> <span class="val" id="shakeAmountVal">100%</span></span></div>
+
+    <div class="section" data-i18n="viewSection">视角</div>
+    <div class="row"><span class="lbl" data-i18n="viewSway">微动视角</span><span class="seg" id="segViewSway"><div data-v="0" data-i18n="off">关</div><div data-v="1" data-i18n="on">开</div></span></div>
+    <div class="row"><span class="lbl" data-i18n="swayAmount">微动幅度</span><span><input type="range" id="swayAmount" min="0" max="200" value="100"> <span class="val" id="swayAmountVal">100%</span></span></div>
+    <div class="row"><span class="lbl" data-i18n="runShake">跑步视角晃动</span><span class="seg" id="segRunShake"><div data-v="0" data-i18n="off">关</div><div data-v="1" data-i18n="on">开</div></span></div>
+    <div class="row"><span class="lbl" data-i18n="runShakeAmount">跑步晃动幅度</span><span><input type="range" id="runShakeAmount" min="0" max="200" value="100"> <span class="val" id="runShakeAmountVal">100%</span></span></div>
+    <div class="row"><span class="lbl" data-i18n="hitShake">受击晃动</span><span class="seg" id="segHitShake"><div data-v="0" data-i18n="off">关</div><div data-v="1" data-i18n="on">开</div></span></div>
+    <div class="row"><span class="lbl" data-i18n="hitFrame">受击黑边</span><span class="seg" id="segHitFrame"><div data-v="0" data-i18n="off">关</div><div data-v="1" data-i18n="on">开</div></span></div>
+    <div class="row"><span class="lbl" data-i18n="blinkFx">濒死眨眼</span><span class="seg" id="segBlinkFx"><div data-v="0" data-i18n="off">关</div><div data-v="1" data-i18n="on">开</div></span></div>
+    <div class="row"><span class="lbl" data-i18n="slowMo">濒死慢动作</span><span class="seg" id="segSlowMo"><div data-v="0" data-i18n="off">关</div><div data-v="1" data-i18n="on">开</div></span></div>
+    <div class="row"><span class="lbl" data-i18n="desatFx">重伤去饱和</span><span class="seg" id="segDesatFx"><div data-v="0" data-i18n="off">关</div><div data-v="1" data-i18n="on">开</div></span></div>
+
+    <div class="section" data-i18n="vitalsSection">生命监测</div>
+    <div class="row"><span class="lbl" data-i18n="vitalsShow">心跳/呼吸检测仪</span><span class="seg" id="segVitals"><div data-v="0" data-i18n="off">关</div><div data-v="1" data-i18n="on">开</div></span></div>
+    <div class="row"><span class="lbl" data-i18n="vitalsSound">监测音效</span><span class="seg" id="segVitalsSound"><div data-v="0" data-i18n="off">关</div><div data-v="1" data-i18n="on">开</div></span></div>
+    <div class="row"><span class="lbl" data-i18n="heartSound">心跳声</span><span class="seg" id="segHeartSound"><div data-v="0" data-i18n="off">关</div><div data-v="1" data-i18n="on">开</div></span></div>
+    <div class="row"><span class="lbl" data-i18n="breathSound">呼吸声</span><span class="seg" id="segBreathSound"><div data-v="0" data-i18n="off">关</div><div data-v="1" data-i18n="on">开</div></span></div>
+
+    <div class="section" data-i18n="opSection">操作</div>
+    <div class="row"><span class="lbl" data-i18n="sens">灵敏度</span><span><input type="range" id="sens" min="1" max="100" value="22"> <span class="val" id="sensVal">22</span></span></div>
+    <div class="row"><span class="lbl" data-i18n="mouseAccel">鼠标加速</span><span class="seg" id="segMouseAccel"><div data-v="0" data-i18n="off">关</div><div data-v="1" data-i18n="on">开</div></span></div>
+    <div class="row"><span class="lbl" data-i18n="invertY">反转 Y 轴</span><span class="seg" id="segInvertY"><div data-v="0" data-i18n="off">关</div><div data-v="1" data-i18n="on">开</div></span></div>
+    <div class="row"><span class="lbl" data-i18n="joyDead">摇杆死区</span><span><input type="range" id="joyDead" min="0" max="50" value="15"> <span class="val" id="joyDeadVal">0.15</span></span></div>
+
+    <div class="section" data-i18n="audio">音频</div>
+    <div class="row"><span class="lbl" data-i18n="volMaster">主音量</span><span><input type="range" id="volMaster" min="0" max="100" value="70"> <span class="val" id="volMasterVal">70</span></span></div>
+    <div class="row"><span class="lbl" data-i18n="volSfx">音效音量</span><span><input type="range" id="volSfx" min="0" max="100" value="70"> <span class="val" id="volSfxVal">70</span></span></div>
+    <div class="row"><span class="lbl" data-i18n="sfxOn">音效开关</span><span class="seg" id="segSfxOn"><div data-v="0" data-i18n="off">关</div><div data-v="1" data-i18n="on">开</div></span></div>
+
+    <div class="section" data-i18n="uiSection">UI</div>
+    <div class="row"><span class="lbl" data-i18n="showFps">显示 FPS</span><span class="seg" id="segFps"><div data-v="off" data-i18n="off">关</div><div data-v="on" data-i18n="on">开</div></span></div>
+    <div class="row"><span class="lbl" data-i18n="showCoord">显示坐标</span><span class="seg" id="segCoord"><div data-v="0" data-i18n="off">关</div><div data-v="1" data-i18n="on">开</div></span></div>
+    <div class="row"><span class="lbl" data-i18n="showStance">显示状态</span><span class="seg" id="segStance"><div data-v="0" data-i18n="off">关</div><div data-v="1" data-i18n="on">开</div></span></div>
+    <div class="row"><span class="lbl" data-i18n="showCompass">显示罗盘</span><span class="seg" id="segCompass"><div data-v="0" data-i18n="off">关</div><div data-v="1" data-i18n="on">开</div></span></div>
+    <div class="row"><span class="lbl" data-i18n="showCrosshair">显示准星</span><span class="seg" id="segShowCrosshair"><div data-v="0" data-i18n="off">关</div><div data-v="1" data-i18n="on">开</div></span></div>
+    <div class="row"><span class="lbl" data-i18n="showHp">显示血量</span><span class="seg" id="segShowHp"><div data-v="0" data-i18n="off">关</div><div data-v="1" data-i18n="on">开</div></span></div>
+    <div class="row"><span class="lbl" data-i18n="hurtVignette">受伤红晕</span><span class="seg" id="segHurtVignette"><div data-v="0" data-i18n="off">关</div><div data-v="1" data-i18n="on">开</div></span></div>
+    <div class="row"><span class="lbl" data-i18n="chStyle">准星样式</span><span class="seg" id="segChStyle"><div data-v="cross" data-i18n="chCross">十字</div><div data-v="dot" data-i18n="chDot">点</div><div data-v="circle" data-i18n="chCircle">圆</div><div data-v="cross-dot" data-i18n="chCrossDot">十字点</div></span></div>
+    <div class="row"><span class="lbl" data-i18n="chColor">准星颜色</span><span class="seg" id="segChColor"><div data-v="white" data-i18n="chWhite">白</div><div data-v="red" data-i18n="chRed">红</div><div data-v="green" data-i18n="chGreen">绿</div><div data-v="yellow" data-i18n="chYellow">黄</div><div data-v="blue" data-i18n="chBlue">蓝</div><div data-v="cyan" data-i18n="chCyan">青</div><div data-v="magenta" data-i18n="chMagenta">品红</div></span></div>
+    <div class="row"><span class="lbl" data-i18n="chSize">准星大小</span><span><input type="range" id="chSize" min="50" max="200" value="100"> <span class="val" id="chSizeVal">100%</span></span></div>
+    <div class="row"><span class="lbl" data-i18n="chOpacity">准星透明度</span><span><input type="range" id="chOpacity" min="10" max="100" value="100"> <span class="val" id="chOpacityVal">100%</span></span></div>
+    <div class="row"><span class="lbl" data-i18n="dmgStyle">伤害数字</span><span class="seg" id="segDmgStyle"><div data-v="number" data-i18n="dmgNumber">数字</div><div data-v="off" data-i18n="dmgOff">关</div></span></div>
+    <div class="row"><span class="lbl" data-i18n="dmgSize">伤害数字大小</span><span><input type="range" id="dmgSize" min="50" max="200" value="100"> <span class="val" id="dmgSizeVal">100%</span></span></div>
+    <div class="row"><span class="lbl" data-i18n="hitStyle">命中标记</span><span class="seg" id="segHitStyle"><div data-v="cross" data-i18n="hitCross">十字</div><div data-v="dot" data-i18n="hitDot">点</div></span></div>
+    <div class="row"><span class="lbl" data-i18n="hitSize">命中标记大小</span><span><input type="range" id="hitSize" min="50" max="200" value="100"> <span class="val" id="hitSizeVal">100%</span></span></div>
+    <div class="row"><span class="lbl" data-i18n="hudOpacity">HUD 透明度</span><span><input type="range" id="hudOpacity" min="0" max="100" value="100"> <span class="val" id="hudOpacityVal">100%</span></span></div>
+    <div class="row"><span class="lbl" data-i18n="compassOpacity">罗盘透明度</span><span><input type="range" id="compassOpacity" min="0" max="100" value="100"> <span class="val" id="compassOpacityVal">100%</span></span></div>
+
+    <div class="section" data-i18n="other">其他</div>
+    <div class="row"><span class="lbl" data-i18n="lang">语言</span><span class="seg" id="segLang"><div data-v="zh" data-i18n="langZh">中文</div><div data-v="en" data-i18n="langEn">English</div></span></div>
+    <div class="row"><span class="lbl" data-i18n="timeScale">游戏时间速度</span><span><input type="range" id="timeScale" min="50" max="200" value="100"> <span class="val" id="timeScaleVal">100%</span></span></div>
+    <div class="row"><span class="lbl" data-i18n="pauseOnBack">返回时暂停</span><span class="seg" id="segPauseOnBack"><div data-v="0" data-i18n="off">关</div><div data-v="1" data-i18n="on">开</div></span></div>
+    <div class="row"><span class="lbl" data-i18n="fpsLimit">帧率上限</span><span class="seg" id="segFpsLimit"><div data-v="30">30</div><div data-v="60">60</div><div data-v="90">90</div><div data-v="120">120</div><div data-v="0" data-i18n="unlimited">无限制</div></span></div>
+    <div class="row"><span class="lbl" data-i18n="autoSaveLayout">自动保存布局</span><span class="seg" id="segAutoSaveLayout"><div data-v="0" data-i18n="off">关</div><div data-v="1" data-i18n="on">开</div></span></div>
+
+    <div class="footer">
+      <span class="close danger" id="btnReset" data-i18n="reset">重置设置</span>
+      <span class="close" data-close data-i18n="close">关闭</span>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="mControls">
+  <div class="panel">
+    <h2 data-i18n="controlsTitle">操作 · Controls</h2>
+    <div id="controlsPC">
+      <p class="hl" data-i18n="controlsDesktop">桌面端（键盘 + 鼠标）</p>
+      <div class="row"><span class="lbl" data-i18n="ctrlMove">移动</span><span class="val"><span class="kbd">WASD</span></span></div>
+      <div class="row"><span class="lbl" data-i18n="ctrlSprint">冲刺</span><span class="val"><span class="kbd">SHIFT</span></span></div>
+      <div class="row"><span class="lbl" data-i18n="ctrlCrouch">蹲下</span><span class="val"><span class="kbd">C</span></span></div>
+      <div class="row"><span class="lbl" data-i18n="ctrlKnee">膝撞</span><span class="val"><span class="kbd">CTRL</span></span></div>
+      <div class="row"><span class="lbl" data-i18n="ctrlJump">跳跃</span><span class="val"><span class="kbd">SPACE</span></span></div>
+      <div class="row"><span class="lbl" data-i18n="ctrlBigJump">大跳</span><span class="val"><span class="kbd">SHIFT</span>+<span class="kbd">SPACE</span></span></div>
+      <div class="row"><span class="lbl" data-i18n="ctrlClimb">攀爬</span><span class="val"><span class="kbd">N</span></span></div>
+      <div class="row"><span class="lbl" data-i18n="ctrlLMB_RMB">左直 / 右直</span><span class="val"><span class="kbd">LMB</span> <span class="kbd">RMB</span></span></div>
+      <div class="row"><span class="lbl" data-i18n="ctrlV_B">左勾 / 右勾</span><span class="val"><span class="kbd">V</span> <span class="kbd">B</span></span></div>
+      <div class="row"><span class="lbl" data-i18n="ctrlM_Comma">锤拳 / 掌击</span><span class="val"><span class="kbd">M</span> <span class="kbd">,</span></span></div>
+      <div class="row"><span class="lbl" data-i18n="ctrlG_H">左肘 / 右肘</span><span class="val"><span class="kbd">G</span> <span class="kbd">H</span></span></div>
+      <div class="row"><span class="lbl" data-i18n="ctrlQ_R_E">左踢 / 右踢 / 推人</span><span class="val"><span class="kbd">Q</span> <span class="kbd">R</span> <span class="kbd">E</span></span></div>
+      <div class="row"><span class="lbl" data-i18n="ctrlF">格挡</span><span class="val"><span class="kbd">F</span></span></div>
+      <div class="row"><span class="lbl" data-i18n="ctrlDodge">闪避 / 后闪</span><span class="val"><span class="kbd">双击 A/D</span> <span class="kbd">双击 S</span></span></div>
+      <div class="row"><span class="lbl" data-i18n="ctrlI">检视</span><span class="val"><span class="kbd">I</span></span></div>
+      <div class="row"><span class="lbl" data-i18n="ctrlT">切换视角</span><span class="val"><span class="kbd">T</span></span></div>
+      <div class="row"><span class="lbl" data-i18n="ctrlESC">返回菜单</span><span class="val"><span class="kbd">ESC</span></span></div>
+    </div>
+    <div id="controlsTouch" style="display:none">
+      <p class="hl" data-i18n="controlsMobile">移动端（触屏）</p>
+      <div class="row"><span class="lbl" data-i18n="ctrlMove">移动</span><span class="val" data-i18n="ctrlJoy">左下角摇杆</span></div>
+      <div class="row"><span class="lbl" data-i18n="ctrlView">视角</span><span class="val" data-i18n="ctrlLook">右侧滑动</span></div>
+      <div class="row"><span class="lbl" data-i18n="ctrlBtns">攻击 / 动作</span><span class="val" data-i18n="ctrlBtns2">屏幕两侧按钮</span></div>
+    </div>
+    <div style="text-align:right">
+      <span class="close" data-close data-i18n="close">关闭</span>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="mAbout">
+  <div class="panel">
+    <h2 data-i18n="aboutTitle">关于 · About</h2>
+    <p class="hl">T-BOX</p>
+    <p><span data-i18n="aboutVersion">版本</span>：<span id="aboutVersion">V1.0.0 · Stable</span></p>
+    <p><span data-i18n="aboutType">类型</span>：<span data-i18n="aboutTypeVal">第一人称 / 第三人称 方块沙盒</span></p>
+    <p style="margin-top:16px" data-i18n="aboutOpenSource">本项目为开源学习项目，基于 MIT 协议开源。</p>
+    <p data-i18n="aboutNoCopy">仅供学习参考，请勿直接照搬、盗用、商用。</p>
+    <p data-i18n="aboutSource">如需使用代码，请注明来源。</p>
+    <p style="opacity:.55;font-size:11px;margin-top:16px" data-i18n="aboutDisclaimer">本项目并非独立创作，仅为学习参考。如有侵犯任何第三方权益，请联系删除。</p>
+    <div style="text-align:right">
+      <span class="close" data-close data-i18n="close">关闭</span>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+<div id="flash"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  const VERSION_LABEL = (window.TBOX && window.TBOX.VERSION && window.TBOX.VERSION.LABEL) || 'V1.0.0 · Stable';
+  const VERSION_NUMBER = (window.TBOX && window.TBOX.VERSION && window.TBOX.VERSION.NUMBER) || '1.0.0';
+
+  const versionLabelEl = document.getElementById('versionLabel');
+  if(versionLabelEl) versionLabelEl.textContent = VERSION_LABEL;
+  const aboutVersionEl = document.getElementById('aboutVersion');
+  if(aboutVersionEl) aboutVersionEl.textContent = VERSION_LABEL;
+
+  const isTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
+  try { localStorage.setItem('tbox_device', isTouch ? 'touch' : 'pc'); } catch(e){}
+
+  /* ★ 完整中英对照（修复中英混杂） */
+  const TEXT = {
+    zh: {
+      device: '设备：', version: '版本：',
+      deviceTouch: '移动端', devicePC: '桌面端',
+      start: '开始游戏', settings: '设置', controls: '操作', about: '关于',
+      charEdit: '角色编辑', layoutEdit: '布局编辑',
+      subtitle: 'T-BOX · PROS SANDBOX',
+      hiddenText: 'Hidden Area · 你找到了隐藏区域',
+      settingsTitle: '设置 · Settings',
+
+      graphics: '画面',
+      quality: '画质', qualityLow: '低', qualityMid: '中', qualityHigh: '高', qualityUltra: '超', qualityAuto: '自动',
+      resolution: '分辨率缩放',
+      aa: '抗锯齿', aaLow: '低', aaHigh: '高',
+      lighting: '光影', shadow: '影子', shadowQ: '影子质量', fog: '雾效', bloom: '泛光',
+      vignette: '暗角', speedLines: '速度线', hdr: 'HDR',
+
+      camera: '相机', fov: '视场角', defaultView: '默认视角',
+      tpsDist: '第三人称距离', tpsH: '第三人称高度',
+      camSmooth: '相机平滑', viewShake: '视角震动',
+      shakeOff: '关', shakeLow: '低', shakeMid: '中', shakeHigh: '高',
+      shakeAmount: '相机摇晃强度',
+
+      viewSection: '视角',
+      viewSway: '微动视角', swayAmount: '微动幅度',
+      runShake: '跑步视角晃动', runShakeAmount: '跑步晃动幅度',
+      hitShake: '受击晃动', hitFrame: '受击黑边',
+      blinkFx: '濒死眨眼', slowMo: '濒死慢动作', desatFx: '重伤去饱和',
+
+      vitalsSection: '生命监测',
+      vitalsShow: '心跳/呼吸检测仪', vitalsSound: '监测音效',
+      heartSound: '心跳声', breathSound: '呼吸声',
+
+      opSection: '操作',
+      sens: '灵敏度', mouseAccel: '鼠标加速', invertY: '反转 Y 轴', joyDead: '摇杆死区',
+
+      audio: '音频', volMaster: '主音量', volSfx: '音效音量', sfxOn: '音效开关',
+
+      uiSection: '界面',
+      showFps: '显示帧率', showCoord: '显示坐标', showStance: '显示状态', showCompass: '显示罗盘',
+      showCrosshair: '显示准星', showHp: '显示血量', hurtVignette: '受伤红晕',
+      chStyle: '准星样式', chCross: '十字', chDot: '点', chCircle: '圆', chCrossDot: '十字点',
+      chColor: '准星颜色', chWhite: '白', chRed: '红', chGreen: '绿', chYellow: '黄',
+      chBlue: '蓝', chCyan: '青', chMagenta: '品红',
+      chSize: '准星大小', chOpacity: '准星透明度',
+      dmgStyle: '伤害数字', dmgNumber: '数字', dmgOff: '关', dmgSize: '伤害数字大小',
+      hitStyle: '命中标记', hitCross: '十字', hitDot: '点', hitSize: '命中标记大小',
+      hudOpacity: '界面透明度', compassOpacity: '罗盘透明度',
+
+      other: '其他',
+      lang: '语言', langZh: '中文', langEn: '英文',
+      timeScale: '游戏时间速度', pauseOnBack: '返回时暂停',
+      fpsLimit: '帧率上限', autoSaveLayout: '自动保存布局',
+      unlimited: '无限制',
+
+      reset: '重置设置', close: '关闭', on: '开', off: '关',
+
+      controlsTitle: '操作 · Controls',
+      controlsDesktop: '桌面端（键盘 + 鼠标）', controlsMobile: '移动端（触屏）',
+      ctrlMove: '移动', ctrlSprint: '冲刺', ctrlCrouch: '蹲下', ctrlKnee: '膝撞',
+      ctrlJump: '跳跃', ctrlBigJump: '大跳', ctrlClimb: '攀爬',
+      ctrlLMB_RMB: '左直 / 右直', ctrlV_B: '左勾 / 右勾',
+      ctrlM_Comma: '锤拳 / 掌击', ctrlG_H: '左肘 / 右肘',
+      ctrlQ_R_E: '左踢 / 右踢 / 推人', ctrlF: '格挡',
+      ctrlDodge: '闪避 / 后闪', ctrlI: '检视',
+      ctrlT: '切换视角', ctrlESC: '返回菜单', ctrlView: '视角',
+      ctrlJoy: '左下角移动区', ctrlLook: '右侧滑动', ctrlBtns: '攻击 / 动作', ctrlBtns2: '屏幕两侧按钮',
+
+      aboutTitle: '关于 · About', aboutVersion: '版本', aboutType: '类型',
+      aboutTypeVal: '第一人称 / 第三人称 方块沙盒',
+      aboutOpenSource: '本项目为开源学习项目，基于 MIT 协议开源。',
+      aboutNoCopy: '仅供学习参考，请勿直接照搬、盗用、商用。',
+      aboutSource: '如需使用代码，请注明来源。',
+      aboutDisclaimer: '本项目并非独立创作，仅为学习参考。如有侵犯任何第三方权益，请联系删除。',
+
+      toastReset: '设置已重置 · 刷新中…',
+      toastHidden: 'Hidden Area · 你发现了隐藏区域',
+      toastDevMode: 'Developer Mode · T-BOX Team',
+      toastKonami: 'Konami Code · 30 条命已到账',
+      toastRainbow: 'Rainbow Mode',
+      toastAccess: 'Access Granted · T-BOX',
+      toastVersion: VERSION_LABEL,
+      toastDevStart: 'Developer Mode · 即将进入调试',
+      toastDevice: '设备',
+      confirmReset: '确定要重置所有设置吗？',
+
+      perfWarnTitle: '⚠ 性能警告',
+      perfWarnLow: '当前设备性能评级为「低」，开启超画质或 HDR 可能严重掉帧',
+      perfWarnMid: '当前设备性能评级为「中」，开启超画质或 HDR 可能掉帧'
+    },
+    en: {
+      device: 'Device: ', version: 'Version: ',
+      deviceTouch: 'Mobile', devicePC: 'Desktop',
+      start: 'START GAME', settings: 'SETTINGS', controls: 'CONTROLS', about: 'ABOUT',
+      charEdit: 'CHARACTER', layoutEdit: 'LAYOUT',
+      subtitle: 'T-BOX · PROS SANDBOX',
+      hiddenText: 'Hidden Area · You found the hidden area',
+      settingsTitle: 'SETTINGS · 设置',
+
+      graphics: 'GRAPHICS',
+      quality: 'Quality', qualityLow: 'Low', qualityMid: 'Mid', qualityHigh: 'High', qualityUltra: 'Ultra', qualityAuto: 'Auto',
+      resolution: 'Resolution Scale',
+      aa: 'Anti-Aliasing', aaLow: 'Low', aaHigh: 'High',
+      lighting: 'Lighting', shadow: 'Shadow', shadowQ: 'Shadow Quality', fog: 'Fog', bloom: 'Bloom',
+      vignette: 'Vignette', speedLines: 'Speed Lines', hdr: 'HDR',
+
+      camera: 'CAMERA', fov: 'FOV', defaultView: 'Default View',
+      tpsDist: 'TPS Distance', tpsH: 'TPS Height',
+      camSmooth: 'Camera Smooth', viewShake: 'View Shake',
+      shakeOff: 'Off', shakeLow: 'Low', shakeMid: 'Mid', shakeHigh: 'High',
+      shakeAmount: 'Camera Shake Amount',
+
+      viewSection: 'VIEW',
+      viewSway: 'View Sway', swayAmount: 'Sway Amount',
+      runShake: 'Run Shake', runShakeAmount: 'Run Shake Amount',
+      hitShake: 'Hit Shake', hitFrame: 'Hit Frame',
+      blinkFx: 'Blink FX', slowMo: 'Slow-Mo', desatFx: 'Desaturation',
+
+      vitalsSection: 'VITALS',
+      vitalsShow: 'Vitals Monitor', vitalsSound: 'Vitals Sound',
+      heartSound: 'Heartbeat', breathSound: 'Breathing',
+
+      opSection: 'CONTROLS',
+      sens: 'Sensitivity', mouseAccel: 'Mouse Accel', invertY: 'Invert Y', joyDead: 'Joystick Deadzone',
+
+      audio: 'AUDIO', volMaster: 'Master Volume', volSfx: 'SFX Volume', sfxOn: 'SFX Toggle',
+
+      uiSection: 'INTERFACE',
+      showFps: 'Show FPS', showCoord: 'Show Coords', showStance: 'Show Stance', showCompass: 'Show Compass',
+      showCrosshair: 'Show Crosshair', showHp: 'Show HP', hurtVignette: 'Hurt Vignette',
+      chStyle: 'Crosshair Style', chCross: 'Cross', chDot: 'Dot', chCircle: 'Circle', chCrossDot: 'Cross-Dot',
+      chColor: 'Crosshair Color', chWhite: 'White', chRed: 'Red', chGreen: 'Green', chYellow: 'Yellow',
+      chBlue: 'Blue', chCyan: 'Cyan', chMagenta: 'Magenta',
+      chSize: 'Crosshair Size', chOpacity: 'Crosshair Opacity',
+      dmgStyle: 'Damage Numbers', dmgNumber: 'Number', dmgOff: 'Off', dmgSize: 'Damage Number Size',
+      hitStyle: 'Hit Marker', hitCross: 'Cross', hitDot: 'Dot', hitSize: 'Hit Marker Size',
+      hudOpacity: 'HUD Opacity', compassOpacity: 'Compass Opacity',
+
+      other: 'OTHER',
+      lang: 'Language', langZh: 'Chinese', langEn: 'English',
+      timeScale: 'Time Scale', pauseOnBack: 'Pause On Back',
+      fpsLimit: 'FPS Limit', autoSaveLayout: 'Auto Save Layout',
+      unlimited: 'Unlimited',
+
+      reset: 'RESET', close: 'CLOSE', on: 'On', off: 'Off',
+
+      controlsTitle: 'CONTROLS · 操作',
+      controlsDesktop: 'Desktop (Keyboard + Mouse)', controlsMobile: 'Mobile (Touch)',
+      ctrlMove: 'Move', ctrlSprint: 'Sprint', ctrlCrouch: 'Crouch', ctrlKnee: 'Knee',
+      ctrlJump: 'Jump', ctrlBigJump: 'Big Jump', ctrlClimb: 'Climb',
+      ctrlLMB_RMB: 'Jab / Cross', ctrlV_B: 'HookL / HookR',
+      ctrlM_Comma: 'Hammer / Palm', ctrlG_H: 'ElbowL / ElbowR',
+      ctrlQ_R_E: 'LeftKick / RightKick / Push', ctrlF: 'Block',
+      ctrlDodge: 'Dodge / Backstep', ctrlI: 'Inspect',
+      ctrlT: 'Toggle View', ctrlESC: 'Back to Menu', ctrlView: 'View',
+      ctrlJoy: 'Bottom-Left Move Zone', ctrlLook: 'Right Side Swipe', ctrlBtns: 'Attack / Action', ctrlBtns2: 'Screen Side Buttons',
+
+      aboutTitle: 'ABOUT · 关于', aboutVersion: 'Version', aboutType: 'Type',
+      aboutTypeVal: 'FPS / TPS Block Sandbox',
+      aboutOpenSource: 'Open-source project under MIT License.',
+      aboutNoCopy: 'For learning reference only. Do not copy or resell.',
+      aboutSource: 'Please credit the source if you use the code.',
+      aboutDisclaimer: 'This is not an original work. For learning only. If any rights are infringed, please contact for removal.',
+
+      toastReset: 'Settings reset · Reloading…',
+      toastHidden: 'Hidden Area · You found the hidden area',
+      toastDevMode: 'Developer Mode · T-BOX Team',
+      toastKonami: 'Konami Code · 30 lives granted',
+      toastRainbow: 'Rainbow Mode',
+      toastAccess: 'Access Granted · T-BOX',
+      toastVersion: VERSION_LABEL,
+      toastDevStart: 'Developer Mode · Entering debug',
+      toastDevice: 'Device',
+      confirmReset: 'Reset all settings?',
+
+      perfWarnTitle: '⚠ PERFORMANCE WARNING',
+      perfWarnLow: 'Device rated LOW. Ultra/HDR may drop frames heavily.',
+      perfWarnMid: 'Device rated MID. Ultra/HDR may drop frames.'
+    }
+  };
+
+  /* 粒子背景 */
+  const canvas = document.getElementById('particles');
+  const ctx = canvas.getContext('2d');
+  let W = 0, H = 0, DPR = 1;
+  function resize(){
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth; H = window.innerHeight;
+    canvas.width = W * DPR; canvas.height = H * DPR;
+    canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  const PCOUNT = isTouch ? 32 : 56;
+  const particles = [];
+  for(let i=0;i<PCOUNT;i++){
+    particles.push({
+      x: Math.random() * W, y: Math.random() * H,
+      vx: (Math.random()-0.5) * 0.22, vy: (Math.random()-0.5) * 0.22,
+      size: 2 + Math.random() * 5,
+      rot: Math.random() * Math.PI * 2,
+      vr: (Math.random()-0.5) * 0.5,
+      baseA: 0.10 + Math.random() * 0.22, a: 0.10,
+      isBlock: Math.random() > 0.5
+    });
+  }
+
+  let mouseX = -9999, mouseY = -9999;
+  window.addEventListener('mousemove', (e)=>{ mouseX = e.clientX; mouseY = e.clientY; });
+  window.addEventListener('touchmove', (e)=>{
+    if(e.touches[0]){ mouseX = e.touches[0].clientX; mouseY = e.touches[0].clientY; }
+  }, {passive:true});
+  window.addEventListener('mouseleave', ()=>{ mouseX = -9999; mouseY = -9999; });
+
+  window.addEventListener('click', (e)=>{
+    if(e.target.closest('.btn') || e.target.closest('.modal') || e.target.closest('.panel')) return;
+    for(const p of particles){
+      const dx = p.x - e.clientX, dy = p.y - e.clientY;
+      const d = Math.hypot(dx, dy);
+      if(d < 120){
+        const f = (1 - d/120) * 8;
+        p.vx += (dx / (d || 1)) * f;
+        p.vy += (dy / (d || 1)) * f;
+      }
+    }
+  });
+
+  let t = 0;
+  function draw(){
+    t += 0.016;
+    ctx.clearRect(0, 0, W, H);
+    for(const p of particles){
+      const dx = p.x - mouseX, dy = p.y - mouseY;
+      const d = Math.hypot(dx, dy);
+      let boost = 0;
+      if(d < 160) boost = (1 - d/160) * 0.5;
+      p.a = p.baseA + boost;
+
+      p.x += p.vx + Math.sin(t * 0.6 + p.y * 0.01) * 0.10;
+      p.y += p.vy + Math.cos(t * 0.5 + p.x * 0.01) * 0.10;
+      p.rot += p.vr;
+      p.vx *= 0.97; p.vy *= 0.97;
+      if(Math.abs(p.vx) < 0.22) p.vx += (Math.random()-0.5) * 0.03;
+      if(Math.abs(p.vy) < 0.22) p.vy += (Math.random()-0.5) * 0.03;
+
+      if(p.x < -20) p.x = W + 20;
+      if(p.x > W + 20) p.x = -20;
+      if(p.y < -20) p.y = H + 20;
+      if(p.y > H + 20) p.y = -20;
+
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot);
+      ctx.globalAlpha = p.a;
+      if(p.isBlock){
+        ctx.fillStyle = 'rgba(200,215,225,.9)';
+        ctx.fillRect(-p.size/2, -p.size/2, p.size, p.size);
+        ctx.strokeStyle = 'rgba(255,255,255,.4)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(-p.size/2, -p.size/2, p.size, p.size);
+      } else {
+        ctx.fillStyle = 'rgba(180,195,205,.7)';
+        ctx.beginPath();
+        ctx.arc(0, 0, p.size * 0.55, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+    requestAnimationFrame(draw);
+  }
+  draw();
+
+  /* 弹窗 */
+  function openModal(id){
+    document.querySelectorAll('.modal').forEach(m => m.classList.remove('on'));
+    document.getElementById(id).classList.add('on');
+    if(id === 'mSettings'){ updatePerfWarn(); }
+  }
+  function closeModals(){
+    document.querySelectorAll('.modal').forEach(m => m.classList.remove('on'));
+  }
+  document.querySelectorAll('[data-close]').forEach(el => {
+    el.addEventListener('click', closeModals);
+  });
+  document.querySelectorAll('.modal').forEach(m => {
+    m.addEventListener('click', (e) => { if(e.target === m) closeModals(); });
+  });
+  window.addEventListener('keydown', (e) => {
+    if(e.code === 'Escape') closeModals();
+  });
+
+  document.getElementById('btnStart').addEventListener('click', () => {
+    window.location.href = 'game.html';
+  });
+  document.getElementById('btnChar').addEventListener('click', () => {
+    window.location.href = 'char.html';
+  });
+  document.getElementById('btnLayout').addEventListener('click', () => {
+    window.location.href = 'layout.html';
+  });
+  document.getElementById('btnSettings').addEventListener('click', () => {
+    openModal('mSettings');
+  });
+  document.getElementById('btnControls').addEventListener('click', () => {
+    document.getElementById('controlsPC').style.display = isTouch ? 'none' : 'block';
+    document.getElementById('controlsTouch').style.display = isTouch ? 'block' : 'none';
+    openModal('mControls');
+  });
+  document.getElementById('btnAbout').addEventListener('click', () => {
+    openModal('mAbout');
+  });
+
+  const LS = {
+    get(k, def){ try { const v = localStorage.getItem(k); return v === null ? def : v; } catch(e){ return def; } },
+    set(k, v){ try { localStorage.setItem(k, v); } catch(e){} }
+  };
+
+  function bindSeg(id, key, def){
+    const el = document.getElementById(id);
+    if(!el) return;
+    let val = LS.get(key, def);
+    el.querySelectorAll('div').forEach(d => {
+      d.classList.toggle('on', d.dataset.v === val);
+      d.addEventListener('click', () => {
+        el.querySelectorAll('div').forEach(x => x.classList.remove('on'));
+        d.classList.add('on');
+        LS.set(key, d.dataset.v);
+        updatePerfWarn();
+      });
+    });
+  }
+
+  function bindRange(id, valId, key, def, div, suffix){
+    const el = document.getElementById(id);
+    const valEl = document.getElementById(valId);
+    if(!el) return;
+    let v = Number(LS.get(key, def));
+    el.value = v;
+    if(valEl) valEl.textContent = (v / div).toFixed(suffix === '%' ? 0 : 1) + suffix;
+    el.addEventListener('input', () => {
+      v = Number(el.value);
+      if(valEl) valEl.textContent = (v / div).toFixed(suffix === '%' ? 0 : 1) + suffix;
+      LS.set(key, v);
+    });
+  }
+
+  bindSeg('segQuality', 'tbox_quality', 'auto');
+  bindRange('resScale', 'resScaleVal', 'tbox_resScale', 100, 100, '%');
+  bindSeg('segAA', 'tbox_aa', 'off');
+  bindSeg('segLighting', 'tbox_lighting', '0');
+  bindSeg('segShadow', 'tbox_shadow', '0');
+  bindSeg('segShadowQ', 'tbox_shadowQ', 'mid');
+  bindSeg('segFog', 'tbox_fog', '1');
+  bindSeg('segBloom', 'tbox_bloom', '0');
+  bindSeg('segVignette', 'tbox_vignette', '1');
+  bindSeg('segSpeedLines', 'tbox_speedlines', '1');
+  bindSeg('segHDR', 'tbox_hdr', '0');
+  bindRange('fov', 'fovVal', 'tbox_fov', 120, 1, '');
+  bindSeg('segView', 'tbox_view', 'fps');
+  bindRange('tpsDist', 'tpsDistVal', 'tbox_tpsDist', 45, 10, '');
+  bindRange('tpsH', 'tpsHVal', 'tbox_tpsH', 16, 10, '');
+  bindSeg('segCamSmooth', 'tbox_camSmooth', '1');
+  bindSeg('segShake', 'tbox_shake', 'high');
+  bindRange('shakeAmount', 'shakeAmountVal', 'tbox_shakeAmount', 100, 100, '%');
+  bindSeg('segViewSway', 'tbox_viewSway', '1');
+  bindRange('swayAmount', 'swayAmountVal', 'tbox_swayAmount', 100, 100, '%');
+  bindSeg('segRunShake', 'tbox_runShake', '1');
+  bindRange('runShakeAmount', 'runShakeAmountVal', 'tbox_runShakeAmount', 100, 100, '%');
+  bindSeg('segHitShake', 'tbox_hitShake', '1');
+  bindSeg('segHitFrame', 'tbox_hitFrame', '1');
+  bindSeg('segBlinkFx', 'tbox_blinkFx', '1');
+  bindSeg('segSlowMo', 'tbox_slowMo', '1');
+  bindSeg('segDesatFx', 'tbox_desatFx', '1');
+  bindSeg('segVitals', 'tbox_vitals', '1');
+  bindSeg('segVitalsSound', 'tbox_vitalsSound', '1');
+  bindSeg('segHeartSound', 'tbox_heartSound', '1');
+  bindSeg('segBreathSound', 'tbox_breathSound', '1');
+  bindRange('sens', 'sensVal', 'tbox_sens', 22, 1, '');
+  bindSeg('segMouseAccel', 'tbox_mouseAccel', '0');
+  bindSeg('segInvertY', 'tbox_invertY', '0');
+  bindRange('joyDead', 'joyDeadVal', 'tbox_joyDead', 15, 100, '');
+  bindRange('volMaster', 'volMasterVal', 'tbox_volMaster', 70, 1, '');
+  bindRange('volSfx', 'volSfxVal', 'tbox_volSfx', 70, 1, '');
+  bindSeg('segSfxOn', 'tbox_sfxOn', '1');
+  bindSeg('segFps', 'tbox_showfps', 'off');
+  bindSeg('segCoord', 'tbox_showCoord', '0');
+  bindSeg('segStance', 'tbox_showStance', '1');
+  bindSeg('segCompass', 'tbox_showCompass', '1');
+  bindSeg('segShowCrosshair', 'tbox_showCrosshair', '1');
+  bindSeg('segShowHp', 'tbox_showHp', '1');
+  bindSeg('segHurtVignette', 'tbox_hurtVignette', '1');
+  bindSeg('segChStyle', 'tbox_chStyle', 'cross');
+  bindSeg('segChColor', 'tbox_chColor', 'white');
+  bindRange('chSize', 'chSizeVal', 'tbox_chSize', 100, 100, '%');
+  bindRange('chOpacity', 'chOpacityVal', 'tbox_chOpacity', 100, 100, '%');
+  bindSeg('segDmgStyle', 'tbox_dmgStyle', 'number');
+  bindRange('dmgSize', 'dmgSizeVal', 'tbox_dmgSize', 100, 100, '%');
+  bindSeg('segHitStyle', 'tbox_hitStyle', 'cross');
+  bindRange('hitSize', 'hitSizeVal', 'tbox_hitSize', 100, 100, '%');
+  bindRange('hudOpacity', 'hudOpacityVal', 'tbox_hudOpacity', 100, 100, '%');
+  bindRange('compassOpacity', 'compassOpacityVal', 'tbox_compassOpacity', 100, 100, '%');
+  bindSeg('segLang', 'tbox_lang', 'zh');
+  bindRange('timeScale', 'timeScaleVal', 'tbox_timeScale', 100, 100, '%');
+  bindSeg('segPauseOnBack', 'tbox_pauseOnBack', '0');
+  bindSeg('segFpsLimit', 'tbox_fpsLimit', '60');
+  bindSeg('segAutoSaveLayout', 'tbox_autoSaveLayout', '1');
+
+  /* 性能红字警告 */
+  function updatePerfWarn(){
+    const el = document.getElementById('perfWarn');
+    if(!el) return;
+    const q = LS.get('tbox_quality', 'auto');
+    const hdr = LS.get('tbox_hdr', '0');
+    const shadowQ = LS.get('tbox_shadowQ', 'mid');
+
+    let perf = 'high';
+    try {
+      if(window.TBOX && TBOX.Utils && TBOX.Utils.detectPerf){
+        perf = TBOX.Utils.detectPerf();
+      } else {
+        const cores = navigator.hardwareConcurrency || 4;
+        const mem = navigator.deviceMemory || 4;
+        const mobile = isTouch;
+        let score = Math.min(cores, 8) + Math.min(mem, 8) + (mobile ? 0 : 4);
+        perf = score >= 14 ? 'high' : (score >= 8 ? 'mid' : 'low');
+      }
+    } catch(e){}
+
+    const T = TEXT[LS.get('tbox_lang', 'zh')] || TEXT.zh;
+    const wantsHeavy = (q === 'ultra' || hdr === '1' || shadowQ === 'ultra');
+
+    if(wantsHeavy && perf === 'low'){
+      el.style.display = 'block';
+      el.innerHTML = '<span class="hl">' + T.perfWarnTitle + '</span><br>' + T.perfWarnLow;
+    } else if(wantsHeavy && perf === 'mid'){
+      el.style.display = 'block';
+      el.innerHTML = '<span class="hl">' + T.perfWarnTitle + '</span><br>' + T.perfWarnMid;
+    } else {
+      el.style.display = 'none';
+    }
+  }
+
+  /* 语言 */
+  function applyLang(){
+    const lang = LS.get('tbox_lang', 'zh');
+    const t = TEXT[lang] || TEXT.zh;
+
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+      const key = el.dataset.i18n;
+      if(t[key] !== undefined){
+        let textNode = null;
+        for(const node of el.childNodes){
+          if(node.nodeType === 3 && node.nodeValue.trim()){
+            textNode = node; break;
+          }
+        }
+        if(textNode) textNode.nodeValue = t[key];
+        else el.textContent = t[key];
+      }
+    });
+
+    const devEl = document.querySelector('#device b');
+    if(devEl) devEl.textContent = isTouch ? t.deviceTouch : t.devicePC;
+
+    updatePerfWarn();
+  }
+
+  const langSeg = document.getElementById('segLang');
+  if(langSeg){
+    langSeg.querySelectorAll('div').forEach(d => {
+      d.addEventListener('click', () => {
+        setTimeout(applyLang, 30);
+      });
+    });
+  }
+
+  applyLang();
+
+  /* 重置 */
+  document.getElementById('btnReset').addEventListener('click', () => {
+    const lang = LS.get('tbox_lang', 'zh');
+    const t = TEXT[lang] || TEXT.zh;
+    if(!confirm(t.confirmReset)) return;
+    const keys = [];
+    for(let i=0;i<localStorage.length;i++){
+      const k = localStorage.key(i);
+      if(k && k.startsWith('tbox_')) keys.push(k);
+    }
+    keys.forEach(k => { try { localStorage.removeItem(k); } catch(e){} });
+    toast(t.toastReset);
+    setTimeout(()=>{ location.reload(); }, 1200);
+  });
+
+  /* Toast / Flash */
+  const toastEl = document.getElementById('toast');
+  let toastTimer = null;
+  function toast(msg, ms){
+    toastEl.textContent = msg;
+    toastEl.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toastEl.classList.remove('show'), ms || 1800);
+  }
+  const flashEl = document.getElementById('flash');
+  function flash(){
+    flashEl.style.opacity = '1';
+    setTimeout(() => { flashEl.style.opacity = '0'; }, 180);
+  }
+
+  /* 彩蛋 */
+  const titleEl = document.getElementById('title');
+  const hiddenText = document.getElementById('hiddenText');
+
+  titleEl.addEventListener('click', () => {
+    titleEl.classList.remove('shake');
+    void titleEl.offsetWidth;
+    titleEl.classList.add('shake');
+  });
+
+  let titleHoldTimer = null;
+  function titleHoldStart(){
+    clearTimeout(titleHoldTimer);
+    titleHoldTimer = setTimeout(() => {
+      if(!hiddenText.classList.contains('show')){
+        hiddenText.classList.add('show');
+        toast(TEXT[LS.get('tbox_lang','zh')].toastHidden);
+      }
+    }, 3000);
+  }
+  function titleHoldEnd(){ clearTimeout(titleHoldTimer); }
+  titleEl.addEventListener('mousedown', titleHoldStart);
+  titleEl.addEventListener('mouseup', titleHoldEnd);
+  titleEl.addEventListener('mouseleave', titleHoldEnd);
+  titleEl.addEventListener('touchstart', titleHoldStart, {passive:true});
+  titleEl.addEventListener('touchend', titleHoldEnd);
+  titleEl.addEventListener('touchcancel', titleHoldEnd);
+
+  let verClicks = 0, verTimer = null;
+  document.getElementById('version').addEventListener('click', () => {
+    verClicks++;
+    clearTimeout(verTimer);
+    verTimer = setTimeout(() => { verClicks = 0; }, 1200);
+    if(verClicks >= 10){
+      verClicks = 0;
+      toast(TEXT[LS.get('tbox_lang','zh')].toastDevMode);
+    }
+  });
+
+  const konami = ['ArrowUp','ArrowUp','ArrowDown','ArrowDown','ArrowLeft','ArrowRight','ArrowLeft','ArrowRight','KeyB','KeyA'];
+  let konamiIdx = 0;
+  window.addEventListener('keydown', (e) => {
+    if(e.code === konami[konamiIdx]){
+      konamiIdx++;
+      if(konamiIdx === konami.length){
+        konamiIdx = 0;
+        toast(TEXT[LS.get('tbox_lang','zh')].toastKonami);
+        titleEl.classList.add('rainbow');
+        setTimeout(() => titleEl.classList.remove('rainbow'), 5000);
+      }
+    } else {
+      konamiIdx = 0;
+    }
+  });
+
+  let titleClicks = 0, titleClickTimer = null;
+  let rainbowActive = false;
+  titleEl.addEventListener('click', () => {
+    titleClicks++;
+    clearTimeout(titleClickTimer);
+    titleClickTimer = setTimeout(() => { titleClicks = 0; }, 2000);
+    if(titleClicks >= 20 && !rainbowActive){
+      titleClicks = 0;
+      rainbowActive = true;
+      titleEl.classList.add('rainbow');
+      toast(TEXT[LS.get('tbox_lang','zh')].toastRainbow);
+      setTimeout(() => {
+        titleEl.classList.remove('rainbow');
+        rainbowActive = false;
+      }, 4000);
+    }
+  });
+
+  document.addEventListener('dblclick', (e) => {
+    if(e.target.closest('.btn') || e.target.closest('.modal')) return;
+    flash();
+  });
+
+  let typed = '';
+  window.addEventListener('keydown', (e) => {
+    if(e.key && e.key.length === 1){
+      typed += e.key.toLowerCase();
+      if(typed.length > 10) typed = typed.slice(-10);
+      if(typed.endsWith('tbox')){
+        typed = '';
+        toast(TEXT[LS.get('tbox_lang','zh')].toastAccess);
+      }
+    }
+  });
+
+  let devHold = null;
+  const devEl = document.getElementById('device');
+  function devShow(){
+    const lang = LS.get('tbox_lang', 'zh');
+    const t = TEXT[lang] || TEXT.zh;
+    toast(t.toastDevice + '：' + (isTouch ? t.deviceTouch : t.devicePC) + ' · ' + window.innerWidth + '×' + window.innerHeight);
+  }
+  devEl.addEventListener('mousedown', () => { devHold = setTimeout(devShow, 3000); });
+  devEl.addEventListener('mouseup', () => clearTimeout(devHold));
+  devEl.addEventListener('mouseleave', () => clearTimeout(devHold));
+  devEl.addEventListener('touchstart', () => { devHold = setTimeout(devShow, 3000); }, {passive:true});
+  devEl.addEventListener('touchend', () => clearTimeout(devHold));
+  devEl.addEventListener('touchcancel', () => clearTimeout(devHold));
+
+  let verHold = null;
+  const verEl = document.getElementById('version');
+  function verShow(){
+    toast(TEXT[LS.get('tbox_lang','zh')].toastVersion, 2400);
+  }
+  verEl.addEventListener('mousedown', () => { verHold = setTimeout(verShow, 3000); });
+  verEl.addEventListener('mouseup', () => clearTimeout(verHold));
+  verEl.addEventListener('mouseleave', () => clearTimeout(verHold));
+  verEl.addEventListener('touchstart', () => { verHold = setTimeout(verShow, 3000); }, {passive:true});
+  verEl.addEventListener('touchend', () => clearTimeout(verHold));
+  verEl.addEventListener('touchcancel', () => clearTimeout(verHold));
+
+  let startHold = null;
+  const btnStart = document.getElementById('btnStart');
+  function startDev(){
+    toast(TEXT[LS.get('tbox_lang','zh')].toastDevStart, 2200);
+  }
+  btnStart.addEventListener('mousedown', () => { startHold = setTimeout(startDev, 5000); });
+  btnStart.addEventListener('mouseup', () => clearTimeout(startHold));
+  btnStart.addEventListener('mouseleave', () => clearTimeout(startHold));
+  btnStart.addEventListener('touchstart', () => { startHold = setTimeout(startDev, 5000); }, {passive:true});
+  btnStart.addEventListener('touchend', () => clearTimeout(startHold));
+  btnStart.addEventListener('touchcancel', () => clearTimeout(startHold));
+
+})();
+</script>
+</body>
+</html>

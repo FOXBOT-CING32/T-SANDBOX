@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,minimum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="format-detection" content="telephone=no">
+<meta name="theme-color" content="#0a0d12">
+<title>T-BOX · Layout Editor</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;
+    -webkit-touch-callout:none;-webkit-user-drag:none;margin:0;padding:0;}
+  html,body{height:100%;width:100%;height:100vh;height:100dvh;width:100vw;
+    overflow:hidden;background:#1a1c20;
+    font-family:"Rajdhani","Oswald",system-ui,-apple-system,sans-serif;
+    color:#e8eef3;user-select:none;-webkit-user-select:none;
+    overscroll-behavior:none;position:fixed;inset:0;
+    -webkit-text-size-adjust:100%;}
+
+  /* ★ 编辑区直接占满整个屏幕（横屏），不再固定右侧面板 */
+  #previewWrap{
+    position:fixed;inset:0;
+    background:
+      radial-gradient(ellipse at 50% 50%, #1c2028 0%, #0e1216 60%, #06080b 100%);
+    overflow:hidden;z-index:1;}
+
+  #screenLabel{
+    position:absolute;left:50%;top:14px;transform:translateX(-50%);
+    font-family:"Oswald",sans-serif;font-weight:600;
+    font-size:11px;letter-spacing:4px;color:#e8eef3;opacity:.5;
+    text-transform:uppercase;pointer-events:none;
+    text-shadow:0 1px 4px rgba(0,0,0,.6);z-index:5;}
+
+  #preview{
+    position:absolute;
+    left:0;top:0;
+    width:100%;height:100%;
+    overflow:hidden;
+  }
+
+  #screenFrame{
+    position:absolute;inset:0;
+    pointer-events:none;
+    border:1px dashed rgba(79,209,255,.35);
+    border-radius:0;}
+
+  /* 按键通用 */
+  .key{
+    position:absolute;
+    background:linear-gradient(180deg, rgba(38,48,56,.88), rgba(22,28,34,.94));
+    border:1px solid rgba(200,215,225,.28);
+    color:#d8e2ea;font-family:"Rajdhani","Oswald",sans-serif;
+    font-weight:700;font-size:10px;
+    display:flex;align-items:center;justify-content:center;
+    pointer-events:auto;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.08), 0 2px 5px rgba(0,0,0,.5);
+    text-align:center;line-height:1;text-transform:uppercase;
+    cursor:move;outline:1px dashed rgba(79,209,255,.5);
+    transition:box-shadow .15s;z-index:2;user-select:none;
+    overflow:hidden;white-space:nowrap;padding:0 2px;}
+  .key:hover{box-shadow:0 0 12px rgba(79,209,255,.5);z-index:10;}
+  .key.selected{box-shadow:0 0 16px rgba(79,209,255,.9);border-color:#4fd1ff;}
+  .key .sub{font-size:5px;font-weight:600;opacity:.6;display:block;margin-top:1px;line-height:1;}
+  .key.circle{border-radius:50%;}
+  .key.square{border-radius:6px;}
+
+  #joyBase{
+    position:absolute;
+    width:100px;height:100px;border-radius:50%;
+    border:2px solid rgba(255,255,255,.3);
+    background:radial-gradient(circle,rgba(255,255,255,.06),rgba(255,255,255,.01) 70%);
+    box-shadow:inset 0 0 24px rgba(255,255,255,.06),0 0 20px rgba(0,0,0,.4);
+    outline:1px dashed rgba(79,209,255,.5);
+    cursor:move;pointer-events:auto;z-index:3;}
+  #joyKnob{
+    position:absolute;
+    width:46px;height:46px;border-radius:50%;
+    background:radial-gradient(circle at 38% 34%,rgba(255,255,255,.85),rgba(255,255,255,.35));
+    box-shadow:0 0 16px rgba(255,255,255,.4),0 2px 8px rgba(0,0,0,.55);
+    pointer-events:auto;outline:1px dashed rgba(79,209,255,.5);
+    cursor:move;z-index:3;}
+
+  #previewHint{
+    position:absolute;left:16px;bottom:16px;
+    font-family:"Rajdhani",sans-serif;font-weight:600;
+    font-size:11px;letter-spacing:2px;color:#e8eef3;opacity:.45;
+    text-transform:uppercase;pointer-events:none;
+    text-shadow:0 1px 4px rgba(0,0,0,.6);z-index:5;}
+
+  /* ★ 顶部工具条 */
+  #editTopBar{
+    position:fixed;left:0;right:0;top:0;height:56px;
+    z-index:12;display:flex;align-items:center;justify-content:space-between;
+    padding:0 16px;
+    background:linear-gradient(180deg, rgba(10,14,20,.98), rgba(10,14,20,.88));
+    border-bottom:1px solid rgba(79,209,255,.4);
+    font-family:"Rajdhani",sans-serif;pointer-events:auto;}
+  #editTopBar .eb{
+    display:flex;align-items:center;justify-content:center;gap:4px;
+    min-width:72px;height:36px;padding:0 14px;
+    border:1px solid rgba(200,215,225,.4);border-radius:3px;
+    cursor:pointer;font-weight:600;color:#d8e2ea;
+    font-size:12px;letter-spacing:2px;text-transform:uppercase;
+    background:linear-gradient(180deg, rgba(38,48,56,.85), rgba(22,28,34,.9));
+    transition:background .15s,border-color .15s;
+    user-select:none;}
+  #editTopBar .eb:hover{background:rgba(200,215,225,.15);}
+  #editTopBar .eb.primary{border-color:rgba(79,209,255,.7);color:#4fd1ff;}
+  #editTopBar .eb.primary:hover{background:rgba(79,209,255,.15);}
+  #editTopBar .title{
+    font-family:"Oswald",sans-serif;font-weight:700;
+    font-size:14px;letter-spacing:6px;color:#fff;
+    text-transform:uppercase;}
+  #editTopBar .info{
+    font-size:11px;letter-spacing:2px;color:#4fd1ff;opacity:.8;}
+
+  /* ★ 底部工具条 */
+  #editBottomBar{
+    position:fixed;left:50%;bottom:16px;transform:translateX(-50%);
+    z-index:12;display:flex;gap:10px;align-items:center;
+    padding:8px 14px;border-radius:8px;
+    background:linear-gradient(180deg, rgba(10,14,20,.96), rgba(6,9,14,.96));
+    border:1px solid rgba(79,209,255,.4);
+    font-family:"Rajdhani",sans-serif;pointer-events:auto;}
+  #editBottomBar .eb{
+    min-width:104px;height:38px;padding:0 18px;
+    display:flex;align-items:center;justify-content:center;
+    border:1px solid rgba(200,215,225,.4);border-radius:3px;
+    cursor:pointer;font-weight:600;color:#d8e2ea;
+    font-size:12px;letter-spacing:2px;text-transform:uppercase;
+    background:linear-gradient(180deg, rgba(38,48,56,.85), rgba(22,28,34,.9));
+    transition:background .15s,border-color .15s;}
+  #editBottomBar .eb:hover{background:rgba(200,215,225,.15);}
+  #editBottomBar .eb.danger{border-color:rgba(255,80,80,.5);color:#ff6b6b;}
+  #editBottomBar .eb.danger:hover{background:rgba(255,80,80,.15);}
+
+  #toast{
+    position:fixed;left:50%;top:80px;
+    transform:translateX(-50%);
+    z-index:20;
+    padding:12px 26px;
+    background:linear-gradient(180deg, rgba(28,35,42,.95), rgba(16,20,25,.95));
+    border:1px solid rgba(79,209,255,.5);
+    border-radius:2px;
+    font-family:"Rajdhani",sans-serif;font-weight:700;
+    font-size:13px;letter-spacing:3px;color:#4fd1ff;
+    text-transform:uppercase;
+    box-shadow:0 0 30px rgba(79,209,255,.3);
+    opacity:0;transition:opacity .3s, transform .3s;
+    pointer-events:none;}
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(6px);}
+
+  /* ★ 选中信息浮窗（右下角） */
+  #selectionInfo{
+    position:fixed;right:16px;bottom:16px;z-index:13;
+    padding:10px 14px;border-radius:6px;
+    background:linear-gradient(180deg, rgba(10,14,20,.95), rgba(6,9,14,.95));
+    border:1px solid rgba(79,209,255,.4);
+    font-family:"Rajdhani",sans-serif;
+    font-size:11px;letter-spacing:1.5px;color:#c8d7e0;
+    line-height:1.7;
+    pointer-events:none;
+    min-width:180px;
+    text-transform:uppercase;}
+  #selectionInfo .v{color:#4fd1ff;font-weight:700;}
+</style>
+</head>
+<body>
+  <div id="previewWrap">
+    <div id="screenLabel">就地编辑 · 自适应</div>
+
+    <div id="preview">
+      <div id="screenFrame"></div>
+
+      <div id="joyBase"></div>
+      <div id="joyKnob"></div>
+
+      <!-- 左手次要攻击 -->
+      <div class="key circle" data-id="btnJab">LMB<span class="sub">左直</span></div>
+      <div class="key circle" data-id="btnHook">V<span class="sub">左勾</span></div>
+      <div class="key circle" data-id="btnElbowL">G<span class="sub">左肘</span></div>
+      <div class="key circle" data-id="btnHammerL">M<span class="sub">锤拳</span></div>
+
+      <!-- 右手主要攻击 -->
+      <div class="key circle" data-id="btnCross">RMB<span class="sub">右直</span></div>
+      <div class="key circle" data-id="btnHookR">B<span class="sub">右勾</span></div>
+      <div class="key circle" data-id="btnElbowR">H<span class="sub">右肘</span></div>
+      <div class="key circle" data-id="btnPalmR">,<span class="sub">掌击</span></div>
+
+      <!-- 腿部键 -->
+      <div class="key square" data-id="btnLeftKick">Q<span class="sub">左踢</span></div>
+      <div class="key square" data-id="btnRightKick">R<span class="sub">右踢</span></div>
+      <div class="key square" data-id="btnBackSpin">E<span class="sub">推人</span></div>
+      <div class="key square" data-id="btnKnee">CTRL<span class="sub">膝撞</span></div>
+
+      <!-- 功能键 -->
+      <div class="key square" data-id="btnJump">␣<span class="sub">跳</span></div>
+      <div class="key square" data-id="btnCrouch">C<span class="sub">蹲</span></div>
+      <div class="key square" data-id="btnSprint">⇧<span class="sub">冲刺</span></div>
+      <div class="key square" data-id="btnBlock">F<span class="sub">格挡</span></div>
+      <div class="key square" data-id="btnClimb">N<span class="sub">攀爬</span></div>
+
+      <!-- 视角/检视 -->
+      <div class="key square" data-id="btnView">T<span class="sub">视角</span></div>
+      <div class="key square" data-id="btnInspect">I<span class="sub">检视</span></div>
+    </div>
+
+    <div id="previewHint">拖动按钮调整位置 · 保存后游戏中生效</div>
+  </div>
+
+  <div id="editTopBar">
+    <div class="eb" id="btnBack">返回</div>
+    <div class="title">布局编辑 · 就地</div>
+    <div class="eb primary" id="btnSave">保存</div>
+  </div>
+
+  <div id="editBottomBar">
+    <div class="eb" id="btnAuto">自动布局</div>
+    <div class="eb danger" id="btnReset">重置</div>
+  </div>
+
+  <div id="selectionInfo">
+    选中：<span class="v" id="valSelected">无</span><br>
+    位置：<span class="v" id="valPos">—</span>
+  </div>
+
+  <div id="toast"></div>
+
+  <script src="layout.js"></script>
+</body>
+</html>
