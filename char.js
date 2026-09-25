@@ -1,11 +1,6 @@
 /* ============================================================
- * char.js · 角色编辑器逻辑（★ 完全重写）
- * V1.0.0
- * - 实时保存（每次修改立即存）
- * - 打开时恢复上次配置
- * - 名字同步 tbox_charName
- * - 重建节流 80ms
- * - 彻底 dispose 旧模型
+ * char.js · 角色编辑器逻辑
+ * V1.0.0 · 背部合并 + 删口罩 + 披风物理
  * ============================================================ */
 window.TBOX = window.TBOX || {};
 
@@ -30,9 +25,6 @@ TBOX.Char = {
   _lastRebuildTime: 0,
   _saveTimer: null,
 
-  /* ============================================================
-   * 初始化
-   * ============================================================ */
   init(){
     const canvas = document.getElementById('preview');
     if(!canvas) return;
@@ -53,7 +45,6 @@ TBOX.Char = {
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.05;
 
-    /* 灯光 */
     this.scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 0.9));
 
     const dir = new THREE.DirectionalLight(0xffffff, 1.6);
@@ -77,9 +68,6 @@ TBOX.Char = {
     this.characterGroup = new THREE.Group();
     this.scene.add(this.characterGroup);
 
-    /* ============================================================
-     * 加载配置（优先 IndexedDB，回退 localStorage）
-     * ============================================================ */
     const self = this;
     const loadCfg = (TBOX.Save && TBOX.Save.getCharAsync)
       ? TBOX.Save.getCharAsync()
@@ -98,16 +86,12 @@ TBOX.Char = {
     this.bindEvents();
     this.bindTabs();
     this.bindPartUploads();
-    this.bindSizeSliders();
     this.bindAccessorySegs();
 
     this.clock = performance.now();
     this.loop();
   },
 
-  /* ============================================================
-   * 房间
-   * ============================================================ */
   buildRoom(){
     const SIZE = 10;
     const H = 5;
@@ -148,11 +132,7 @@ TBOX.Char = {
     this.scene.add(grid);
   },
 
-  /* ============================================================
-   * 构建角色
-   * ============================================================ */
   buildCharacter(cfg){
-    /* 彻底清理旧模型 */
     if(this.character && this.character.root){
       this.character.root.traverse(function(o){
         if(o.isMesh){
@@ -177,16 +157,8 @@ TBOX.Char = {
     const ch = TBOX.CharBuilder.build(cfg);
     this.characterGroup.add(ch.root);
     this.character = ch;
-
-    /* 应用尺寸 */
-    if(TBOX.Utils && TBOX.Utils.applyBodyScale){
-      TBOX.Utils.applyBodyScale(ch, cfg);
-    }
   },
 
-  /* ============================================================
-   * 重建节流（80ms）
-   * ============================================================ */
   rebuildThrottled(){
     const self = this;
     const now = performance.now();
@@ -210,9 +182,6 @@ TBOX.Char = {
     this.autoSave(cfg);
   },
 
-  /* ============================================================
-   * 自动保存（防抖 500ms）
-   * ============================================================ */
   autoSave(cfg){
     const self = this;
     cfg = cfg || this.collectConfig();
@@ -220,16 +189,12 @@ TBOX.Char = {
     this._saveTimer = setTimeout(function(){
       if(TBOX.Save && TBOX.Save.setChar){
         TBOX.Save.setChar(cfg).then(function(){
-          /* 名字同步 */
           try { localStorage.setItem('tbox_charName', cfg.name || 'Player'); } catch(e){}
         }).catch(function(){});
       }
     }, 500);
   },
 
-  /* ============================================================
-   * 收集配置
-   * ============================================================ */
   collectConfig(){
     const $ = function(id){ return document.getElementById(id); };
     const val = function(id, def){
@@ -245,52 +210,36 @@ TBOX.Char = {
     };
 
     const cfg = (TBOX.Save && TBOX.Save.getChar) ? TBOX.Save.getChar() : {};
-
-    /* 基本 */
     cfg.name = val('inName', 'Player') || 'Player';
 
-    /* 14 部位贴图 + 颜色 + 模式 */
     const partFields = [
       { field: 'face',          url: 'inFaceUrl',        color: 'inFaceColor',        mode: 'segFaceMode' },
       { field: 'texTorso',      url: 'inTorsoUrl',       color: 'inTorsoColor',       mode: 'segTorsoMode' },
-      { field: 'texArmL_upper', url: 'inArmLUpperUrl',   color: 'inArmLUpperColor',   mode: null },
-      { field: 'texArmL_lower', url: 'inArmLLowerUrl',   color: 'inArmLLowerColor',   mode: null },
-      { field: 'texArmR_upper', url: 'inArmRUpperUrl',   color: 'inArmRUpperColor',   mode: null },
-      { field: 'texArmR_lower', url: 'inArmRLowerUrl',   color: 'inArmRLowerColor',   mode: null },
-      { field: 'texHandL',      url: 'inHandLUrl',       color: 'inHandLColor',       mode: null },
-      { field: 'texHandR',      url: 'inHandRUrl',       color: 'inHandRColor',       mode: null },
-      { field: 'texLegL_upper', url: 'inLegLUpperUrl',   color: 'inLegLUpperColor',   mode: null },
-      { field: 'texLegL_lower', url: 'inLegLLowerUrl',   color: 'inLegLLowerColor',   mode: null },
-      { field: 'texLegR_upper', url: 'inLegRUpperUrl',   color: 'inLegRUpperColor',   mode: null },
-      { field: 'texLegR_lower', url: 'inLegRLowerUrl',   color: 'inLegRLowerColor',   mode: null },
-      { field: 'texFootL',      url: 'inFootLUrl',       color: 'inFootLColor',       mode: null },
-      { field: 'texFootR',      url: 'inFootRUrl',       color: 'inFootRColor',       mode: null }
+      { field: 'texArmL_upper', url: 'inArmLUpperUrl',   color: 'inArmLUpperColor' },
+      { field: 'texArmL_lower', url: 'inArmLLowerUrl',   color: 'inArmLLowerColor' },
+      { field: 'texArmR_upper', url: 'inArmRUpperUrl',   color: 'inArmRUpperColor' },
+      { field: 'texArmR_lower', url: 'inArmRLowerUrl',   color: 'inArmRLowerColor' },
+      { field: 'texHandL',      url: 'inHandLUrl',       color: 'inHandLColor' },
+      { field: 'texHandR',      url: 'inHandRUrl',       color: 'inHandRColor' },
+      { field: 'texLegL_upper', url: 'inLegLUpperUrl',   color: 'inLegLUpperColor' },
+      { field: 'texLegL_lower', url: 'inLegLLowerUrl',   color: 'inLegLLowerColor' },
+      { field: 'texLegR_upper', url: 'inLegRUpperUrl',   color: 'inLegRUpperColor' },
+      { field: 'texLegR_lower', url: 'inLegRLowerUrl',   color: 'inLegRLowerColor' },
+      { field: 'texFootL',      url: 'inFootLUrl',       color: 'inFootLColor' },
+      { field: 'texFootR',      url: 'inFootRUrl',       color: 'inFootRColor' }
     ];
 
-    /* 字段名 → 颜色配置键名 */
     const colorKeyMap = {
-      face: 'colorFace',
-      texTorso: 'colorTorso',
-      texArmL_upper: 'colorArmLUpper',
-      texArmL_lower: 'colorArmLLower',
-      texArmR_upper: 'colorArmRUpper',
-      texArmR_lower: 'colorArmRLower',
-      texHandL: 'colorHandL',
-      texHandR: 'colorHandR',
-      texLegL_upper: 'colorLegLUpper',
-      texLegL_lower: 'colorLegLLower',
-      texLegR_upper: 'colorLegRUpper',
-      texLegR_lower: 'colorLegRLower',
-      texFootL: 'colorFootL',
-      texFootR: 'colorFootR'
-    };
-    const modeKeyMap = {
-      face: 'faceMode',
-      texTorso: 'modeTorso'
+      face: 'colorFace', texTorso: 'colorTorso',
+      texArmL_upper: 'colorArmLUpper', texArmL_lower: 'colorArmLLower',
+      texArmR_upper: 'colorArmRUpper', texArmR_lower: 'colorArmRLower',
+      texHandL: 'colorHandL', texHandR: 'colorHandR',
+      texLegL_upper: 'colorLegLUpper', texLegL_lower: 'colorLegLLower',
+      texLegR_upper: 'colorLegRUpper', texLegR_lower: 'colorLegRLower',
+      texFootL: 'colorFootL', texFootR: 'colorFootR'
     };
 
     partFields.forEach(function(p){
-      /* 贴图：优先用 pending（本次上传），其次 URL 输入框，最后保留原值 */
       const pending = TBOX.Char._pendingTextures[p.field];
       if(pending !== undefined){
         cfg[p.field] = pending;
@@ -298,90 +247,56 @@ TBOX.Char = {
         const url = val(p.url, '');
         if(url) cfg[p.field] = url;
       }
-
-      /* 颜色 */
       const ck = colorKeyMap[p.field];
-      if(ck){
+      if(ck && p.color){
         const c = val(p.color, '');
         if(c) cfg[ck] = c;
       }
-
-      /* 模式 */
       if(p.mode){
-        const mk = modeKeyMap[p.field];
-        if(mk) cfg[mk] = seg(p.mode, 'overlay');
+        if(p.field === 'face') cfg.faceMode = seg('segFaceMode', 'overlay');
+        if(p.field === 'texTorso') cfg.modeTorso = seg('segTorsoMode', 'overlay');
       }
     });
 
-    /* 尺寸 */
-    const sizeFields = [
-      'sizeHeight','sizeHeadRatio','sizeShoulder','sizeArmLength',
-      'sizeHandSize','sizeLegLength','sizeFootSize','sizeBodyThick'
-    ];
-    sizeFields.forEach(function(k){
-      const v = Number(val('inSize' + k.charAt(4).toUpperCase() + k.slice(5), null));
-      if(!isNaN(v) && v > 0) cfg[k] = v / 100;
-    });
-
-    /* 挂件类型 */
+    /* ★ 挂件（帽子/眼镜/背部/护膝） */
     cfg.hat = seg('segHat');
     cfg.glasses = seg('segGlasses');
-    cfg.mask = seg('segMask');
-    cfg.headphones = seg('segHeadphones');
-    cfg.earring = seg('segEarring');
-    cfg.necklace = seg('segNecklace');
-    cfg.backpack = seg('segBackpack');
-    cfg.cape = seg('segCape');
-    cfg.waistbag = seg('segWaistbag');
-    cfg.watch = seg('segWatch');
-    cfg.armband = seg('segArmband');
-    cfg.ring = seg('segRing');
+    cfg.back = seg('segBack');
     cfg.kneePad = seg('segKneePad');
 
     /* 挂件颜色 */
-    const accColorFields = [
-      ['colorHat', 'inColorHat'],
-      ['colorHatGem', 'inColorHatGem'],
-      ['colorGlassesFrame', 'inColorGlassesFrame'],
-      ['colorGlassesLens', 'inColorGlassesLens'],
-      ['colorMask', 'inColorMask'],
-      ['colorMaskEar', 'inColorMaskEar'],
-      ['colorHeadphones', 'inColorHeadphones'],
-      ['colorHeadphonesLight', 'inColorHeadphonesLight'],
-      ['colorEarring', 'inColorEarring'],
-      ['colorNecklace', 'inColorNecklace'],
-      ['colorNecklaceGem', 'inColorNecklaceGem'],
-      ['colorChoker', 'inColorChoker'],
-      ['colorWatchStrap', 'inColorWatchStrap'],
-      ['colorWatchCase', 'inColorWatchCase'],
-      ['colorArmband', 'inColorArmband'],
-      ['colorArmbandBadge', 'inColorArmbandBadge'],
-      ['colorRing', 'inColorRing'],
-      ['colorRingGem', 'inColorRingGem'],
-      ['colorBackpack', 'inColorBackpack'],
-      ['colorBackpackStrap', 'inColorBackpackStrap'],
-      ['colorBackpackZip', 'inColorBackpackZip'],
-      ['colorCape', 'inColorCape'],
-      ['colorCapeCollar', 'inColorCapeCollar'],
-      ['colorWaistbag', 'inColorWaistbag'],
-      ['colorWaistbagZip', 'inColorWaistbagZip'],
-      ['colorKneePad', 'inColorKneePad']
+    const accColors = [
+      ['colorHat', 'inColorHat', '#1e2430'],
+      ['colorHatGem', 'inColorHatGem', '#ff3366'],
+      ['colorGlassesFrame', 'inColorGlassesFrame', '#222222'],
+      ['colorGlassesLens', 'inColorGlassesLens', '#000000'],
+      ['colorBackpack', 'inColorBackpack', '#3a2a1a'],
+      ['colorBackpackStrap', 'inColorBackpackStrap', '#111111'],
+      ['colorBackpackZip', 'inColorBackpackZip', '#aaaaaa'],
+      ['colorCape', 'inColorCape', '#1a1a1a'],
+      ['colorCapeCollar', 'inColorCapeCollar', '#000000'],
+      ['colorKneePad', 'inColorKneePad', '#111111']
     ];
-    accColorFields.forEach(function(pair){
-      const c = val(pair[1], '');
-      if(c) cfg[pair[0]] = c;
+    accColors.forEach(function(p){
+      const c = val(p[1], '');
+      if(c) cfg[p[0]] = c;
     });
+
+    /* 披风图片 */
+    const capeImg = TBOX.Char._pendingTextures['capeImage'];
+    if(capeImg !== undefined){
+      cfg.capeImage = capeImg;
+    } else {
+      const url = val('inCapeUrl', '');
+      if(url) cfg.capeImage = url;
+    }
 
     return cfg;
   },
 
-  /* ============================================================
-   * 填充 UI
-   * ============================================================ */
   applyConfigToUI(cfg){
     cfg = cfg || TBOX.Save.getChar();
     const $ = function(id){ return document.getElementById(id); };
-
     const setVal = function(id, v){
       const el = $(id);
       if(el && v !== undefined && v !== null) el.value = v;
@@ -394,10 +309,8 @@ TBOX.Char = {
       });
     };
 
-    /* 基本 */
     setVal('inName', cfg.name || 'Player');
 
-    /* 14 部位 URL 输入框（只填 http/data 开头的） */
     const urlMap = [
       ['inFaceUrl', 'face'],
       ['inTorsoUrl', 'texTorso'],
@@ -421,7 +334,6 @@ TBOX.Char = {
       }
     });
 
-    /* 部位颜色 */
     const partColors = [
       ['inFaceColor', 'colorFace', '#ffcda0'],
       ['inTorsoColor', 'colorTorso', '#2b3a4a'],
@@ -442,102 +354,39 @@ TBOX.Char = {
       setVal(p[0], cfg[p[1]] || p[2]);
     });
 
-    /* 模式 */
     setSeg('segFaceMode', cfg.faceMode || 'overlay');
     setSeg('segTorsoMode', cfg.modeTorso || 'overlay');
 
-    /* 尺寸 */
-    const sizeMap = [
-      ['inSizeHeight', 'sizeHeight'],
-      ['inSizeHeadRatio', 'sizeHeadRatio'],
-      ['inSizeShoulder', 'sizeShoulder'],
-      ['inSizeArmLength', 'sizeArmLength'],
-      ['inSizeHandSize', 'sizeHandSize'],
-      ['inSizeLegLength', 'sizeLegLength'],
-      ['inSizeFootSize', 'sizeFootSize'],
-      ['inSizeBodyThick', 'sizeBodyThick']
-    ];
-    sizeMap.forEach(function(p){
-      const v = cfg[p[1]];
-      setVal(p[0], Math.round((v || 1.0) * 100));
-    });
-    this.updateSizeLabels();
-
-    /* 挂件类型 */
     setSeg('segHat', cfg.hat);
     setSeg('segGlasses', cfg.glasses);
-    setSeg('segMask', cfg.mask);
-    setSeg('segHeadphones', cfg.headphones);
-    setSeg('segEarring', cfg.earring);
-    setSeg('segNecklace', cfg.necklace);
-    setSeg('segBackpack', cfg.backpack);
-    setSeg('segCape', cfg.cape);
-    setSeg('segWaistbag', cfg.waistbag);
-    setSeg('segWatch', cfg.watch);
-    setSeg('segArmband', cfg.armband);
-    setSeg('segRing', cfg.ring);
+    setSeg('segBack', cfg.back);
     setSeg('segKneePad', cfg.kneePad);
 
-    /* 挂件颜色 */
     const accColors = [
       ['inColorHat', 'colorHat', '#1e2430'],
       ['inColorHatGem', 'colorHatGem', '#ff3366'],
       ['inColorGlassesFrame', 'colorGlassesFrame', '#222222'],
       ['inColorGlassesLens', 'colorGlassesLens', '#000000'],
-      ['inColorMask', 'colorMask', '#ffffff'],
-      ['inColorMaskEar', 'colorMaskEar', '#dddddd'],
-      ['inColorHeadphones', 'colorHeadphones', '#1a1a1a'],
-      ['inColorHeadphonesLight', 'colorHeadphonesLight', '#4fd1ff'],
-      ['inColorEarring', 'colorEarring', '#ffcc33'],
-      ['inColorNecklace', 'colorNecklace', '#ffcc33'],
-      ['inColorNecklaceGem', 'colorNecklaceGem', '#4fd1ff'],
-      ['inColorChoker', 'colorChoker', '#222222'],
-      ['inColorWatchStrap', 'colorWatchStrap', '#111111'],
-      ['inColorWatchCase', 'colorWatchCase', '#aaaaaa'],
-      ['inColorArmband', 'colorArmband', '#aa2222'],
-      ['inColorArmbandBadge', 'colorArmbandBadge', '#ffcc33'],
-      ['inColorRing', 'colorRing', '#ffcc33'],
-      ['inColorRingGem', 'colorRingGem', '#4fd1ff'],
       ['inColorBackpack', 'colorBackpack', '#3a2a1a'],
       ['inColorBackpackStrap', 'colorBackpackStrap', '#111111'],
       ['inColorBackpackZip', 'colorBackpackZip', '#aaaaaa'],
       ['inColorCape', 'colorCape', '#1a1a1a'],
       ['inColorCapeCollar', 'colorCapeCollar', '#000000'],
-      ['inColorWaistbag', 'colorWaistbag', '#3a2a1a'],
-      ['inColorWaistbagZip', 'colorWaistbagZip', '#aaaaaa'],
       ['inColorKneePad', 'colorKneePad', '#111111']
     ];
     accColors.forEach(function(p){
       setVal(p[0], cfg[p[1]] || p[2]);
     });
+
+    if(cfg.capeImage && cfg.capeImage.indexOf('http') === 0){
+      setVal('inCapeUrl', cfg.capeImage);
+    }
   },
 
-  updateSizeLabels(){
-    const pairs = [
-      ['inSizeHeight', 'valSizeHeight'],
-      ['inSizeHeadRatio', 'valSizeHeadRatio'],
-      ['inSizeShoulder', 'valSizeShoulder'],
-      ['inSizeArmLength', 'valSizeArmLength'],
-      ['inSizeHandSize', 'valSizeHandSize'],
-      ['inSizeLegLength', 'valSizeLegLength'],
-      ['inSizeFootSize', 'valSizeFootSize'],
-      ['inSizeBodyThick', 'valSizeBodyThick']
-    ];
-    pairs.forEach(function(p){
-      const el = document.getElementById(p[0]);
-      const vEl = document.getElementById(p[1]);
-      if(el && vEl) vEl.textContent = (Number(el.value) / 100).toFixed(2);
-    });
-  },
-
-  /* ============================================================
-   * 事件绑定
-   * ============================================================ */
   bindEvents(){
     const self = this;
     const $ = function(id){ return document.getElementById(id); };
 
-    /* 3D 拖拽 */
     const canvas = $('preview');
     if(canvas){
       canvas.addEventListener('mousedown', function(e){
@@ -590,14 +439,11 @@ TBOX.Char = {
       }, { passive: true });
     }
 
-    /* 所有 input/color 立即保存 */
-    const allInputs = document.querySelectorAll('#editor input, #editor select');
-    allInputs.forEach(function(el){
+    document.querySelectorAll('#editor input, #editor select').forEach(function(el){
       el.addEventListener('input', function(){ self.rebuildThrottled(); });
       el.addEventListener('change', function(){ self.rebuildThrottled(); });
     });
 
-    /* 保存 / 重置 / 返回 */
     if($('btnSave')) $('btnSave').addEventListener('click', function(){ self.save(true); });
     if($('btnReset')) $('btnReset').addEventListener('click', function(){ self.reset(); });
     if($('btnBack')) $('btnBack').addEventListener('click', function(){
@@ -619,9 +465,6 @@ TBOX.Char = {
     });
   },
 
-  /* ============================================================
-   * 贴图上传（每个部位一个文件输入 + 清除按钮）
-   * ============================================================ */
   bindPartUploads(){
     const self = this;
     const parts = [
@@ -638,7 +481,8 @@ TBOX.Char = {
       { field: 'texLegL_lower', fileId: 'inLegLLowerFile',   clearId: 'inLegLLowerClear' },
       { field: 'texLegR_lower', fileId: 'inLegRLowerFile',   clearId: 'inLegRLowerClear' },
       { field: 'texFootL',      fileId: 'inFootLFile',       clearId: 'inFootLClear' },
-      { field: 'texFootR',      fileId: 'inFootRFile',       clearId: 'inFootRClear' }
+      { field: 'texFootR',      fileId: 'inFootRFile',       clearId: 'inFootRClear' },
+      { field: 'capeImage',     fileId: 'inCapeFile',        clearId: 'inCapeClear' }
     ];
 
     parts.forEach(function(p){
@@ -650,16 +494,12 @@ TBOX.Char = {
           const file = e.target.files[0];
           if(!file) return;
 
-          /* SVG 特殊处理：先检测 */
           if(file.type === 'image/svg+xml'){
             const reader = new FileReader();
             reader.onload = function(ev){
               const text = ev.target.result;
-              /* 检查 SVG 是否有 width/height */
               if(!/width\s*=/.test(text) || !/height\s*=/.test(text)){
-                if(!confirm('此 SVG 缺少 width/height 属性，可能无法显示。仍要上传吗？')){
-                  return;
-                }
+                if(!confirm('此 SVG 缺少 width/height 属性，可能无法显示。仍要上传吗？')) return;
               }
               self._pendingTextures[p.field] = ev.target.result;
               self.rebuildThrottled();
@@ -668,7 +508,6 @@ TBOX.Char = {
             return;
           }
 
-          /* 普通图片：压缩到 512 */
           if(TBOX.Utils && TBOX.Utils.imageToDataURL){
             TBOX.Utils.imageToDataURL(file, 512).then(function(dataURL){
               self._pendingTextures[p.field] = dataURL;
@@ -684,7 +523,6 @@ TBOX.Char = {
       if(clearEl){
         clearEl.addEventListener('click', function(){
           self._pendingTextures[p.field] = '';
-          /* 同时清 URL 输入框 */
           const urlInput = document.getElementById(p.fileId.replace('File', 'Url'));
           if(urlInput) urlInput.value = '';
           self.rebuildThrottled();
@@ -693,31 +531,9 @@ TBOX.Char = {
     });
   },
 
-  bindSizeSliders(){
-    const self = this;
-    const ids = [
-      'inSizeHeight','inSizeHeadRatio','inSizeShoulder','inSizeArmLength',
-      'inSizeHandSize','inSizeLegLength','inSizeFootSize','inSizeBodyThick'
-    ];
-    ids.forEach(function(id){
-      const el = document.getElementById(id);
-      if(el){
-        el.addEventListener('input', function(){
-          self.updateSizeLabels();
-          self.rebuildThrottled();
-        });
-      }
-    });
-  },
-
   bindAccessorySegs(){
     const self = this;
-    const ids = [
-      'segHat','segGlasses','segMask','segHeadphones','segEarring',
-      'segNecklace','segBackpack','segCape','segWaistbag',
-      'segWatch','segArmband','segRing','segKneePad',
-      'segFaceMode','segTorsoMode'
-    ];
+    const ids = ['segHat','segGlasses','segBack','segKneePad','segFaceMode','segTorsoMode'];
     ids.forEach(function(id){
       const el = document.getElementById(id);
       if(!el) return;
@@ -731,9 +547,6 @@ TBOX.Char = {
     });
   },
 
-  /* ============================================================
-   * 保存 / 重置
-   * ============================================================ */
   save(showToast){
     const self = this;
     const cfg = this.collectConfig();
@@ -761,14 +574,9 @@ TBOX.Char = {
     };
     if(TBOX.Save && TBOX.Save.removeChar){
       TBOX.Save.removeChar().then(doReset).catch(doReset);
-    } else {
-      doReset();
-    }
+    } else doReset();
   },
 
-  /* ============================================================
-   * 相机 / 循环
-   * ============================================================ */
   updateCameraPos(){
     const cx = Math.sin(this.camYaw) * Math.cos(this.camPitch) * this.camDist;
     const cy = Math.sin(this.camPitch) * this.camDist + this.camTargetY;
@@ -793,6 +601,9 @@ TBOX.Char = {
       this.characterGroup.rotation.y = Math.sin(t * 0.4) * 0.05;
       if(this.character && this.character.head){
         this.character.head.rotation.y = Math.sin(t * 0.7) * 0.08;
+      }
+      if(this.character){
+        TBOX.CharBuilder.updateCape(this.character, t, 0.5, false, false);
       }
     }
 

@@ -1,6 +1,6 @@
 /* ============================================================
  * action.js · 动作系统
- * V1.0.0 · 第四阶段：角色构建交给 CharBuilder
+ * V1.0.0 · 强制使用 CharBuilder
  * ============================================================ */
 window.TBOX = window.TBOX || {};
 
@@ -11,31 +11,61 @@ TBOX.Action = {
   corpses: [],
 
   /* ============================================================
-   * 构建主角（★ 委托给 CharBuilder）
+   * ★ 构建主角（强制委托 CharBuilder）
    * ============================================================ */
   buildCharacter(){
-    if(!TBOX.CharBuilder){
-      console.warn('[TBOX.Action] CharBuilder 未加载，使用旧版构建');
-      return this._buildCharacterLegacy();
+    /* 优先从 CharBuilder 构建 */
+    if(TBOX.CharBuilder && typeof TBOX.CharBuilder.build === 'function'){
+      let cfg = {};
+      try {
+        cfg = TBOX.Save && TBOX.Save.getChar ? TBOX.Save.getChar() : {};
+        /* 兜底：如果没有配置，用默认 */
+        if(!cfg || Object.keys(cfg).length === 0){
+          cfg = TBOX.DATA.CHAR || {};
+        }
+      } catch(e){
+        console.warn('[Action] 读配置失败，用默认', e);
+        cfg = TBOX.DATA.CHAR || {};
+      }
+
+      const ch = TBOX.CharBuilder.build(cfg);
+
+      this.character = ch;
+      TBOX.Engine.character = ch;
+      TBOX.Engine.scene.add(ch.root);
+
+      /* 如果 CharBuilder 有异步贴图，这里也再拉一次（保险） */
+      if(typeof TBOX.CharBuilder.applyTextures === 'function'){
+        try { TBOX.CharBuilder.applyTextures(ch, cfg); } catch(e){}
+      }
+
+      console.log('[Action] 角色已由 CharBuilder 构建，配置字段:', Object.keys(cfg).length);
+      return ch;
     }
 
-    const cfg = TBOX.Save.getChar();
-    const ch = TBOX.CharBuilder.build(cfg);
-
-    /* 存储到 TBOX.Action 与 TBOX.Engine */
-    this.character = ch;
-    TBOX.Engine.character = ch;
-    TBOX.Engine.scene.add(ch.root);
-
-    /* 应用全身尺寸 */
-    TBOX.Utils.applyBodyScale(ch, cfg);
-
-    return ch;
+    /* 兜底：CharBuilder 没加载，用旧版 */
+    console.warn('[Action] CharBuilder 未加载，使用旧版构建');
+    return this._buildCharacterLegacy();
   },
 
-  /* 重建（配置变化时调用） */
   rebuildCharacter(){
     if(this.character && this.character.root){
+      this.character.root.traverse(function(o){
+        if(o.isMesh){
+          if(o.geometry) o.geometry.dispose();
+          if(o.material){
+            if(Array.isArray(o.material)){
+              o.material.forEach(function(m){
+                if(m.map) m.map.dispose();
+                m.dispose();
+              });
+            } else {
+              if(o.material.map) o.material.map.dispose();
+              o.material.dispose();
+            }
+          }
+        }
+      });
       TBOX.Engine.scene.remove(this.character.root);
     }
     this.character = null;
@@ -43,17 +73,15 @@ TBOX.Action = {
     return this.buildCharacter();
   },
 
-  /* 应用角色配置（挂件 + 尺寸），配置变化时调用 */
   applyCharConfig(ch, cc){
     if(!ch || !cc) return;
     if(TBOX.CharBuilder && TBOX.CharBuilder.applyAccessories){
       TBOX.CharBuilder.applyAccessories(ch, cc);
     }
-    TBOX.Utils.applyBodyScale(ch, cc);
   },
 
   /* ============================================================
-   * 兼容旧版构建（如果 CharBuilder 没加载）
+   * 兜底构建（CharBuilder 未加载时用）
    * ============================================================ */
   _buildCharacterLegacy(){
     const C = TBOX.DATA.COLOR;
@@ -65,8 +93,7 @@ TBOX.Action = {
     const pantsMat = new THREE.MeshStandardMaterial({ color: C.pants, roughness: .85 });
     const shoeMat = new THREE.MeshStandardMaterial({ color: C.shoe, roughness: .9 });
     const headMat = new THREE.MeshStandardMaterial({
-      color: C.skin, roughness: .75,
-      transparent: true, opacity: 0.0, depthWrite: false
+      color: C.skin, roughness: .75, transparent: true, opacity: 0.0, depthWrite: false
     });
 
     const head = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.22, 0.22), headMat);
@@ -86,8 +113,7 @@ TBOX.Action = {
       const upper = new THREE.Mesh(new THREE.BoxGeometry(0.10, 0.22, 0.10), shirtMat);
       upper.position.y = -0.11; arm.add(upper);
       const fore = new THREE.Group();
-      fore.position.y = -0.22;
-      fore.rotation.x = -0.10;
+      fore.position.y = -0.22; fore.rotation.x = -0.10;
       const foreMesh = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.20, 0.09), skinMat);
       foreMesh.position.y = -0.10; fore.add(foreMesh);
       const fist = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 0.12), skinMat);
@@ -508,7 +534,7 @@ TBOX.Action = {
   },
 
   /* ============================================================
-   * 主角动作（保留原逻辑，末尾加 applyBodyScale）
+   * 主角动作
    * ============================================================ */
   updatePose(dt, now, p){
     if(!this.character) return;
@@ -980,23 +1006,6 @@ TBOX.Action = {
     if(ca > 0.5 && finalY > groundY + 0.02) finalY = groundY;
 
     ch.root.position.set(p.x, finalY, p.z);
-
-    /* ★ 应用全身尺寸缩放（每帧轻微调整，确保尺寸设置生效） */
-    /* 只在尺寸变化时应用，避免每帧重复计算 —— 用缓存标记 */
-    if(ch._lastSize !== undefined){
-      const cc = TBOX.Save.getChar();
-      const sizeKey = [
-        cc.sizeHeight, cc.sizeHeadRatio, cc.sizeShoulder,
-        cc.sizeArmLength, cc.sizeHandSize, cc.sizeLegLength,
-        cc.sizeFootSize, cc.sizeBodyThick
-      ].join(',');
-      if(ch._lastSize !== sizeKey){
-        TBOX.Utils.applyBodyScale(ch, cc);
-        ch._lastSize = sizeKey;
-      }
-    } else {
-      ch._lastSize = '';
-    }
   },
 
   /* ============================================================

@@ -1,14 +1,10 @@
 /* ============================================================
  * main.js · 启动 + 玩家逻辑 + 死亡 + 尸体 + UI 拖动
  * V1.0.0
- * ★ 第二阶段第 4 次迭代：无摇杆视觉，左侧纯移动区
- * ★ 第四阶段：读取角色名字同步到 HUD
+ * ★ 第四阶段修复：披风飘动同步 + 名字同步
  * ============================================================ */
 window.TBOX = window.TBOX || {};
 
-/* ============================================================
- * 加载角色配置
- * ============================================================ */
 TBOX.loadCharConfig = function(){
   try {
     if(TBOX.Save && TBOX.Save.getChar){
@@ -72,9 +68,6 @@ TBOX.Player = {
 
 var _tmpDir = new THREE.Vector3();
 
-/* ============================================================
- * 玩家被击倒系统
- * ============================================================ */
 TBOX.PlayerKnockdown = {
   knockDown(fromX, fromZ, force){
     var p = TBOX.Player;
@@ -879,9 +872,6 @@ function bindBackOverlay(){
   if(a) a.addEventListener('click', function(){ TBOX.UI.toast('T-BOX · ' + (TBOX.DATA.VERSION_LABEL || 'V1.0.0')); });
 }
 
-/* ============================================================
- * 触摸端：左侧纯移动区（无摇杆视觉）+ 右侧视角
- * ============================================================ */
 function bindTouchControls(){
   if(!TBOX.Engine.isTouch) return;
 
@@ -983,9 +973,6 @@ function bindTouchControls(){
   }
 }
 
-/* ============================================================
- * 触摸端：按键绑定
- * ============================================================ */
 function bindTouchButtons(){
   function bindKey(id, onDown, onUp, holdRepeat){
     var el = document.getElementById(id);
@@ -1067,9 +1054,6 @@ function applyLang(){
   TBOX.UI.applyLang();
 }
 
-/* ============================================================
- * 布局编辑器（游戏内）
- * ============================================================ */
 TBOX.Layout = {
   editing: false,
   dragTarget: null,
@@ -1264,9 +1248,6 @@ TBOX.Layout = {
   }
 };
 
-/* ============================================================
- * 网络音效
- * ============================================================ */
 TBOX.NetAudio = {
   list: {
     tinnitus: 'https://cdn.pixabay.com/download/audio/2022/03/15/audio_2b1e4c1f8e.mp3',
@@ -1345,7 +1326,16 @@ function TBOX_START(){
 
     TBOX.Engine.player = TBOX.Player;
     TBOX.Engine.onUpdate = function(dt, now){ updatePlayer(dt, now); };
-    TBOX.Engine.onUpdateAction = function(dt, now){ TBOX.Action.updatePose(dt, now, TBOX.Player); };
+
+    /* ★ 动作更新 + 披风飘动 */
+    TBOX.Engine.onUpdateAction = function(dt, now){
+      TBOX.Action.updatePose(dt, now, TBOX.Player);
+      if(TBOX.CharBuilder && TBOX.CharBuilder.updateCape && TBOX.Engine.character){
+        var spd = TBOX.Player.speedFactor * TBOX.DATA.RUN_SPEED;
+        TBOX.CharBuilder.updateCape(TBOX.Engine.character, now / 1000, spd);
+      }
+    };
+
     TBOX.Engine.onUpdateEnemy = function(dt, now){ TBOX.AI.updateEnemy(dt, now); };
     TBOX.Engine.onUpdateFragments = function(rawDt){ TBOX.AI.update(rawDt, performance.now(), rawDt); };
 

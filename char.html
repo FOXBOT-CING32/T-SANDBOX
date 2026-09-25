@@ -190,7 +190,6 @@
     flex-shrink:0;}
   .file-btn:hover{background:rgba(79,209,255,.25);}
   .file-btn input{display:none;}
-
   .file-btn.danger{
     background:rgba(255,80,80,.15);
     border-color:rgba(255,80,80,.5);
@@ -224,24 +223,6 @@
   .seg div:hover{background:rgba(255,255,255,.08);}
   .seg div.on{background:rgba(79,209,255,.2);border-color:#4fd1ff;color:#fff;}
 
-  .slider-row{
-    padding:8px 0;
-    display:flex;align-items:center;gap:10px;
-    border-bottom:1px solid rgba(255,255,255,.04);}
-  .slider-row .lbl{
-    font-family:"Rajdhani",sans-serif;font-weight:600;
-    font-size:12px;letter-spacing:1.5px;
-    opacity:.8;flex-shrink:0;
-    text-transform:uppercase;
-    min-width:80px;}
-  .slider-row input[type=range]{
-    flex:1;accent-color:#4fd1ff;min-width:0;}
-  .slider-row .val{
-    font-family:"Rajdhani",sans-serif;font-weight:700;
-    font-size:12px;color:#d8e2ea;
-    width:48px;text-align:right;flex-shrink:0;}
-
-  /* 部位块 */
   .part-block{
     padding:10px 0;
     border-bottom:1px solid rgba(255,255,255,.06);}
@@ -262,7 +243,6 @@
     opacity:.6;text-transform:uppercase;
     min-width:32px;}
 
-  /* 挂件行（带颜色选择器） */
   .acc-row{
     padding:8px 0;
     border-bottom:1px solid rgba(255,255,255,.04);}
@@ -367,10 +347,9 @@
       <div class="tab" data-tab="torso">躯干</div>
       <div class="tab" data-tab="arms">手臂</div>
       <div class="tab" data-tab="legs">腿脚</div>
-      <div class="tab" data-tab="size">尺寸</div>
     </div>
 
-    <!-- ================= 头部 ================= -->
+    <!-- 头部 -->
     <div class="tab-panel on" data-panel="head">
       <div class="section">基本信息</div>
       <div class="row">
@@ -383,7 +362,7 @@
         <div class="part-row">
           <label class="file-btn">上传<input type="file" id="inFaceFile" accept="image/*,.svg"></label>
           <button class="file-btn danger" id="inFaceClear">清除</button>
-          <input type="color" class="color-pick" id="inFaceColor" value="#ffcda0" title="脸部颜色">
+          <input type="color" class="color-pick" id="inFaceColor" value="#ffcda0">
         </div>
         <div class="part-row">
           <span class="mini-lbl">URL</span>
@@ -400,7 +379,6 @@
 
       <div class="section">挂件</div>
 
-      <!-- 帽子 -->
       <div class="acc-row">
         <div class="acc-title">帽子</div>
         <div class="acc-controls">
@@ -412,13 +390,12 @@
             <div data-v="beanie">毛线</div>
           </span>
           <span class="color-lbl">主</span>
-          <input type="color" class="color-pick" id="inColorHat" value="#1e2430" title="帽子颜色">
+          <input type="color" class="color-pick" id="inColorHat" value="#1e2430">
           <span class="color-lbl">宝石</span>
-          <input type="color" class="color-pick" id="inColorHatGem" value="#ff3366" title="王冠宝石颜色">
+          <input type="color" class="color-pick" id="inColorHatGem" value="#ff3366">
         </div>
       </div>
 
-      <!-- 眼镜 -->
       <div class="acc-row">
         <div class="acc-title">眼镜</div>
         <div class="acc-controls">
@@ -429,66 +406,21 @@
             <div data-v="round">圆框</div>
           </span>
           <span class="color-lbl">框</span>
-          <input type="color" class="color-pick" id="inColorGlassesFrame" value="#222222" title="镜框颜色">
+          <input type="color" class="color-pick" id="inColorGlassesFrame" value="#222222">
           <span class="color-lbl">镜片</span>
-          <input type="color" class="color-pick" id="inColorGlassesLens" value="#000000" title="镜片颜色">
-        </div>
-      </div>
-
-      <!-- 口罩 -->
-      <div class="acc-row">
-        <div class="acc-title">口罩</div>
-        <div class="acc-controls">
-          <span class="seg" id="segMask" style="flex:1;">
-            <div data-v="none">无</div>
-            <div data-v="surgical">医用</div>
-            <div data-v="n95">N95</div>
-            <div data-v="bandana">头巾</div>
-          </span>
-          <span class="color-lbl">主</span>
-          <input type="color" class="color-pick" id="inColorMask" value="#ffffff" title="口罩颜色">
-          <span class="color-lbl">耳带</span>
-          <input type="color" class="color-pick" id="inColorMaskEar" value="#dddddd" title="耳带颜色">
-        </div>
-      </div>
-
-      <!-- 耳机 -->
-      <div class="acc-row">
-        <div class="acc-title">耳机</div>
-        <div class="acc-controls">
-          <span class="seg" id="segHeadphones" style="flex:1;">
-            <div data-v="none">无</div>
-            <div data-v="headset">耳麦</div>
-          </span>
-          <span class="color-lbl">主</span>
-          <input type="color" class="color-pick" id="inColorHeadphones" value="#1a1a1a" title="耳机颜色">
-          <span class="color-lbl">灯</span>
-          <input type="color" class="color-pick" id="inColorHeadphonesLight" value="#4fd1ff" title="指示灯颜色">
-        </div>
-      </div>
-
-      <!-- 耳环 -->
-      <div class="acc-row">
-        <div class="acc-title">耳环</div>
-        <div class="acc-controls">
-          <span class="seg" id="segEarring" style="flex:1;">
-            <div data-v="none">无</div>
-            <div data-v="gold">金耳环</div>
-          </span>
-          <span class="color-lbl">色</span>
-          <input type="color" class="color-pick" id="inColorEarring" value="#ffcc33" title="耳环颜色">
+          <input type="color" class="color-pick" id="inColorGlassesLens" value="#000000">
         </div>
       </div>
     </div>
 
-    <!-- ================= 躯干 ================= -->
+    <!-- 躯干 -->
     <div class="tab-panel" data-panel="torso">
       <div class="section">躯干贴图</div>
       <div class="part-block">
         <div class="part-row">
           <label class="file-btn">上传<input type="file" id="inTorsoFile" accept="image/*,.svg"></label>
           <button class="file-btn danger" id="inTorsoClear">清除</button>
-          <input type="color" class="color-pick" id="inTorsoColor" value="#2b3a4a" title="躯干颜色">
+          <input type="color" class="color-pick" id="inTorsoColor" value="#2b3a4a">
         </div>
         <div class="part-row">
           <span class="mini-lbl">URL</span>
@@ -503,77 +435,52 @@
         </div>
       </div>
 
-      <div class="section">挂件</div>
+      <div class="section">背部（二选一）</div>
 
-      <!-- 项链 -->
       <div class="acc-row">
-        <div class="acc-title">项链</div>
+        <div class="acc-title">选择</div>
         <div class="acc-controls">
-          <span class="seg" id="segNecklace" style="flex:1;">
+          <span class="seg" id="segBack" style="flex:1;">
             <div data-v="none">无</div>
-            <div data-v="chain">金链</div>
-            <div data-v="pendant">吊坠</div>
-            <div data-v="choker">颈圈</div>
+            <div data-v="bag_small">背包小</div>
+            <div data-v="bag_large">背包大</div>
+            <div data-v="cape">披风</div>
           </span>
-          <span class="color-lbl">链</span>
-          <input type="color" class="color-pick" id="inColorNecklace" value="#ffcc33" title="链颜色">
-          <span class="color-lbl">宝</span>
-          <input type="color" class="color-pick" id="inColorNecklaceGem" value="#4fd1ff" title="宝石颜色">
-          <span class="color-lbl">圈</span>
-          <input type="color" class="color-pick" id="inColorChoker" value="#222222" title="颈圈颜色">
         </div>
       </div>
 
-      <!-- 背包 -->
       <div class="acc-row">
-        <div class="acc-title">背包</div>
+        <div class="acc-title">背包颜色</div>
         <div class="acc-controls">
-          <span class="seg" id="segBackpack" style="flex:1;">
-            <div data-v="none">无</div>
-            <div data-v="small">小</div>
-            <div data-v="large">大</div>
-          </span>
           <span class="color-lbl">主</span>
-          <input type="color" class="color-pick" id="inColorBackpack" value="#3a2a1a" title="背包颜色">
+          <input type="color" class="color-pick" id="inColorBackpack" value="#3a2a1a">
           <span class="color-lbl">带</span>
-          <input type="color" class="color-pick" id="inColorBackpackStrap" value="#111111" title="背带颜色">
+          <input type="color" class="color-pick" id="inColorBackpackStrap" value="#111111">
           <span class="color-lbl">拉</span>
-          <input type="color" class="color-pick" id="inColorBackpackZip" value="#aaaaaa" title="拉链颜色">
+          <input type="color" class="color-pick" id="inColorBackpackZip" value="#aaaaaa">
         </div>
       </div>
 
-      <!-- 披风 -->
       <div class="acc-row">
-        <div class="acc-title">披风</div>
+        <div class="acc-title">披风颜色</div>
         <div class="acc-controls">
-          <span class="seg" id="segCape" style="flex:1;">
-            <div data-v="none">无</div>
-            <div data-v="black">黑披风</div>
-          </span>
           <span class="color-lbl">主</span>
-          <input type="color" class="color-pick" id="inColorCape" value="#1a1a1a" title="披风颜色">
+          <input type="color" class="color-pick" id="inColorCape" value="#1a1a1a">
           <span class="color-lbl">领</span>
-          <input type="color" class="color-pick" id="inColorCapeCollar" value="#000000" title="领口颜色">
+          <input type="color" class="color-pick" id="inColorCapeCollar" value="#000000">
         </div>
-      </div>
-
-      <!-- 腰包 -->
-      <div class="acc-row">
-        <div class="acc-title">腰包</div>
-        <div class="acc-controls">
-          <span class="seg" id="segWaistbag" style="flex:1;">
-            <div data-v="none">无</div>
-            <div data-v="brown">腰包</div>
-          </span>
-          <span class="color-lbl">主</span>
-          <input type="color" class="color-pick" id="inColorWaistbag" value="#3a2a1a" title="腰包颜色">
-          <span class="color-lbl">拉</span>
-          <input type="color" class="color-pick" id="inColorWaistbagZip" value="#aaaaaa" title="拉链颜色">
+        <div class="part-row" style="margin-top:6px;">
+          <label class="file-btn">上传披风图<input type="file" id="inCapeFile" accept="image/*,.svg"></label>
+          <button class="file-btn danger" id="inCapeClear">清除</button>
+        </div>
+        <div class="part-row">
+          <span class="mini-lbl">URL</span>
+          <input type="text" class="input" id="inCapeUrl" placeholder="https://...">
         </div>
       </div>
     </div>
 
-    <!-- ================= 手臂 ================= -->
+    <!-- 手臂 -->
     <div class="tab-panel" data-panel="arms">
       <div class="section">上臂</div>
       <div class="part-block">
@@ -652,57 +559,9 @@
           <input type="text" class="input" id="inHandRUrl" placeholder="https://...">
         </div>
       </div>
-
-      <div class="section">挂件</div>
-
-      <!-- 手表 -->
-      <div class="acc-row">
-        <div class="acc-title">手表</div>
-        <div class="acc-controls">
-          <span class="seg" id="segWatch" style="flex:1;">
-            <div data-v="none">无</div>
-            <div data-v="watch">普通</div>
-            <div data-v="band">腕带</div>
-          </span>
-          <span class="color-lbl">带</span>
-          <input type="color" class="color-pick" id="inColorWatchStrap" value="#111111" title="表带颜色">
-          <span class="color-lbl">盘</span>
-          <input type="color" class="color-pick" id="inColorWatchCase" value="#aaaaaa" title="表盘颜色">
-        </div>
-      </div>
-
-      <!-- 腕带 -->
-      <div class="acc-row">
-        <div class="acc-title">腕带</div>
-        <div class="acc-controls">
-          <span class="seg" id="segArmband" style="flex:1;">
-            <div data-v="none">无</div>
-            <div data-v="red">红腕带</div>
-          </span>
-          <span class="color-lbl">带</span>
-          <input type="color" class="color-pick" id="inColorArmband" value="#aa2222" title="腕带颜色">
-          <span class="color-lbl">章</span>
-          <input type="color" class="color-pick" id="inColorArmbandBadge" value="#ffcc33" title="徽章颜色">
-        </div>
-      </div>
-
-      <!-- 戒指 -->
-      <div class="acc-row">
-        <div class="acc-title">戒指</div>
-        <div class="acc-controls">
-          <span class="seg" id="segRing" style="flex:1;">
-            <div data-v="none">无</div>
-            <div data-v="gem">宝石戒</div>
-          </span>
-          <span class="color-lbl">环</span>
-          <input type="color" class="color-pick" id="inColorRing" value="#ffcc33" title="戒指颜色">
-          <span class="color-lbl">宝</span>
-          <input type="color" class="color-pick" id="inColorRingGem" value="#4fd1ff" title="宝石颜色">
-        </div>
-      </div>
     </div>
 
-    <!-- ================= 腿脚 ================= -->
+    <!-- 腿脚 -->
     <div class="tab-panel" data-panel="legs">
       <div class="section">大腿</div>
       <div class="part-block">
@@ -784,61 +643,15 @@
 
       <div class="section">护具</div>
       <div class="acc-row">
-        <div class="acc-title">护膝</div>
+        <div class="acc-title">护膝（左右各一）</div>
         <div class="acc-controls">
           <span class="seg" id="segKneePad" style="flex:1;">
             <div data-v="none">无</div>
             <div data-v="black">黑护膝</div>
           </span>
           <span class="color-lbl">色</span>
-          <input type="color" class="color-pick" id="inColorKneePad" value="#111111" title="护膝颜色">
+          <input type="color" class="color-pick" id="inColorKneePad" value="#111111">
         </div>
-      </div>
-    </div>
-
-    <!-- ================= 尺寸 ================= -->
-    <div class="tab-panel" data-panel="size">
-      <div class="section">全身尺寸</div>
-
-      <div class="slider-row">
-        <span class="lbl">整体身高</span>
-        <input type="range" id="inSizeHeight" min="80" max="130" value="100">
-        <span class="val" id="valSizeHeight">1.00</span>
-      </div>
-      <div class="slider-row">
-        <span class="lbl">头身比</span>
-        <input type="range" id="inSizeHeadRatio" min="70" max="150" value="100">
-        <span class="val" id="valSizeHeadRatio">1.00</span>
-      </div>
-      <div class="slider-row">
-        <span class="lbl">肩宽</span>
-        <input type="range" id="inSizeShoulder" min="70" max="140" value="100">
-        <span class="val" id="valSizeShoulder">1.00</span>
-      </div>
-      <div class="slider-row">
-        <span class="lbl">臂长</span>
-        <input type="range" id="inSizeArmLength" min="70" max="130" value="100">
-        <span class="val" id="valSizeArmLength">1.00</span>
-      </div>
-      <div class="slider-row">
-        <span class="lbl">手部大小</span>
-        <input type="range" id="inSizeHandSize" min="70" max="150" value="100">
-        <span class="val" id="valSizeHandSize">1.00</span>
-      </div>
-      <div class="slider-row">
-        <span class="lbl">腿长</span>
-        <input type="range" id="inSizeLegLength" min="70" max="130" value="100">
-        <span class="val" id="valSizeLegLength">1.00</span>
-      </div>
-      <div class="slider-row">
-        <span class="lbl">脚部大小</span>
-        <input type="range" id="inSizeFootSize" min="70" max="150" value="100">
-        <span class="val" id="valSizeFootSize">1.00</span>
-      </div>
-      <div class="slider-row">
-        <span class="lbl">体厚</span>
-        <input type="range" id="inSizeBodyThick" min="70" max="150" value="100">
-        <span class="val" id="valSizeBodyThick">1.00</span>
       </div>
     </div>
 

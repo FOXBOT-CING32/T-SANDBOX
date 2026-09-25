@@ -29,7 +29,8 @@
     -webkit-touch-callout:none;-webkit-user-drag:none;}
   html,body{
     margin:0;height:100%;width:100%;
-    height:100vh;height:100dvh;width:100vw;
+    height:100vh;height:100dvh;
+    width:100vw;
     overflow:hidden;background:#0a0d12;
     font-family:"Rajdhani","Oswald",system-ui,-apple-system,sans-serif;
     touch-action:none;user-select:none;-webkit-user-select:none;
@@ -38,9 +39,8 @@
     -webkit-text-size-adjust:100%;}
   #app{position:fixed;inset:0;overflow:hidden;}
 
-  /* ==================== HUD ==================== */
   #crosshair{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);
-    pointer-events:none;z-index:5;}
+    pointer-events:none;z-index:5;transition:transform .08s;}
 
   #hitmarker{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%) scale(.6);
     pointer-events:none;z-index:6;opacity:0;}
@@ -52,21 +52,27 @@
   }
   #hitmarker line{stroke:#fff;stroke-width:2.6;stroke-linecap:round;}
 
-  #compass{position:fixed;left:50%;top:6px;transform:translateX(-50%);
-    width:min(560px, 55vw);height:30px;
-    pointer-events:none;z-index:5;overflow:hidden;
+  #compass{position:fixed;left:50%;top:10px;transform:translateX(-50%);
+    width:min(600px, 74vw);height:36px;
+    pointer-events:none;z-index:5;
+    overflow:hidden;
     mask-image:linear-gradient(90deg,transparent 0%,#000 10%,#000 90%,transparent 100%);
     -webkit-mask-image:linear-gradient(90deg,transparent 0%,#000 10%,#000 90%,transparent 100%);}
   #compassStrip{position:absolute;top:0;left:0;height:100%;will-change:transform;}
-  #compassStrip .dir{position:absolute;top:0;height:100%;
+  #compassStrip .dir{
+    position:absolute;top:0;height:100%;
     display:flex;flex-direction:column;align-items:center;justify-content:center;
     color:#fff;font-family:"Oswald",sans-serif;font-weight:700;
     font-size:10px;letter-spacing:.5px;
     text-shadow:0 1px 3px rgba(0,0,0,.9);
     transform:translateX(-50%);white-space:nowrap;}
-  #compassStrip .dir.main{font-size:14px;}
-  #compassStrip .dir .num{font-family:"Rajdhani",sans-serif;font-size:8px;font-weight:600;opacity:.65;}
-  #compassStrip .tick{position:absolute;top:12px;width:1px;height:4px;background:rgba(255,255,255,.45);transform:translateX(-50%);}
+  #compassStrip .dir.main{font-size:14px;font-weight:700;}
+  #compassStrip .dir .num{
+    font-family:"Rajdhani",sans-serif;font-size:8px;font-weight:600;
+    opacity:.65;margin-top:0;letter-spacing:0;}
+  #compassStrip .tick{
+    position:absolute;top:12px;width:1px;height:4px;
+    background:rgba(255,255,255,.45);transform:translateX(-50%);}
   #compassStrip .tick.big{top:8px;height:9px;background:rgba(255,255,255,.95);width:2px;}
   #compassStrip .tick.mid{top:10px;height:6px;background:rgba(255,255,255,.7);}
   #compassCenter{position:absolute;left:50%;top:0;transform:translateX(-50%);
@@ -75,7 +81,7 @@
     border-right:6px solid transparent;
     border-top:9px solid #ffcc33;
     filter:drop-shadow(0 0 3px rgba(255,204,51,.9));}
-  #compassDeg{position:fixed;left:50%;top:34px;transform:translateX(-50%);
+  #compassDeg{position:fixed;left:50%;top:44px;transform:translateX(-50%);
     color:#ffcc33;font-size:11px;letter-spacing:1px;
     font-family:"Rajdhani",sans-serif;font-weight:700;
     text-shadow:0 1px 3px rgba(0,0,0,.9);
@@ -85,41 +91,56 @@
     letter-spacing:1.5px;pointer-events:none;z-index:5;
     text-shadow:0 1px 4px rgba(0,0,0,.9);font-variant-numeric:tabular-nums;
     font-weight:700;opacity:.85;font-family:"Rajdhani",sans-serif;}
+
   #coordHud{position:fixed;left:14px;top:30px;color:#fff;font-size:10px;
     letter-spacing:1.5px;pointer-events:none;z-index:5;opacity:.7;
     text-shadow:0 1px 4px rgba(0,0,0,.9);
     font-family:"Rajdhani",sans-serif;font-weight:600;display:none;}
+
   #modeHud{position:fixed;left:14px;top:48px;color:#fff;font-size:10px;
     letter-spacing:2px;pointer-events:none;z-index:5;opacity:.7;
     text-shadow:0 1px 4px rgba(0,0,0,.9);
     font-family:"Rajdhani",sans-serif;font-weight:600;}
+
   #stanceHud{position:fixed;left:14px;bottom:14px;color:#fff;font-size:10px;
     letter-spacing:2px;pointer-events:none;z-index:5;opacity:.7;
     text-shadow:0 1px 4px rgba(0,0,0,.9);
     font-family:"Rajdhani",sans-serif;font-weight:600;}
-  #playerName{position:fixed;left:14px;bottom:36px;
+
+  #playerName{
+    position:fixed;left:14px;bottom:36px;
     color:#c8d7e0;font-size:11px;letter-spacing:3px;
     pointer-events:none;z-index:5;opacity:.7;
     text-shadow:0 1px 4px rgba(0,0,0,.9);
     font-family:"Oswald",sans-serif;font-weight:600;
     text-transform:uppercase;}
+
   #pcHud{position:fixed;right:14px;bottom:14px;color:#fff;font-size:10px;
     letter-spacing:1.5px;pointer-events:none;z-index:4;opacity:.55;
     text-shadow:0 1px 4px rgba(0,0,0,.9);line-height:1.7;text-align:right;
     font-family:"Rajdhani",sans-serif;}
 
   #vignette{position:fixed;inset:0;pointer-events:none;z-index:3;
-    background:radial-gradient(ellipse at 50% 50%,
-      rgba(0,0,0,0) 22%, rgba(0,0,0,.28) 48%,
-      rgba(0,0,0,.62) 75%, rgba(0,0,0,.92) 100%);
+    background:
+      radial-gradient(ellipse at 50% 50%,
+        rgba(0,0,0,0) 22%,
+        rgba(0,0,0,.28) 48%,
+        rgba(0,0,0,.62) 75%,
+        rgba(0,0,0,.92) 100%);
     mix-blend-mode:multiply;transition:opacity .3s;}
+
   #hurtVignette{position:fixed;inset:0;pointer-events:none;z-index:4;
-    background:radial-gradient(ellipse at 50% 50%,
-      rgba(255,0,40,0) 25%, rgba(255,0,40,.22) 60%,
-      rgba(200,0,30,.55) 85%, rgba(140,0,20,.95) 100%);
+    background:
+      radial-gradient(ellipse at 50% 50%,
+        rgba(255,0,40,0) 25%,
+        rgba(255,0,40,.22) 60%,
+        rgba(200,0,30,.55) 85%,
+        rgba(140,0,20,.95) 100%);
     opacity:0;transition:opacity .35s ease-out;}
+
   #blinkOverlay{position:fixed;inset:0;pointer-events:none;z-index:9;
     opacity:0;transition:opacity .12s linear;}
+
   #hitFrame{position:fixed;inset:0;pointer-events:none;z-index:9;opacity:0;}
   #hitFrame::before,#hitFrame::after{
     content:"";position:absolute;left:0;right:0;height:0%;
@@ -128,14 +149,18 @@
   #hitFrame::before{top:0;}
   #hitFrame::after{bottom:0;transform:scaleY(-1);}
   #hitFrame.on::before,#hitFrame.on::after{height:10%;}
-  #speedLines{position:fixed;inset:0;pointer-events:none;z-index:3;opacity:0;
-    transition:opacity .15s;
-    background:radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0) 40%, rgba(255,255,255,.06) 70%, rgba(255,255,255,0) 100%);
+
+  #speedLines{position:fixed;inset:0;pointer-events:none;z-index:3;
+    opacity:0;transition:opacity .15s;
+    background:
+      radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0) 40%, rgba(255,255,255,.06) 70%, rgba(255,255,255,0) 100%);
     mix-blend-mode:screen;}
+
   #dmgLayer{position:fixed;inset:0;pointer-events:none;z-index:6;overflow:hidden;}
   .dmg{position:absolute;color:#fff;font-weight:900;font-style:italic;
     font-family:"Oswald","Impact",sans-serif;letter-spacing:.5px;
     transform:translate(-50%,-50%);will-change:transform,opacity;}
+
   #armorLayer{position:fixed;inset:0;pointer-events:none;z-index:6;overflow:hidden;}
   .armor{position:absolute;width:30px;height:30px;transform:translate(-50%,-50%);opacity:0;
     background:
@@ -146,39 +171,57 @@
     0%{opacity:1;transform:translate(-50%,-50%) scale(.4) rotate(0deg);}
     100%{opacity:0;transform:translate(-50%,-50%) scale(1.6) rotate(40deg);}
   }
+
   #hitFlash{position:fixed;inset:0;pointer-events:none;z-index:4;
     background:radial-gradient(circle at 50% 50%,rgba(255,120,160,0) 45%,rgba(255,70,130,.4) 100%);
     opacity:0;transition:opacity .12s ease-out;}
+
   #clashFlash{position:fixed;inset:0;pointer-events:none;z-index:8;
     background:radial-gradient(circle at 50% 60%,rgba(255,255,255,.95),rgba(255,220,120,0) 60%);
     opacity:0;transition:opacity .08s;}
 
-  #killFeed{position:fixed;left:14px;top:70px;z-index:8;
+  #killFeed{
+    position:fixed;left:14px;top:104px;z-index:8;
     display:flex;flex-direction:column;gap:4px;
-    pointer-events:none;font-family:"Rajdhani",sans-serif;max-width:280px;}
-  .kill-row{display:flex;align-items:center;gap:6px;
+    pointer-events:none;
+    font-family:"Rajdhani",sans-serif;
+    max-width:280px;}
+  .kill-row{
+    display:flex;align-items:center;gap:6px;
     padding:4px 10px;
     background:linear-gradient(90deg, rgba(10,14,20,.85), rgba(10,14,20,.35));
     border-left:2px solid rgba(200,215,225,.6);
     border-radius:2px;
     font-size:11px;letter-spacing:1.5px;
     text-shadow:0 1px 3px rgba(0,0,0,.9);
-    opacity:0;transform:translateX(-12px);
-    transition:opacity .25s, transform .25s;white-space:nowrap;}
+    opacity:0;
+    transform:translateX(-12px);
+    transition:opacity .25s, transform .25s;
+    white-space:nowrap;}
   .kill-row.show{opacity:1;transform:translateX(0);}
   .kill-row .killer{color:#4fd1ff;font-weight:700;}
   .kill-row .arrow{color:#ffcc33;font-weight:700;}
   .kill-row .victim{color:#ff3b5c;font-weight:700;}
 
-  #healthHUD{position:fixed;right:8px;top:44px;z-index:6;
-    display:flex;align-items:flex-start;gap:8px;padding:6px 8px;
-    background:transparent;border:none;box-shadow:none;
-    pointer-events:none;opacity:.9;
-    transform:scale(.75);transform-origin:top right;}
+  #healthHUD{
+    position:fixed;right:8px;top:56px;z-index:6;
+    display:flex;align-items:flex-start;gap:8px;
+    padding:6px 8px;
+    background:transparent;
+    border:none;
+    box-shadow:none;
+    backdrop-filter:none;-webkit-backdrop-filter:none;
+    pointer-events:none;
+    opacity:.9;
+    transform:scale(.8);
+    transform-origin:top right;
+  }
   #bodySvg{width:46px;height:70px;flex-shrink:0;}
   #bodySvg .body-part{transition:fill .3s;}
-  #healthInfo{display:flex;flex-direction:column;gap:2px;
-    font-family:"Rajdhani",sans-serif;min-width:96px;}
+  #healthInfo{
+    display:flex;flex-direction:column;gap:2px;
+    font-family:"Rajdhani",sans-serif;
+    min-width:96px;}
   #healthInfo .row{display:flex;justify-content:space-between;gap:6px;font-size:10px;letter-spacing:1px;}
   #healthInfo .lbl{opacity:.7;font-weight:600;}
   #healthInfo .val{font-weight:700;font-variant-numeric:tabular-nums;}
@@ -186,27 +229,47 @@
   #staminaVal{color:#4fd1ff;}
   #statusText{font-size:9px;letter-spacing:2px;opacity:.85;font-weight:600;text-align:right;margin-top:1px;}
 
-  #vitalsHud{position:fixed;right:8px;top:116px;z-index:6;
+  #vitalsHud{
+    position:fixed;right:8px;top:132px;z-index:6;
     display:flex;flex-direction:column;gap:6px;
-    pointer-events:none;opacity:.92;
+    pointer-events:none;
+    opacity:.92;
     font-family:"Rajdhani", monospace;
-    transform:scale(.75);transform-origin:top right;}
-  .vital{background:transparent;border:none;box-shadow:none;padding:0;width:130px;}
-  .vital-head{display:flex;align-items:center;gap:5px;font-size:10px;letter-spacing:1px;margin-bottom:1px;}
-  .vital-icon{width:12px;height:12px;flex-shrink:0;display:block;
-    stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+    transform:scale(.8);
+    transform-origin:top right;
+  }
+  .vital{
+    background:transparent;border:none;box-shadow:none;padding:0;width:130px;
+  }
+  .vital-head{
+    display:flex;align-items:center;gap:5px;
+    font-size:10px;letter-spacing:1px;
+    margin-bottom:1px;
+  }
+  .vital-icon{
+    width:12px;height:12px;flex-shrink:0;display:block;
+    stroke:currentColor;fill:none;stroke-width:2;
+    stroke-linecap:round;stroke-linejoin:round;
+  }
   .vital.heart{color:#ff3b5c;}
   .vital.lung{color:#ffffff;}
-  .vital-val{font-weight:700;font-variant-numeric:tabular-nums;font-size:11px;}
+  .vital-val{
+    font-weight:700;font-variant-numeric:tabular-nums;font-size:11px;
+  }
   .vital-unit{opacity:.6;font-size:9px;margin-left:1px;}
   .vital-wave{display:block;width:100%;height:16px;opacity:.95;}
-  .vital-wave path{fill:none;stroke-width:1.4;stroke-linejoin:round;stroke-linecap:round;}
+  .vital-wave path{fill:none;stroke-width:1.4;
+    stroke-linejoin:round;stroke-linecap:round;}
   .vital.heart .vital-wave path{stroke:#ff3b5c;}
   .vital.lung .vital-wave path{stroke:#ffffff;}
   .vital.heart.critical{animation:vitalBlink .6s infinite;}
-  @keyframes vitalBlink{0%,100%{opacity:1;}50%{opacity:.35;}}
+  @keyframes vitalBlink{
+    0%,100%{opacity:1;}
+    50%{opacity:.35;}
+  }
 
-  #btnBackGame{position:fixed;left:14px;top:66px;z-index:8;
+  #btnBackGame{
+    position:fixed;left:14px;top:70px;z-index:8;
     display:none;align-items:center;justify-content:center;gap:6px;
     height:28px;padding:0 6px;
     background:transparent;border:none;outline:none;border-radius:0;
@@ -214,186 +277,194 @@
     color:#d8e2ea;
     font-family:"Rajdhani",sans-serif;font-weight:600;
     font-size:11px;letter-spacing:2px;text-transform:uppercase;
-    opacity:.35;transition:opacity .2s, color .2s;
+    opacity:.35;
+    transition:opacity .2s, color .2s;
     text-shadow:0 1px 4px rgba(0,0,0,.9);
     box-shadow:none;user-select:none;}
-  #btnBackGame:hover{opacity:1;color:#fff;}
+  #btnBackGame:hover{opacity:1;color:#fff;background:transparent;border:none;box-shadow:none;}
+  #btnBackGame:active{opacity:.7;background:transparent;}
   #btnBackGame svg{width:12px;height:12px;opacity:.9;}
+  #btnBackGame span{font-size:11px;letter-spacing:2px;}
 
-  /* ==================== 触摸端 UI ==================== */
   #touchUI{position:fixed;inset:0;z-index:7;pointer-events:none;display:none;}
   #touchUI.on{display:block;}
 
-  /* ★ 视角滑动区：右侧 55% 宽，全屏高度 */
-  #lookZone{
-    position:absolute;right:0;top:0;
-    width:55%;height:100%;
-    pointer-events:auto;
-    z-index:1;
-  }
+  #joyZone{position:absolute;left:0;bottom:0;width:42%;height:50%;pointer-events:auto;}
 
-  /* ★ 左侧移动区：无视觉，纯触摸区 */
-  #joyZone{
-    position:absolute;left:0;bottom:0;
-    width:32%;height:70%;
-    pointer-events:auto;
-    z-index:2;
-  }
+  #lookZone{position:absolute;right:0;top:0;width:56%;height:100%;pointer-events:auto;}
 
-  /* ============================================================
-   * ★ 极简按钮风格：白圈 + 字母（exegear / Winlator 风格）
-   * ============================================================ */
   .key{
     position:absolute;
-    background: transparent;
-    border: 2px solid rgba(255,255,255,.75);
-    color: #fff;
+    border-radius:8px;
+    background:linear-gradient(180deg, rgba(38,48,56,.9), rgba(22,28,34,.95));
+    border:1px solid rgba(200,215,225,.3);
+    color:#d8e2ea;
     font-family:"Rajdhani","Oswald",sans-serif;
-    font-weight: 700;
-    font-size: 14px;
-    letter-spacing: 1px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    pointer-events: auto;
-    text-align: center;
-    line-height: 1;
-    text-transform: uppercase;
-    z-index: 3;
-    user-select: none;
-    box-shadow: 0 0 8px rgba(0,0,0,.35);
-    transition: background .06s, transform .06s;
-    padding: 0;
-    overflow: hidden;
-    white-space: nowrap;
-  }
+    font-weight:700;font-size:10px;
+    display:flex;align-items:center;justify-content:center;
+    pointer-events:auto;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.08), 0 2px 5px rgba(0,0,0,.5);
+    transition:transform .06s, background .06s;
+    text-align:center;line-height:1;text-transform:uppercase;
+    z-index:2;}
   .key.press{
-    background: rgba(255,255,255,.28);
-    transform: scale(.92);
-  }
-  .key.circle{ border-radius: 50%; }
-  .key.square{ border-radius: 6px; }
-  .key .sub{ display: none; }  /* ★ 不再显示小字 */
+    transform:scale(.9);
+    background:linear-gradient(180deg, rgba(200,215,225,.85), rgba(160,180,195,.9));
+    color:#0b0e14;border-color:#e8eef3;}
+  .key .sub{font-size:5px;font-weight:600;opacity:.55;display:block;margin-top:1px;}
 
-  /* ============================================================
-   * 左手次要攻击（4 个，圆形，一竖排）
-   * ============================================================ */
-  #btnJab      {left: 22%; bottom: 2%;  width: 6.5%; height: 12%;}
-  #btnHook     {left: 22%; bottom: 16%; width: 6.5%; height: 12%;}
-  #btnElbowL   {left: 22%; bottom: 30%; width: 6.5%; height: 12%;}
-  #btnHammerL  {left: 22%; bottom: 44%; width: 6.5%; height: 12%;}
+  /* 左手次要攻击（4 个，圆形） */
+  #btnJab       {left: 22%; bottom: 2%;  width: 6.5%; height: 12%; border-radius: 50%;}
+  #btnHook      {left: 22%; bottom: 16%; width: 6.5%; height: 12%; border-radius: 50%;}
+  #btnElbowL    {left: 22%; bottom: 30%; width: 6.5%; height: 12%; border-radius: 50%;}
+  #btnHammerL   {left: 22%; bottom: 44%; width: 6.5%; height: 12%; border-radius: 50%;}
 
-  /* ============================================================
-   * 右手主要攻击（4 个，圆形，一竖排，靠最右）
-   * ============================================================ */
-  #btnCross    {right: 2%; bottom: 2%;  width: 6.5%; height: 12%;}
-  #btnHookR    {right: 2%; bottom: 16%; width: 6.5%; height: 12%;}
-  #btnElbowR   {right: 2%; bottom: 30%; width: 6.5%; height: 12%;}
-  #btnPalmR    {right: 2%; bottom: 44%; width: 6.5%; height: 12%;}
+  /* 右手主要攻击（4 个，圆形） */
+  #btnCross     {right: 2%; bottom: 2%;  width: 6.5%; height: 12%; border-radius: 50%;}
+  #btnHookR     {right: 2%; bottom: 16%; width: 6.5%; height: 12%; border-radius: 50%;}
+  #btnElbowR    {right: 2%; bottom: 30%; width: 6.5%; height: 12%; border-radius: 50%;}
+  #btnPalmR     {right: 2%; bottom: 44%; width: 6.5%; height: 12%; border-radius: 50%;}
 
-  /* ============================================================
-   * 腿部键 + 视角/检视（中下区，方形）
-   * 推人+膝撞在下面，视角+检视在上面
-   * ============================================================ */
-  #btnLeftKick {left: 36%; bottom: 2%;  width: 5.5%; height: 10%;}
-  #btnRightKick{left: 44%; bottom: 2%;  width: 5.5%; height: 10%;}
-  #btnBackSpin {left: 36%; bottom: 14%; width: 5.5%; height: 10%;}
-  #btnKnee     {left: 44%; bottom: 14%; width: 5.5%; height: 10%;}
-  #btnView     {left: 36%; bottom: 26%; width: 5.5%; height: 10%;}
-  #btnInspect  {left: 44%; bottom: 26%; width: 5.5%; height: 10%;}
+  /* 腿部键 + 视角/检视（中下区，方形） */
+  #btnLeftKick  {left: 36%; bottom: 2%;  width: 5.5%; height: 10%; border-radius: 6px;}
+  #btnRightKick {left: 44%; bottom: 2%;  width: 5.5%; height: 10%; border-radius: 6px;}
+  #btnBackSpin  {left: 36%; bottom: 14%; width: 5.5%; height: 10%; border-radius: 6px;}
+  #btnKnee      {left: 44%; bottom: 14%; width: 5.5%; height: 10%; border-radius: 6px;}
+  #btnView      {left: 36%; bottom: 26%; width: 5.5%; height: 10%; border-radius: 6px;}
+  #btnInspect   {left: 44%; bottom: 26%; width: 5.5%; height: 10%; border-radius: 6px;}
 
-  /* ============================================================
-   * 功能键（5 个，方形，右侧竖排，靠最右内缩一列）
-   * ============================================================ */
-  #btnJump     {right: 10%; bottom: 2%;  width: 5.5%; height: 10%;}
-  #btnCrouch   {right: 10%; bottom: 14%; width: 5.5%; height: 10%;}
-  #btnSprint   {right: 10%; bottom: 26%; width: 5.5%; height: 10%;}
-  #btnBlock    {right: 10%; bottom: 38%; width: 5.5%; height: 10%;}
-  #btnClimb    {right: 10%; bottom: 50%; width: 5.5%; height: 10%;}
+  /* 功能键（5 个，方形，右侧竖排） */
+  #btnJump      {right: 10%; bottom: 2%;  width: 5.5%; height: 10%; border-radius: 6px;}
+  #btnCrouch    {right: 10%; bottom: 14%; width: 5.5%; height: 10%; border-radius: 6px;}
+  #btnSprint    {right: 10%; bottom: 26%; width: 5.5%; height: 10%; border-radius: 6px;}
+  #btnBlock     {right: 10%; bottom: 38%; width: 5.5%; height: 10%; border-radius: 6px;}
+  #btnClimb     {right: 10%; bottom: 50%; width: 5.5%; height: 10%; border-radius: 6px;}
 
-  /* ==================== 编辑布局工具条 ==================== */
-  #editTopBar{position:fixed;left:0;right:0;top:0;height:52px;
+  #editTopBar{
+    position:fixed;left:0;right:0;top:0;height:52px;
     z-index:12;display:none;align-items:center;justify-content:space-between;
     padding:0 12px;
     background:linear-gradient(180deg, rgba(10,14,20,.96), rgba(10,14,20,.85));
     border-bottom:1px solid rgba(79,209,255,.4);
     font-family:"Rajdhani",sans-serif;pointer-events:auto;}
   #editTopBar.on{display:flex;}
-  #editTopBar .eb{display:flex;align-items:center;justify-content:center;gap:4px;
+  #editTopBar .eb{
+    display:flex;align-items:center;justify-content:center;gap:4px;
     min-width:64px;height:34px;padding:0 12px;
     border:1px solid rgba(200,215,225,.4);border-radius:3px;
     cursor:pointer;font-weight:600;color:#d8e2ea;
     font-size:12px;letter-spacing:2px;text-transform:uppercase;
-    background:linear-gradient(180deg, rgba(38,48,56,.85), rgba(22,28,34,.9));}
+    background:linear-gradient(180deg, rgba(38,48,56,.85), rgba(22,28,34,.9));
+    transition:background .15s,border-color .15s;}
+  #editTopBar .eb:hover{background:rgba(200,215,225,.15);}
   #editTopBar .eb.primary{border-color:rgba(79,209,255,.7);color:#4fd1ff;}
   #editTopBar .title{font-family:"Oswald",sans-serif;font-weight:700;font-size:14px;letter-spacing:6px;color:#fff;}
 
-  #editBottomBar{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);
+  #editBottomBar{
+    position:fixed;left:50%;bottom:18px;transform:translateX(-50%);
     z-index:12;display:none;gap:10px;align-items:center;
     padding:8px 12px;border-radius:8px;
     background:linear-gradient(180deg, rgba(10,14,20,.95), rgba(6,9,14,.95));
     border:1px solid rgba(79,209,255,.4);
     font-family:"Rajdhani",sans-serif;pointer-events:auto;}
   #editBottomBar.on{display:flex;}
-  #editBottomBar .eb{min-width:96px;height:36px;padding:0 16px;
+  #editBottomBar .eb{
+    min-width:96px;height:36px;padding:0 16px;
     display:flex;align-items:center;justify-content:center;
     border:1px solid rgba(200,215,225,.4);border-radius:3px;
     cursor:pointer;font-weight:600;color:#d8e2ea;
     font-size:12px;letter-spacing:2px;text-transform:uppercase;
-    background:linear-gradient(180deg, rgba(38,48,56,.85), rgba(22,28,34,.9));}
+    background:linear-gradient(180deg, rgba(38,48,56,.85), rgba(22,28,34,.9));
+    transition:background .15s,border-color .15s;}
+  #editBottomBar .eb:hover{background:rgba(200,215,225,.15);}
   #editBottomBar .eb.danger{border-color:rgba(255,80,80,.5);color:#ff6b6b;}
+  #editBottomBar .eb.danger:hover{background:rgba(255,80,80,.15);}
 
-  #editHint{position:fixed;left:50%;top:64px;transform:translateX(-50%);
-    z-index:12;display:none;padding:6px 14px;border-radius:4px;
+  #editHint{
+    position:fixed;left:50%;top:64px;transform:translateX(-50%);
+    z-index:12;display:none;
+    padding:6px 14px;border-radius:4px;
     background:rgba(10,14,20,.85);
     border:1px solid rgba(79,209,255,.3);
     font-family:"Rajdhani",sans-serif;font-size:11px;letter-spacing:2px;
-    color:#4fd1ff;text-transform:uppercase;pointer-events:none;}
+    color:#4fd1ff;text-transform:uppercase;
+    pointer-events:none;}
   #editHint.on{display:block;}
 
-  /* ==================== 返回覆盖层 ==================== */
-  #backOverlay{position:fixed;inset:0;z-index:15;
+  #backOverlay{
+    position:fixed;inset:0;z-index:15;
     display:none;flex-direction:column;
     background:rgba(6,8,11,.55);
     backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
     pointer-events:auto;}
   #backOverlay.on{display:flex;}
-  #backHeader{flex:1;display:flex;flex-direction:column;
+  #backHeader{
+    flex:1;display:flex;flex-direction:column;
     align-items:center;justify-content:center;gap:14px;}
-  #backTitle{font-family:"Oswald",sans-serif;font-weight:700;
-    font-size:clamp(48px, 10vw, 96px);letter-spacing:14px;color:#fff;
+  #backTitle{
+    font-family:"Oswald",sans-serif;font-weight:700;
+    font-size:clamp(48px, 10vw, 96px);
+    letter-spacing:14px;color:#fff;
     text-shadow:0 0 30px rgba(200,215,225,.4), 0 4px 24px rgba(0,0,0,.9);}
-  #backVersion{font-family:"Rajdhani",sans-serif;font-weight:600;
-    font-size:14px;letter-spacing:6px;color:#c8d7e0;opacity:.7;}
-  #backBtns{display:flex;gap:14px;justify-content:center;padding:32px 20px;flex-wrap:nowrap;}
-  .back-btn{padding:14px 24px;min-width:120px;
+  #backVersion{
+    font-family:"Rajdhani",sans-serif;font-weight:600;
+    font-size:14px;letter-spacing:6px;
+    color:#c8d7e0;opacity:.7;}
+  #backBtns{
+    display:flex;gap:14px;justify-content:center;
+    padding:32px 20px;flex-wrap:nowrap;}
+  .back-btn{
+    padding:14px 24px;min-width:120px;
     background:linear-gradient(180deg, rgba(38,48,56,.85), rgba(22,28,34,.9));
-    border:1px solid rgba(200,215,225,.3);border-radius:2px;color:#d8e2ea;
+    border:1px solid rgba(200,215,225,.3);
+    border-radius:2px;color:#d8e2ea;
     font-family:"Oswald",sans-serif;font-weight:600;
-    font-size:13px;letter-spacing:3px;cursor:pointer;text-transform:uppercase;
-    text-align:center;transition:all .15s;
+    font-size:13px;letter-spacing:3px;
+    cursor:pointer;text-transform:uppercase;
+    text-align:center;
+    transition:all .15s;
     box-shadow:inset 0 1px 0 rgba(255,255,255,.06), 0 2px 8px rgba(0,0,0,.5);}
-  .back-btn:hover{background:linear-gradient(180deg, rgba(58,72,82,.95), rgba(34,42,50,.95));
-    border-color:rgba(200,215,225,.85);}
+  .back-btn:hover{
+    background:linear-gradient(180deg, rgba(58,72,82,.95), rgba(34,42,50,.95));
+    border-color:rgba(200,215,225,.85);
+    box-shadow:0 0 20px rgba(200,215,225,.2);}
 
   #toast{position:fixed;left:50%;top:12%;transform:translateX(-50%);
-    z-index:30;pointer-events:none;padding:12px 26px;
+    z-index:30;pointer-events:none;
+    padding:12px 26px;
     background:linear-gradient(180deg, rgba(28,35,42,.95), rgba(16,20,25,.95));
     border:1px solid rgba(200,215,225,.4);border-radius:2px;
     font-family:"Rajdhani",sans-serif;font-weight:600;
-    font-size:13px;letter-spacing:3px;color:#ffffff;text-transform:uppercase;
+    font-size:13px;letter-spacing:3px;color:#ffffff;
+    text-transform:uppercase;
     box-shadow:0 0 30px rgba(0,0,0,.6);
     opacity:0;transition:opacity .3s, transform .3s;}
   #toast.show{opacity:1;transform:translateX(-50%) translateY(6px);}
 
-  #deathScreen{position:fixed;inset:0;z-index:25;
+  #deathScreen{
+    position:fixed;inset:0;z-index:25;
     background:#000;opacity:0;pointer-events:none;
-    transition:opacity .3s ease-out;display:none;}
+    transition:opacity .3s ease-out;
+    display:none;}
 
   #loading{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
     background:#05070b;color:#fff;z-index:40;font-size:13px;letter-spacing:4px;
     flex-direction:column;gap:10px;font-family:"Oswald",sans-serif;}
   #loading .err{color:#ff6b7a;font-size:12px;max-width:80%;text-align:center;line-height:1.6;}
+
+  @media (max-width: 640px){
+    #backBtns{gap:6px;padding:20px 10px;}
+    .back-btn{padding:11px 8px;min-width:0;flex:1;font-size:10px;letter-spacing:1.5px;}
+    #healthHUD{right:4px;top:52px;transform:scale(.68);}
+    #vitalsHud{right:4px;top:118px;transform:scale(.68);}
+    #bodySvg{width:40px;height:60px;}
+    #editTopBar .title{font-size:12px;letter-spacing:4px;}
+    #editTopBar .eb{min-width:56px;padding:0 8px;font-size:10px;letter-spacing:1px;}
+    #editBottomBar .eb{min-width:80px;padding:0 10px;font-size:10px;letter-spacing:1px;}
+    #btnBackGame{top:60px;font-size:10px;}
+    #killFeed{top:90px;max-width:220px;}
+    .kill-row{font-size:10px;padding:3px 8px;}
+  }
 </style>
 </head>
 <body>
@@ -438,6 +509,7 @@
 <div id="coordHud">X: 0.0 Y: 0.0 Z: 0.0</div>
 <div id="modeHud">CAM · FPS</div>
 <div id="stanceHud">STANCE · IDLE</div>
+
 <div id="playerName">PLAYER</div>
 
 <div id="pcHud">
@@ -516,31 +588,33 @@
   <div id="joyZone"></div>
 
   <!-- 左手次要攻击 -->
-  <div class="key circle" id="btnJab">LMB</div>
-  <div class="key circle" id="btnHook">V</div>
-  <div class="key circle" id="btnElbowL">G</div>
-  <div class="key circle" id="btnHammerL">M</div>
+  <div class="key" id="btnJab">LMB<span class="sub" data-i18n="btnJab">左直</span></div>
+  <div class="key" id="btnHook">V<span class="sub" data-i18n="btnHook">左勾</span></div>
+  <div class="key" id="btnElbowL">G<span class="sub" data-i18n="btnElbowL">左肘</span></div>
+  <div class="key" id="btnHammerL">M<span class="sub" data-i18n="btnHammer">锤拳</span></div>
 
   <!-- 右手主要攻击 -->
-  <div class="key circle" id="btnCross">RMB</div>
-  <div class="key circle" id="btnHookR">B</div>
-  <div class="key circle" id="btnElbowR">H</div>
-  <div class="key circle" id="btnPalmR">,</div>
+  <div class="key" id="btnCross">RMB<span class="sub" data-i18n="btnCross">右直</span></div>
+  <div class="key" id="btnHookR">B<span class="sub" data-i18n="btnHookR">右勾</span></div>
+  <div class="key" id="btnElbowR">H<span class="sub" data-i18n="btnElbowR">右肘</span></div>
+  <div class="key" id="btnPalmR">,<span class="sub" data-i18n="btnPalm">掌击</span></div>
 
-  <!-- 腿部键 + 视角/检视（中下区） -->
-  <div class="key square" id="btnLeftKick">Q</div>
-  <div class="key square" id="btnRightKick">R</div>
-  <div class="key square" id="btnBackSpin">E</div>
-  <div class="key square" id="btnKnee">CTRL</div>
-  <div class="key square" id="btnView">T</div>
-  <div class="key square" id="btnInspect">I</div>
+  <!-- 腿部键 -->
+  <div class="key" id="btnLeftKick">Q<span class="sub" data-i18n="btnLeftKick">左踢</span></div>
+  <div class="key" id="btnRightKick">R<span class="sub" data-i18n="btnRightKick">右踢</span></div>
+  <div class="key" id="btnBackSpin">E<span class="sub" data-i18n="btnBackSpin">推人</span></div>
+  <div class="key" id="btnKnee">CTRL<span class="sub" data-i18n="btnKnee">膝撞</span></div>
 
-  <!-- 功能键（右侧） -->
-  <div class="key square" id="btnJump">␣</div>
-  <div class="key square" id="btnCrouch">C</div>
-  <div class="key square" id="btnSprint">⇧</div>
-  <div class="key square" id="btnBlock">F</div>
-  <div class="key square" id="btnClimb">N</div>
+  <!-- 视角/检视 -->
+  <div class="key" id="btnView">T<span class="sub" data-i18n="btnView">视角</span></div>
+  <div class="key" id="btnInspect">I<span class="sub" data-i18n="btnInspect">检视</span></div>
+
+  <!-- 功能键 -->
+  <div class="key" id="btnJump">␣<span class="sub" data-i18n="btnJump">跳</span></div>
+  <div class="key" id="btnCrouch">C<span class="sub" data-i18n="btnCrouch">蹲</span></div>
+  <div class="key" id="btnSprint">⇧<span class="sub" data-i18n="btnSprint">冲刺</span></div>
+  <div class="key" id="btnBlock">F<span class="sub" data-i18n="btnBlock">格挡</span></div>
+  <div class="key" id="btnClimb">N<span class="sub" data-i18n="btnClimb">攀爬</span></div>
 </div>
 
 <div id="editTopBar">
@@ -594,6 +668,7 @@ window.RGBELoader = RGBELoader;
 
 window.dispatchEvent(new Event('tbox:three-ready'));
 
+/* ★ 关键：charBuilder.js 必须在 action.js 之前 */
 const scripts = [
   'version.js',
   'data.js',
@@ -603,6 +678,7 @@ const scripts = [
   'audio.js',
   'ui.js',
   'engine.js',
+  'charBuilder.js',
   'action.js',
   'ai.js',
   'main.js'
