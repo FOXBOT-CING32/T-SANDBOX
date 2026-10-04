@@ -1,0 +1,849 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,minimum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="format-detection" content="telephone=no">
+<title>T-BOX · 游戏</title>
+
+<script>
+  (function(){
+    if (typeof window.VConsole === 'undefined') {
+      window.VConsole = function(){
+        this.destroy = function(){}; this.hide = function(){};
+        this.show = function(){}; this.log = function(){};
+        this.info = function(){}; this.warn = function(){};
+        this.error = function(){}; this.debug = function(){};
+      };
+    }
+    if (typeof window.vConsole === 'undefined') window.vConsole = window.VConsole;
+  })();
+</script>
+
+<script src="version.js"></script>
+
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* 全局去黑框 */
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;
+    -webkit-touch-callout:none;-webkit-user-drag:none;}
+
+  button, input, select, textarea,
+  .btn, .key, .back-btn, .eb,
+  #btnBackGame, #backResume, #backCharEdit,
+  #backSettings, #backControls, #backAbout, #backQuit,
+  #settingsClose, #editBack, #editDone, #editAuto, #editReset{
+    outline:none !important;
+    -webkit-appearance:none;
+    appearance:none;
+    -webkit-tap-highlight-color:transparent;
+  }
+  button:focus, input:focus, select:focus, textarea:focus,
+  .btn:focus, .key:focus, .back-btn:focus, .eb:focus{
+    outline:none !important;
+  }
+
+  html,body{
+    margin:0;height:100%;width:100%;
+    height:100vh;height:100dvh;
+    width:100vw;
+    overflow:hidden;background:#0a0d12;
+    font-family:"Rajdhani","Oswald",system-ui,-apple-system,sans-serif;
+    touch-action:none;user-select:none;-webkit-user-select:none;
+    color:#fff;position:fixed;
+    overscroll-behavior:none;
+    -webkit-text-size-adjust:100%;}
+  #app{position:fixed;inset:0;overflow:hidden;}
+
+  /* 准星 */
+  #crosshair{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);
+    pointer-events:none;z-index:5;transition:transform .08s;}
+  #crosshair.hit line, #crosshair.hit circle{stroke:#4fff7a;fill:#4fff7a;}
+  #crosshair.kill line, #crosshair.kill circle{stroke:#ff3b5c;fill:#ff3b5c;}
+
+  /* 命中标记 */
+  #hitmarker{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%) scale(.6);
+    pointer-events:none;z-index:6;opacity:0;}
+  #hitmarker.show{animation:hm .22s ease-out forwards;}
+  @keyframes hm{
+    0%{opacity:1;transform:translate(-50%,-50%) scale(.6);}
+    60%{opacity:1;transform:translate(-50%,-50%) scale(1.15);}
+    100%{opacity:0;transform:translate(-50%,-50%) scale(1.35);}
+  }
+
+  /* 罗盘 */
+  #compass{
+    position:fixed;
+    left:50%;top:10px;
+    transform:translateX(-50%);
+    width:min(680px, 72vw);
+    height:30px;
+    pointer-events:none;
+    z-index:5;
+    overflow:hidden;
+    background:linear-gradient(180deg,
+      rgba(0,0,0,0) 0%,
+      rgba(0,0,0,.35) 18%,
+      rgba(0,0,0,.45) 50%,
+      rgba(0,0,0,.35) 82%,
+      rgba(0,0,0,0) 100%);
+    border-top:1px solid rgba(255,255,255,.22);
+    border-bottom:1px solid rgba(255,255,255,.22);
+    mask-image:linear-gradient(90deg,transparent 0%,#000 8%,#000 92%,transparent 100%);
+    -webkit-mask-image:linear-gradient(90deg,transparent 0%,#000 8%,#000 92%,transparent 100%);
+    transition:top .2s, bottom .2s;
+  }
+  #compassStrip{
+    position:absolute;top:0;left:0;height:100%;
+    will-change:transform;
+  }
+  #compassStrip .dir{
+    position:absolute;top:0;height:100%;
+    display:flex;flex-direction:column;
+    align-items:center;justify-content:center;
+    color:#ffffff;
+    font-family:"Oswald",sans-serif;
+    font-weight:700;
+    font-size:12px;
+    letter-spacing:.5px;
+    text-shadow:0 1px 3px rgba(0,0,0,.95);
+    transform:translateX(-50%);
+    white-space:nowrap;
+    line-height:1;
+  }
+  #compassStrip .dir .num{
+    font-family:"Rajdhani",sans-serif;
+    font-size:8px;font-weight:600;
+    opacity:.55;
+    margin-top:1px;
+    letter-spacing:0;
+  }
+  #compassStrip .dir.sub{
+    font-size:8px;
+    font-weight:600;
+    color:rgba(255,255,255,.6);
+    letter-spacing:0;
+  }
+  #compassStrip .dir.sub .num{ display:none; }
+  #compassStrip .tick{
+    position:absolute;
+    top:50%;
+    width:1px;height:4px;
+    background:rgba(255,255,255,.35);
+    transform:translate(-50%,-50%);
+    margin-top:8px;
+  }
+  #compassStrip .tick.big{
+    width:2px;height:7px;
+    background:rgba(255,255,255,.85);
+    margin-top:7px;
+  }
+  #compassStrip .tick.mid{
+    height:5px;
+    background:rgba(255,255,255,.55);
+    margin-top:8px;
+  }
+  #compassCenter{
+    position:absolute;
+    left:50%;top:0;
+    transform:translateX(-50%);
+    width:1px;height:100%;
+    background:linear-gradient(180deg,
+      rgba(255,255,255,0) 0%,
+      rgba(255,255,255,.9) 30%,
+      rgba(255,255,255,.9) 70%,
+      rgba(255,255,255,0) 100%);
+    z-index:2;
+    box-shadow:0 0 4px rgba(255,255,255,.6);
+  }
+  #compassDeg{
+    position:fixed;
+    left:50%;top:42px;
+    transform:translateX(-50%);
+    color:rgba(255,255,255,.85);
+    font-size:10px;
+    letter-spacing:1.5px;
+    font-family:"Rajdhani",sans-serif;
+    font-weight:700;
+    text-shadow:0 1px 3px rgba(0,0,0,.95);
+    pointer-events:none;
+    z-index:5;
+    font-variant-numeric:tabular-nums;
+    transition:top .2s, bottom .2s;
+  }
+
+  /* 帧率 */
+  #fps{position:fixed;left:14px;top:12px;color:#fff;font-size:11px;
+    letter-spacing:1.5px;pointer-events:none;z-index:5;
+    text-shadow:0 1px 4px rgba(0,0,0,.9);font-variant-numeric:tabular-nums;
+    font-weight:700;opacity:.85;font-family:"Rajdhani",sans-serif;
+    transition:font-size .2s, left .2s, top .2s, right .2s, bottom .2s, transform .2s;}
+
+  #coordHud{position:fixed;left:14px;top:30px;color:#fff;font-size:10px;
+    letter-spacing:1.5px;pointer-events:none;z-index:5;opacity:.7;
+    text-shadow:0 1px 4px rgba(0,0,0,.9);
+    font-family:"Rajdhani",sans-serif;font-weight:600;display:none;}
+
+  #modeHud{position:fixed;left:14px;top:48px;color:#fff;font-size:10px;
+    letter-spacing:2px;pointer-events:none;z-index:5;opacity:.7;
+    text-shadow:0 1px 4px rgba(0,0,0,.9);
+    font-family:"Rajdhani",sans-serif;font-weight:600;}
+
+  #stanceHud{position:fixed;left:14px;bottom:14px;color:#fff;font-size:10px;
+    letter-spacing:2px;pointer-events:none;z-index:5;opacity:.7;
+    text-shadow:0 1px 4px rgba(0,0,0,.9);
+    font-family:"Rajdhani",sans-serif;font-weight:600;}
+
+  #playerName{
+    position:fixed;left:14px;bottom:36px;
+    color:#c8d7e0;font-size:11px;letter-spacing:3px;
+    pointer-events:none;z-index:5;opacity:.7;
+    text-shadow:0 1px 4px rgba(0,0,0,.9);
+    font-family:"Oswald",sans-serif;font-weight:600;
+    text-transform:uppercase;}
+
+  #pcHud{position:fixed;right:14px;bottom:14px;color:#fff;font-size:10px;
+    letter-spacing:1.5px;pointer-events:none;z-index:4;opacity:.55;
+    text-shadow:0 1px 4px rgba(0,0,0,.9);line-height:1.7;text-align:right;
+    font-family:"Rajdhani",sans-serif;}
+
+  #vignette{position:fixed;inset:0;pointer-events:none;z-index:3;
+    background:
+      radial-gradient(ellipse at 50% 50%,
+        rgba(0,0,0,0) 22%,
+        rgba(0,0,0,.28) 48%,
+        rgba(0,0,0,.62) 75%,
+        rgba(0,0,0,.92) 100%);
+    mix-blend-mode:multiply;transition:opacity .3s;}
+
+  #hurtVignette{position:fixed;inset:0;pointer-events:none;z-index:4;
+    background:
+      radial-gradient(ellipse at 50% 50%,
+        rgba(255,0,40,0) 25%,
+        rgba(255,0,40,.22) 60%,
+        rgba(200,0,30,.55) 85%,
+        rgba(140,0,20,.95) 100%);
+    opacity:0;transition:opacity .35s ease-out;}
+
+  #blinkOverlay{position:fixed;inset:0;pointer-events:none;z-index:9;
+    opacity:0;transition:opacity .12s linear;}
+
+  #hitFrame{position:fixed;inset:0;pointer-events:none;z-index:9;opacity:0;}
+  #hitFrame::before,#hitFrame::after{
+    content:"";position:absolute;left:0;right:0;height:0%;
+    background:linear-gradient(180deg, rgba(0,0,0,.9), rgba(0,0,0,0));
+    transition:height .08s ease-out;}
+  #hitFrame::before{top:0;}
+  #hitFrame::after{bottom:0;transform:scaleY(-1);}
+  #hitFrame.on::before,#hitFrame.on::after{height:10%;}
+
+  #speedLines{position:fixed;inset:0;pointer-events:none;z-index:3;
+    opacity:0;transition:opacity .15s;
+    background:
+      radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0) 40%, rgba(255,255,255,.06) 70%, rgba(255,255,255,0) 100%);
+    mix-blend-mode:screen;}
+
+  #dmgLayer{position:fixed;inset:0;pointer-events:none;z-index:6;overflow:hidden;}
+  .dmg{position:absolute;color:#fff;font-weight:900;font-style:italic;
+    font-family:"Oswald","Impact",sans-serif;letter-spacing:.5px;
+    transform:translate(-50%,-50%);will-change:transform,opacity;}
+
+  #armorLayer{position:fixed;inset:0;pointer-events:none;z-index:6;overflow:hidden;}
+  .armor{position:absolute;width:30px;height:30px;transform:translate(-50%,-50%);opacity:0;
+    background:
+      linear-gradient(45deg,transparent 47%,#fff 47%,#fff 53%,transparent 53%),
+      linear-gradient(-45deg,transparent 47%,#fff 47%,#fff 53%,transparent 53%);}
+  .armor.show{animation:ar .3s ease-out forwards;}
+  @keyframes ar{
+    0%{opacity:1;transform:translate(-50%,-50%) scale(.4) rotate(0deg);}
+    100%{opacity:0;transform:translate(-50%,-50%) scale(1.6) rotate(40deg);}
+  }
+
+  #hitFlash{position:fixed;inset:0;pointer-events:none;z-index:4;
+    background:radial-gradient(circle at 50% 50%,rgba(255,120,160,0) 45%,rgba(255,70,130,.4) 100%);
+    opacity:0;transition:opacity .12s ease-out;}
+
+  #clashFlash{position:fixed;inset:0;pointer-events:none;z-index:8;
+    background:radial-gradient(circle at 50% 60%,rgba(255,255,255,.95),rgba(255,220,120,0) 60%);
+    opacity:0;transition:opacity .08s;}
+
+  #killFeed{
+    position:fixed;left:14px;top:104px;z-index:8;
+    display:flex;flex-direction:column;gap:4px;
+    pointer-events:none;
+    font-family:"Rajdhani",sans-serif;
+    max-width:280px;}
+  .kill-row{
+    display:flex;align-items:center;gap:6px;
+    padding:4px 10px;
+    background:linear-gradient(90deg, rgba(10,14,20,.85), rgba(10,14,20,.35));
+    border-left:2px solid rgba(200,215,225,.6);
+    border-radius:2px;
+    font-size:11px;letter-spacing:1.5px;
+    text-shadow:0 1px 3px rgba(0,0,0,.9);
+    opacity:0;
+    transform:translateX(-12px);
+    transition:opacity .25s, transform .25s;
+    white-space:nowrap;}
+  .kill-row.show{opacity:1;transform:translateX(0);}
+  .kill-row .killer{color:#4fd1ff;font-weight:700;}
+  .kill-row .arrow{color:#ffcc33;font-weight:700;}
+  .kill-row .victim{color:#ff3b5c;font-weight:700;}
+
+  #healthHUD{
+    position:fixed;right:8px;top:56px;z-index:6;
+    display:flex;align-items:flex-start;gap:8px;
+    padding:6px 8px;
+    background:transparent;border:none;box-shadow:none;
+    pointer-events:none;opacity:.9;
+    transform:scale(.8);transform-origin:top right;
+  }
+  #bodySvg{width:46px;height:70px;flex-shrink:0;}
+  #bodySvg .body-part{transition:fill .3s;}
+  #healthInfo{display:flex;flex-direction:column;gap:2px;
+    font-family:"Rajdhani",sans-serif;min-width:96px;}
+  #healthInfo .row{display:flex;justify-content:space-between;gap:6px;font-size:10px;letter-spacing:1px;}
+  #healthInfo .lbl{opacity:.7;font-weight:600;}
+  #healthInfo .val{font-weight:700;font-variant-numeric:tabular-nums;}
+  #hpVal{color:#fff;}
+  #staminaVal{color:#4fd1ff;}
+  #statusText{font-size:9px;letter-spacing:2px;opacity:.85;font-weight:600;text-align:right;margin-top:1px;}
+
+  #vitalsHud{
+    position:fixed;right:8px;top:132px;z-index:6;
+    display:flex;flex-direction:column;gap:6px;
+    pointer-events:none;opacity:.92;
+    font-family:"Rajdhani", monospace;
+    transform:scale(.8);transform-origin:top right;
+  }
+  .vital{background:transparent;border:none;box-shadow:none;padding:0;width:130px;}
+  .vital-head{display:flex;align-items:center;gap:5px;font-size:10px;letter-spacing:1px;margin-bottom:1px;}
+  .vital-icon{width:12px;height:12px;flex-shrink:0;display:block;
+    stroke:currentColor;fill:none;stroke-width:2;
+    stroke-linecap:round;stroke-linejoin:round;}
+  .vital.heart{color:#ff3b5c;}
+  .vital.lung{color:#ffffff;}
+  .vital-val{font-weight:700;font-variant-numeric:tabular-nums;font-size:11px;}
+  .vital-unit{opacity:.6;font-size:9px;margin-left:1px;}
+  .vital-wave{display:block;width:100%;height:16px;opacity:.95;}
+  .vital-wave path{fill:none;stroke-width:1.4;stroke-linejoin:round;stroke-linecap:round;}
+  .vital.heart .vital-wave path{stroke:#ff3b5c;}
+  .vital.lung .vital-wave path{stroke:#ffffff;}
+  .vital.heart.critical{animation:vitalBlink .6s infinite;}
+  @keyframes vitalBlink{0%,100%{opacity:1;}50%{opacity:.35;}}
+
+  #btnBackGame{
+    position:fixed;left:14px;top:70px;z-index:8;
+    display:none;align-items:center;justify-content:center;gap:6px;
+    height:28px;padding:0 6px;
+    background:transparent;border:none;outline:none;border-radius:0;
+    cursor:pointer;pointer-events:auto;
+    color:#d8e2ea;
+    font-family:"Rajdhani",sans-serif;font-weight:600;
+    font-size:11px;letter-spacing:2px;text-transform:uppercase;
+    opacity:.35;
+    transition:opacity .2s, color .2s;
+    text-shadow:0 1px 4px rgba(0,0,0,.9);
+    box-shadow:none;user-select:none;}
+  #btnBackGame:hover{opacity:1;color:#fff;}
+  #btnBackGame svg{width:12px;height:12px;opacity:.9;}
+  #btnBackGame span{font-size:11px;letter-spacing:2px;}
+
+  #touchUI{position:fixed;inset:0;z-index:7;pointer-events:none;display:none;}
+  #touchUI.on{display:block;}
+
+  #joyZone{position:absolute;left:0;bottom:0;width:42%;height:50%;pointer-events:auto;}
+  #lookZone{position:absolute;right:0;top:0;width:56%;height:100%;pointer-events:auto;}
+
+  .key{
+    position:absolute;
+    border-radius:8px;
+    background:linear-gradient(180deg, rgba(38,48,56,.9), rgba(22,28,34,.95));
+    border:1px solid rgba(200,215,225,.3);
+    color:#d8e2ea;
+    font-family:"Rajdhani","Oswald",sans-serif;
+    font-weight:700;font-size:10px;
+    display:flex;align-items:center;justify-content:center;
+    pointer-events:auto;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.08), 0 2px 5px rgba(0,0,0,.5);
+    transition:transform .06s, background .06s;
+    text-align:center;line-height:1;text-transform:uppercase;
+    z-index:2;
+    outline:none;
+    -webkit-appearance:none;
+    appearance:none;
+    -webkit-tap-highlight-color:transparent;}
+  .key.press{
+    transform:scale(.9);
+    background:linear-gradient(180deg, rgba(200,215,225,.85), rgba(160,180,195,.9));
+    color:#0b0e14;border-color:#e8eef3;}
+  .key .sub{font-size:5px;font-weight:600;opacity:.55;display:block;margin-top:1px;}
+
+  #btnJab       {left: 22%; bottom: 2%;  width: 6.5%; height: 12%; border-radius: 50%;}
+  #btnHook      {left: 22%; bottom: 16%; width: 6.5%; height: 12%; border-radius: 50%;}
+  #btnElbowL    {left: 22%; bottom: 30%; width: 6.5%; height: 12%; border-radius: 50%;}
+  #btnHammerL   {left: 22%; bottom: 44%; width: 6.5%; height: 12%; border-radius: 50%;}
+
+  #btnCross     {right: 2%; bottom: 2%;  width: 6.5%; height: 12%; border-radius: 50%;}
+  #btnHookR     {right: 2%; bottom: 16%; width: 6.5%; height: 12%; border-radius: 50%;}
+  #btnElbowR    {right: 2%; bottom: 30%; width: 6.5%; height: 12%; border-radius: 50%;}
+  #btnPalmR     {right: 2%; bottom: 44%; width: 6.5%; height: 12%; border-radius: 50%;}
+
+  #btnLeftKick  {left: 36%; bottom: 2%;  width: 5.5%; height: 10%; border-radius: 6px;}
+  #btnRightKick {left: 44%; bottom: 2%;  width: 5.5%; height: 10%; border-radius: 6px;}
+  #btnBackSpin  {left: 36%; bottom: 14%; width: 5.5%; height: 10%; border-radius: 6px;}
+  #btnKnee      {left: 44%; bottom: 14%; width: 5.5%; height: 10%; border-radius: 6px;}
+  #btnView      {left: 36%; bottom: 26%; width: 5.5%; height: 10%; border-radius: 6px;}
+  #btnInspect   {left: 44%; bottom: 26%; width: 5.5%; height: 10%; border-radius: 6px;}
+
+  #btnJump      {right: 10%; bottom: 2%;  width: 5.5%; height: 10%; border-radius: 6px;}
+  #btnSprint    {right: 10%; bottom: 14%; width: 5.5%; height: 10%; border-radius: 6px;}
+  #btnBlock     {right: 10%; bottom: 26%; width: 5.5%; height: 10%; border-radius: 6px;}
+  #btnClimb     {right: 10%; bottom: 38%; width: 5.5%; height: 10%; border-radius: 6px;}
+
+  #editTopBar{
+    position:fixed;left:0;right:0;top:0;height:52px;
+    z-index:12;display:none;align-items:center;justify-content:space-between;
+    padding:0 12px;
+    background:linear-gradient(180deg, rgba(10,14,20,.96), rgba(10,14,20,.85));
+    border-bottom:1px solid rgba(79,209,255,.4);
+    font-family:"Rajdhani",sans-serif;pointer-events:auto;}
+  #editTopBar.on{display:flex;}
+  #editTopBar .eb{
+    display:flex;align-items:center;justify-content:center;gap:4px;
+    min-width:64px;height:34px;padding:0 12px;
+    border:1px solid rgba(200,215,225,.4);border-radius:3px;
+    cursor:pointer;font-weight:600;color:#d8e2ea;
+    font-size:12px;letter-spacing:2px;text-transform:uppercase;
+    background-color:#1a2028;
+    outline:none;
+    -webkit-appearance:none;
+    appearance:none;}
+  #editTopBar .eb.primary{border-color:rgba(79,209,255,.7);color:#4fd1ff;}
+  #editTopBar .title{font-family:"Oswald",sans-serif;font-weight:700;font-size:14px;letter-spacing:6px;color:#fff;}
+
+  #editBottomBar{
+    position:fixed;left:50%;bottom:18px;transform:translateX(-50%);
+    z-index:12;display:none;gap:10px;align-items:center;
+    padding:8px 12px;border-radius:8px;
+    background:linear-gradient(180deg, rgba(10,14,20,.95), rgba(6,9,14,.95));
+    border:1px solid rgba(79,209,255,.4);
+    font-family:"Rajdhani",sans-serif;pointer-events:auto;}
+  #editBottomBar.on{display:flex;}
+  #editBottomBar .eb{
+    min-width:96px;height:36px;padding:0 16px;
+    display:flex;align-items:center;justify-content:center;
+    border:1px solid rgba(200,215,225,.4);border-radius:3px;
+    cursor:pointer;font-weight:600;color:#d8e2ea;
+    font-size:12px;letter-spacing:2px;text-transform:uppercase;
+    background-color:#1a2028;
+    outline:none;
+    -webkit-appearance:none;
+    appearance:none;}
+  #editBottomBar .eb.danger{border-color:rgba(255,80,80,.5);color:#ff6b6b;}
+
+  #editHint{
+    position:fixed;left:50%;top:64px;transform:translateX(-50%);
+    z-index:12;display:none;
+    padding:6px 14px;border-radius:4px;
+    background:rgba(10,14,20,.85);
+    border:1px solid rgba(79,209,255,.3);
+    font-family:"Rajdhani",sans-serif;font-size:11px;letter-spacing:2px;
+    color:#4fd1ff;text-transform:uppercase;pointer-events:none;}
+  #editHint.on{display:block;}
+
+  #backOverlay{
+    position:fixed;inset:0;z-index:15;
+    display:none;flex-direction:column;
+    background:rgba(6,8,11,.55);
+    backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+    pointer-events:auto;}
+  #backOverlay.on{display:flex;}
+  #backHeader{
+    flex:1;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:14px;}
+  #backTitle{
+    font-family:"Oswald",sans-serif;font-weight:700;
+    font-size:clamp(48px, 10vw, 96px);
+    letter-spacing:14px;color:#fff;
+    text-shadow:0 0 30px rgba(200,215,225,.4), 0 4px 24px rgba(0,0,0,.9);}
+  #backVersion{
+    font-family:"Rajdhani",sans-serif;font-weight:600;
+    font-size:14px;letter-spacing:6px;
+    color:#c8d7e0;opacity:.7;}
+  #backBtns{
+    display:flex;gap:14px;justify-content:center;
+    padding:32px 20px;flex-wrap:wrap;}
+  .back-btn{
+    padding:14px 24px;min-width:120px;
+    background-color:#1a2028;
+    border:1px solid rgba(200,215,225,.3);
+    border-radius:2px;color:#d8e2ea;
+    font-family:"Oswald",sans-serif;font-weight:600;
+    font-size:13px;letter-spacing:3px;
+    cursor:pointer;text-transform:uppercase;
+    text-align:center;
+    transition:background-color .15s,border-color .15s,box-shadow .15s;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.06);
+    outline:none;
+    -webkit-appearance:none;
+    appearance:none;
+    -webkit-tap-highlight-color:transparent;}
+  .back-btn:hover{
+    background-color:#2a3340;
+    border-color:rgba(200,215,225,.85);
+    box-shadow:0 0 20px rgba(200,215,225,.2);}
+  .back-btn:active{background-color:#151a22;}
+  .back-btn:focus{outline:none;}
+
+  #settingsFrame{
+    position:fixed;inset:0;z-index:20;
+    display:none;align-items:center;justify-content:center;
+    background:rgba(6,8,11,.85);
+    backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+    pointer-events:auto;}
+  #settingsFrame.on{display:flex;}
+  #settingsFrameInner{
+    position:relative;
+    width:min(760px, 92vw);
+    height:min(88vh, 900px);
+    border:1px solid rgba(79,209,255,.5);
+    border-radius:4px;
+    overflow:hidden;
+    box-shadow:0 0 60px rgba(79,209,255,.25), 0 0 80px rgba(0,0,0,.8);
+    animation:frameIn .22s ease-out;}
+  @keyframes frameIn{
+    from{opacity:0;transform:scale(.96);}
+    to{opacity:1;transform:scale(1);}
+  }
+  #settingsIframe{
+    width:100%;height:100%;border:none;background:#1a1e24;display:block;}
+  #settingsClose{
+    position:absolute;top:8px;right:8px;z-index:3;
+    width:32px;height:32px;
+    display:flex;align-items:center;justify-content:center;
+    background-color:#151a22;
+    border:1px solid rgba(200,215,225,.4);
+    border-radius:3px;color:#d8e2ea;
+    font-family:"Oswald",sans-serif;font-weight:700;font-size:16px;
+    cursor:pointer;
+    transition:background-color .15s, color .15s;
+    outline:none;
+    -webkit-appearance:none;
+    appearance:none;
+    -webkit-tap-highlight-color:transparent;}
+  #settingsClose:hover{background-color:#2a1218;color:#ff6b6b;border-color:rgba(255,80,80,.6);}
+
+  #toast{position:fixed;left:50%;top:12%;transform:translateX(-50%);
+    z-index:30;pointer-events:none;
+    padding:12px 26px;
+    background:linear-gradient(180deg, rgba(28,35,42,.95), rgba(16,20,25,.95));
+    border:1px solid rgba(200,215,225,.4);border-radius:2px;
+    font-family:"Rajdhani",sans-serif;font-weight:600;
+    font-size:13px;letter-spacing:3px;color:#ffffff;
+    text-transform:uppercase;
+    box-shadow:0 0 30px rgba(0,0,0,.6);
+    opacity:0;transition:opacity .3s, transform .3s;}
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(6px);}
+
+  #deathScreen{position:fixed;inset:0;z-index:25;
+    background:#000;opacity:0;pointer-events:none;
+    transition:opacity .3s ease-out;display:none;}
+
+  #loading{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+    background:#05070b;color:#fff;z-index:40;font-size:13px;letter-spacing:4px;
+    flex-direction:column;gap:10px;font-family:"Oswald",sans-serif;}
+  #loading .err{color:#ff6b7a;font-size:12px;max-width:80%;text-align:center;line-height:1.6;}
+
+  @media (max-width: 640px){
+    #backBtns{gap:6px;padding:20px 10px;}
+    .back-btn{padding:11px 8px;min-width:0;flex:1;font-size:10px;letter-spacing:1.5px;}
+    #healthHUD{right:4px;top:52px;transform:scale(.68);}
+    #vitalsHud{right:4px;top:118px;transform:scale(.68);}
+    #bodySvg{width:40px;height:60px;}
+    #editTopBar .title{font-size:12px;letter-spacing:4px;}
+    #editTopBar .eb{min-width:56px;padding:0 8px;font-size:10px;letter-spacing:1px;}
+    #editBottomBar .eb{min-width:80px;padding:0 10px;font-size:10px;letter-spacing:1px;}
+    #btnBackGame{top:60px;font-size:10px;}
+    #killFeed{top:90px;max-width:220px;}
+    .kill-row{font-size:10px;padding:3px 8px;}
+    #compass{width:min(520px, 80vw);height:26px;top:8px;}
+    #compassStrip .dir{font-size:10px;}
+    #compassStrip .dir .num{font-size:7px;}
+    #compassDeg{top:36px;font-size:9px;}
+    #settingsFrameInner{width:96vw;height:92vh;}
+  }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="vignette"></div>
+<div id="hurtVignette"></div>
+<div id="speedLines"></div>
+<div id="hitFlash"></div>
+<div id="clashFlash"></div>
+<div id="blinkOverlay"></div>
+<div id="hitFrame"></div>
+<div id="armorLayer"></div>
+<div id="dmgLayer"></div>
+
+<svg id="crosshair" width="32" height="32" viewBox="0 0 32 32">
+  <line x1="16" y1="2"  x2="16" y2="9"/>
+  <line x1="16" y1="23" x2="16" y2="30"/>
+  <line x1="2"  y1="16" x2="9"  y2="16"/>
+  <line x1="23" y1="16" x2="30" y2="16"/>
+  <circle cx="16" cy="16" r="1.4"/>
+</svg>
+
+<svg id="hitmarker" width="40" height="40" viewBox="0 0 40 40">
+  <line x1="9"  y1="9"  x2="16" y2="16"/>
+  <line x1="31" y1="9"  x2="24" y2="16"/>
+  <line x1="9"  y1="31" x2="16" y2="24"/>
+  <line x1="31" y1="31" x2="24" y2="24"/>
+</svg>
+
+<div id="compass">
+  <div id="compassStrip"></div>
+  <div id="compassCenter"></div>
+</div>
+<div id="compassDeg">000°</div>
+
+<div id="fps">FPS 60</div>
+<div id="coordHud">X: 0.0 Y: 0.0 Z: 0.0</div>
+<div id="modeHud">视角 · 第一人称</div>
+<div id="stanceHud">状态 · 待机</div>
+
+<div id="playerName">PLAYER</div>
+
+<div id="pcHud">
+  <b>WASD</b> 移动 · <b>SHIFT</b> 冲刺 · <b>CTRL</b> 膝撞<br>
+  <b>SPACE</b> 跳 · <b>SHIFT+SPACE</b> 大跳 · <b>N</b> 攀爬<br>
+  <b>LMB</b> 左直 · <b>RMB</b> 右直 · <b>V</b> 左勾 · <b>B</b> 右勾<br>
+  <b>M</b> 锤拳 · <b>,</b> 掌击 · <b>G</b> 左肘 · <b>H</b> 右肘<br>
+  <b>Q</b> 左正踢 · <b>E</b> 推人 · <b>R</b> 右正踢 · <b>F</b> 格挡<br>
+  <b>双击A/D</b> 闪避 · <b>双击S</b> 后闪<br>
+  <b>I</b> 检视 · <b>T</b> 视角 · <b>ESC</b> 返回菜单
+</div>
+
+<div id="killFeed"></div>
+
+<div id="healthHUD">
+  <svg id="bodySvg" viewBox="0 0 60 90">
+    <rect class="body-part" x="22" y="2" width="16" height="16" fill="#ffffff" stroke="#0a0d12" stroke-width="1"/>
+    <rect class="body-part" x="26" y="18" width="8" height="4" fill="#ffffff" stroke="#0a0d12" stroke-width="0.5"/>
+    <rect class="body-part" x="18" y="22" width="24" height="26" fill="#ffffff" stroke="#0a0d12" stroke-width="1"/>
+    <rect class="body-part" x="20" y="48" width="20" height="6" fill="#ffffff" stroke="#0a0d12" stroke-width="0.5"/>
+    <rect class="body-part" x="8"  y="24" width="8" height="14" fill="#ffffff" stroke="#0a0d12" stroke-width="0.8"/>
+    <rect class="body-part" x="8"  y="38" width="8" height="14" fill="#ffffff" stroke="#0a0d12" stroke-width="0.8"/>
+    <rect class="body-part" x="44" y="24" width="8" height="14" fill="#ffffff" stroke="#0a0d12" stroke-width="0.8"/>
+    <rect class="body-part" x="44" y="38" width="8" height="14" fill="#ffffff" stroke="#0a0d12" stroke-width="0.8"/>
+    <rect class="body-part" x="19" y="54" width="9" height="16" fill="#ffffff" stroke="#0a0d12" stroke-width="0.8"/>
+    <rect class="body-part" x="19" y="70" width="9" height="16" fill="#ffffff" stroke="#0a0d12" stroke-width="0.8"/>
+    <rect class="body-part" x="32" y="54" width="9" height="16" fill="#ffffff" stroke="#0a0d12" stroke-width="0.8"/>
+    <rect class="body-part" x="32" y="70" width="9" height="16" fill="#ffffff" stroke="#0a0d12" stroke-width="0.8"/>
+  </svg>
+  <div id="healthInfo">
+    <div class="row"><span class="lbl">血量</span><span class="val" id="hpVal">100</span></div>
+    <div class="row"><span class="lbl">耐力</span><span class="val" id="staminaVal">100</span></div>
+    <div id="statusText">良好</div>
+  </div>
+</div>
+
+<div id="vitalsHud">
+  <div class="vital heart" id="vitalHeart">
+    <div class="vital-head">
+      <svg class="vital-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M19.5 13.572l-7.5 7.428l-2.896 -2.868m-6.117 -8.104a5 5 0 0 1 9.013 -3.022a5 5 0 1 1 7.5 6.572"/>
+        <path d="M3 13h5l2 -3l3 6l2 -3h6"/>
+      </svg>
+      <span class="vital-val" id="heartVal">72</span>
+      <span class="vital-unit">BPM</span>
+    </div>
+    <svg class="vital-wave" viewBox="0 0 120 24" preserveAspectRatio="none">
+      <path id="heartWave" d="" />
+    </svg>
+  </div>
+
+  <div class="vital lung" id="vitalLung">
+    <div class="vital-head">
+      <svg class="vital-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M6.081 20c1.612 0 3.205 -.49 4.519 -1.394c1.316 .904 2.909 1.394 4.519 1.394c2.14 0 4.081 -2.05 4.081 -4.5c0 -2.5 -1.5 -5.5 -3 -7.5c-1.5 -2 -3 -3.5 -4.5 -4.5v9a2 2 0 1 1 -4 0v-9c-1.5 1 -3 2.5 -4.5 4.5c-1.5 2 -3 5 -3 7.5c0 2.45 1.941 4.5 4.081 4.5z"/>
+      </svg>
+      <span class="vital-val" id="lungVal">16</span>
+      <span class="vital-unit">RPM</span>
+    </div>
+    <svg class="vital-wave" viewBox="0 0 120 24" preserveAspectRatio="none">
+      <path id="lungWave" d="" />
+    </svg>
+  </div>
+</div>
+
+<div id="btnBackGame">
+  <svg viewBox="0 0 24 24">
+    <line x1="19" y1="12" x2="5" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    <polyline points="12 19 5 12 12 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  </svg>
+  <span>菜单</span>
+</div>
+
+<div id="touchUI">
+  <div id="lookZone"></div>
+  <div id="joyZone"></div>
+
+  <div class="key" id="btnJab">LMB</div>
+  <div class="key" id="btnHook">V</div>
+  <div class="key" id="btnElbowL">G</div>
+  <div class="key" id="btnHammerL">M</div>
+
+  <div class="key" id="btnCross">RMB</div>
+  <div class="key" id="btnHookR">B</div>
+  <div class="key" id="btnElbowR">H</div>
+  <div class="key" id="btnPalmR">,</div>
+
+  <div class="key" id="btnLeftKick">Q</div>
+  <div class="key" id="btnRightKick">R</div>
+  <div class="key" id="btnBackSpin">E</div>
+  <div class="key" id="btnKnee">CTRL</div>
+
+  <div class="key" id="btnView">T</div>
+  <div class="key" id="btnInspect">I</div>
+
+  <div class="key" id="btnJump">␣</div>
+  <div class="key" id="btnSprint">⇧</div>
+  <div class="key" id="btnBlock">F</div>
+  <div class="key" id="btnClimb">N</div>
+</div>
+
+<div id="editTopBar">
+  <div class="eb" id="editBack">返回</div>
+  <div class="title">编辑布局</div>
+  <div class="eb primary" id="editDone">完成</div>
+</div>
+
+<div id="editBottomBar">
+  <div class="eb" id="editAuto">自动布局</div>
+  <div class="eb danger" id="editReset">重置</div>
+</div>
+
+<div id="editHint">拖动按钮调整位置</div>
+
+<div id="backOverlay">
+  <div id="backHeader">
+    <div id="backTitle">T-BOX</div>
+    <div id="backVersion">—</div>
+  </div>
+  <div id="backBtns">
+    <div class="back-btn" id="backResume">返回游戏</div>
+    <div class="back-btn" id="backCharEdit">角色编辑</div>
+    <div class="back-btn" id="backSettings">设置</div>
+    <div class="back-btn" id="backControls">操作</div>
+    <div class="back-btn" id="backAbout">关于</div>
+    <div class="back-btn" id="backQuit">退出</div>
+  </div>
+</div>
+
+<div id="settingsFrame">
+  <div id="settingsFrameInner">
+    <div id="settingsClose" title="关闭">×</div>
+    <iframe id="settingsIframe" src="about:blank" allow="autoplay"></iframe>
+  </div>
+</div>
+
+<div id="deathScreen"></div>
+<div id="toast"></div>
+<div id="loading"><div>加载中…</div><div class="err" id="loadErr"></div></div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
+import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { FXAAShader } from 'three/addons/shaders/FXAAShader.js';
+import { CSM } from 'three/addons/csm/CSM.js';
+import { CSMShader } from 'three/addons/csm/CSMShader.js';
+
+window.THREE = THREE;
+window.PointerLockControls = PointerLockControls;
+window.RGBELoader = RGBELoader;
+window.EffectComposer = EffectComposer;
+window.RenderPass = RenderPass;
+window.UnrealBloomPass = UnrealBloomPass;
+window.ShaderPass = ShaderPass;
+window.FXAAShader = FXAAShader;
+window.CSM = CSM;
+window.CSMShader = CSMShader;
+
+window.dispatchEvent(new Event('tbox:three-ready'));
+
+const scripts = [
+  'version.js',
+  'data.js',
+  'utils.js',
+  'events.js',
+  'save.js',
+  'audio.js',
+  'ui.js',
+  'engine.js',
+  'charBuilder.js',
+  'action.js',
+  'ai.js',
+  'main.js'
+];
+
+(async function loadAll(){
+  try {
+    for(const src of scripts){
+      await new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = src;
+        s.async = false;
+        s.onload = resolve;
+        s.onerror = () => reject(new Error('加载失败: ' + src));
+        document.body.appendChild(s);
+      });
+    }
+    window.dispatchEvent(new Event('tbox:scripts-ready'));
+  } catch(err){
+    const errEl = document.getElementById('loadErr');
+    if(errEl) errEl.textContent = '运行错误: ' + err.message;
+    console.error(err);
+  }
+})();
+
+window.addEventListener('error', (e) => {
+  const errEl = document.getElementById('loadErr');
+  const loadingEl = document.getElementById('loading');
+  if(loadingEl) loadingEl.style.display = 'flex';
+  if(errEl){ errEl.textContent = '运行错误: ' + (e.message || '未知'); }
+});
+
+document.addEventListener('DOMContentLoaded', function(){
+  var closeBtn = document.getElementById('settingsClose');
+  if(closeBtn){
+    closeBtn.addEventListener('click', function(){
+      var frame = document.getElementById('settingsFrame');
+      var iframe = document.getElementById('settingsIframe');
+      if(frame) frame.classList.remove('on');
+      if(iframe) iframe.src = 'about:blank';
+      if(window.TBOX && window.TBOX.Engine) window.TBOX.Engine.resume();
+    });
+  }
+});
+</script>
+</body>
+</html>

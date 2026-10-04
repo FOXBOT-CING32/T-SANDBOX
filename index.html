@@ -1,0 +1,1080 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,minimum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="format-detection" content="telephone=no">
+<meta name="theme-color" content="#0a0d12">
+<title>T-BOX</title>
+
+<script src="version.js"></script>
+<!-- ★★★ 关键：同步加载 data.js（不加 async/defer） ★★★ -->
+<script src="data.js"></script>
+
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;margin:0;padding:0;}
+
+  button, input, select, textarea,
+  .btn, .close, .seg div, .back-btn, .color-pick{
+    outline:none !important;
+    -webkit-appearance:none;
+    appearance:none;
+    -webkit-tap-highlight-color:transparent;
+  }
+  button:focus, input:focus, select:focus, textarea:focus,
+  .btn:focus, .close:focus, .seg div:focus, .color-pick:focus{
+    outline:none !important;
+  }
+
+  html{height:100%;overflow:hidden;-webkit-text-size-adjust:100%;text-size-adjust:100%;}
+  body{height:100%;overflow:hidden;background:#0a0d12;
+    font-family:"Rajdhani","Oswald",system-ui,-apple-system,sans-serif;color:#fff;
+    user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;
+    -webkit-user-drag:none;overscroll-behavior:none;touch-action:manipulation;
+    position:fixed;inset:0;}
+
+  body.embed-mode #bg,body.embed-mode #particles,body.embed-mode #grid,
+  body.embed-mode #vignette,body.embed-mode #ui,body.embed-mode #toast,
+  body.embed-mode #flash{display:none !important;}
+  body.embed-mode .modal:not(.embed-target){display:none !important;}
+  body.embed-mode .modal.embed-target{display:flex !important;background:rgba(6,8,11,.95);}
+  body.embed-mode .panel{width:min(720px,96vw);max-height:92vh;
+    border-color:rgba(79,209,255,.5);
+    box-shadow:0 0 60px rgba(79,209,255,.25),0 0 60px rgba(0,0,0,.8);}
+  body.embed-mode .panel .close{background-color:rgba(79,209,255,.15);
+    border-color:rgba(79,209,255,.6);color:#4fd1ff;}
+
+  #bg{position:fixed;inset:0;z-index:0;
+    background:radial-gradient(ellipse at 50% 25%,#1c2328 0%,#0e1216 55%,#06080b 100%);}
+  #particles{position:fixed;inset:0;z-index:1;pointer-events:none;}
+  #grid{position:fixed;inset:0;z-index:1;pointer-events:none;opacity:.06;
+    background-image:linear-gradient(rgba(200,215,225,.6) 1px,transparent 1px),
+      linear-gradient(90deg,rgba(200,215,225,.6) 1px,transparent 1px);
+    background-size:80px 80px;
+    mask-image:radial-gradient(ellipse at 50% 60%,#000 0%,transparent 70%);
+    -webkit-mask-image:radial-gradient(ellipse at 50% 60%,#000 0%,transparent 70%);
+    animation:gridMove 24s linear infinite;}
+  @keyframes gridMove{0%{background-position:0 0,0 0;}100%{background-position:80px 80px,80px 80px;}}
+  #vignette{position:fixed;inset:0;z-index:2;pointer-events:none;
+    background:radial-gradient(ellipse at 50% 50%,rgba(0,0,0,0) 40%,rgba(0,0,0,.35) 75%,rgba(0,0,0,.75) 100%);}
+  #ui{position:fixed;inset:0;z-index:5;pointer-events:none;}
+  #device{position:absolute;left:22px;top:22px;font-size:11px;letter-spacing:2.5px;opacity:.6;
+    font-family:"Rajdhani",sans-serif;font-weight:600;text-shadow:0 1px 4px rgba(0,0,0,.9);
+    pointer-events:auto;cursor:pointer;transition:opacity .2s,color .2s;text-transform:uppercase;}
+  #device:hover{opacity:1;color:#c8d7e0;}
+  #device b{color:#c8d7e0;font-weight:700;}
+  #version{position:absolute;right:22px;top:22px;font-size:11px;letter-spacing:2.5px;opacity:.6;
+    font-family:"Rajdhani",sans-serif;font-weight:600;text-shadow:0 1px 4px rgba(0,0,0,.9);
+    pointer-events:auto;cursor:pointer;transition:opacity .2s,color .2s;text-transform:uppercase;}
+  #version:hover{opacity:1;color:#c8d7e0;}
+  #version b{color:#c8d7e0;font-weight:700;}
+  #titleWrap{position:absolute;left:50%;top:34%;transform:translate(-50%,-50%);
+    text-align:center;pointer-events:auto;cursor:default;}
+  #title{font-family:"Oswald",sans-serif;font-weight:700;
+    font-size:clamp(72px,14vw,140px);letter-spacing:16px;line-height:1;color:#ffffff;
+    text-shadow:0 0 24px rgba(200,215,225,.25),0 0 60px rgba(200,215,225,.12),0 4px 24px rgba(0,0,0,.9);
+    transition:transform .15s,text-shadow .3s;will-change:transform;}
+  #title.shake{animation:titleShake .35s ease-in-out;}
+  @keyframes titleShake{
+    0%,100%{transform:translate(0,0) rotate(0deg);}
+    20%{transform:translate(-4px,2px) rotate(-1.2deg);}
+    40%{transform:translate(4px,-2px) rotate(1.2deg);}
+    60%{transform:translate(-3px,3px) rotate(-.8deg);}
+    80%{transform:translate(3px,-3px) rotate(.8deg);}
+  }
+  #title.rainbow{animation:rainbowMove 2.4s linear infinite;}
+  @keyframes rainbowMove{
+    0%{color:#ff3b5c;}25%{color:#ffcc33;}50%{color:#4fd1ff;}
+    75%{color:#7ea8ff;}100%{color:#ff3b5c;}
+  }
+  #subtitle{margin-top:20px;font-family:"Rajdhani",sans-serif;font-weight:600;
+    font-size:clamp(11px,1.5vw,14px);letter-spacing:10px;opacity:.55;text-transform:uppercase;
+    text-shadow:0 1px 4px rgba(0,0,0,.9);color:#c8d7e0;}
+  #hiddenText{margin-top:16px;font-size:11px;letter-spacing:4px;color:#c8d7e0;opacity:0;
+    transition:opacity .4s;font-family:"Rajdhani",sans-serif;font-weight:600;
+    text-shadow:0 0 12px rgba(200,215,225,.5);text-transform:uppercase;}
+  #hiddenText.show{opacity:.85;}
+
+  #btns{position:absolute;left:0;right:0;bottom:0;display:flex;justify-content:stretch;align-items:stretch;
+    padding:0;pointer-events:auto;background:linear-gradient(180deg,rgba(10,14,20,.85),rgba(6,8,11,.95));
+    border-top:1px solid rgba(200,215,225,.18);box-shadow:0 -4px 16px rgba(0,0,0,.5);}
+  .btn{position:relative;flex:1 1 0;display:flex;align-items:center;justify-content:center;gap:6px;
+    height:30px;padding:0 6px;background:transparent;border:none;
+    border-right:1px solid rgba(200,215,225,.18);color:#d8e2ea;
+    font-family:"Oswald",sans-serif;font-weight:600;font-size:11px;letter-spacing:1.5px;
+    cursor:pointer;text-transform:uppercase;transition:background .15s,color .15s;
+    user-select:none;white-space:nowrap;overflow:hidden;
+    outline:none;-webkit-appearance:none;appearance:none;}
+  .btn:last-child{border-right:none;}
+  .btn:hover{background:rgba(200,215,225,.1);color:#ffffff;}
+  .btn:active{background:rgba(200,215,225,.2);}
+  .btn:focus{outline:none;}
+  .btn .ico{width:13px;height:13px;flex-shrink:0;opacity:.85;transition:opacity .15s;}
+  .btn .ico *{stroke:#d8e2ea;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;transition:stroke .15s;}
+  .btn:hover .ico{opacity:1;}
+  .btn:hover .ico *{stroke:#fff;}
+  #btnChar{color:#4fd1ff;}
+  #btnChar .ico *{stroke:#4fd1ff;}
+  #btnChar:hover{background:rgba(79,209,255,.12);color:#fff;}
+  #btnChar:hover .ico *{stroke:#fff;}
+
+  .modal{position:fixed;inset:0;z-index:20;display:none;align-items:center;justify-content:center;
+    background:rgba(6,8,11,.82);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);pointer-events:auto;}
+  .modal.on{display:flex;}
+  .panel{width:min(760px,96vw);max-height:88vh;overflow-y:auto;
+    background:linear-gradient(180deg,rgba(28,35,42,.98),rgba(16,20,25,.98));
+    border:1px solid rgba(200,215,225,.28);border-radius:2px;padding:26px 28px;
+    box-shadow:0 0 60px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.05);
+    animation:panelIn .22s ease-out;}
+  .panel::-webkit-scrollbar{width:6px;}
+  .panel::-webkit-scrollbar-track{background:rgba(0,0,0,.2);}
+  .panel::-webkit-scrollbar-thumb{background:rgba(200,215,225,.25);border-radius:3px;}
+  @keyframes panelIn{from{opacity:0;transform:translateY(12px) scale(.98);}to{opacity:1;transform:translateY(0) scale(1);}}
+  .panel h2{margin:0 0 18px 0;font-family:"Oswald",sans-serif;font-weight:700;
+    font-size:18px;letter-spacing:5px;color:#ffffff;text-transform:uppercase;
+    border-bottom:1px solid rgba(200,215,225,.18);padding-bottom:12px;
+    position:sticky;top:0;background:linear-gradient(180deg,rgba(28,35,42,.98) 0%,rgba(28,35,42,.95) 100%);z-index:2;}
+  .panel .section{margin-top:20px;font-family:"Oswald",sans-serif;font-weight:600;
+    font-size:12px;letter-spacing:4px;color:#c8d7e0;text-transform:uppercase;opacity:.7;
+    padding-bottom:6px;border-bottom:1px solid rgba(200,215,225,.1);}
+  .panel .section.light{color:#4fd1ff;opacity:.9;}
+  .panel .section.warn{color:#ffcc33;opacity:.9;}
+  .panel .row{display:flex;align-items:center;justify-content:space-between;
+    padding:9px 0;border-bottom:1px solid rgba(255,255,255,.05);
+    font-size:13px;letter-spacing:1px;gap:10px;flex-wrap:wrap;}
+  .panel .row:last-child{border-bottom:none;}
+  .panel .row .lbl{opacity:.75;font-family:"Rajdhani",sans-serif;font-weight:600;
+    text-transform:uppercase;letter-spacing:1.5px;flex-shrink:0;}
+  .panel .row .val{color:#d8e2ea;font-weight:700;font-family:"Rajdhani",sans-serif;}
+  .panel p{margin:8px 0;font-size:12.5px;line-height:1.75;
+    font-family:"Rajdhani",sans-serif;letter-spacing:.5px;opacity:.8;}
+  .panel p.hl{color:#ffffff;font-weight:700;letter-spacing:2px;
+    text-transform:uppercase;font-family:"Oswald",sans-serif;}
+  .panel .close{margin-top:20px;display:inline-block;padding:9px 22px;
+    background-color:#1a2028;
+    border:1px solid rgba(200,215,225,.4);border-radius:2px;color:#ffffff;
+    font-family:"Oswald",sans-serif;font-weight:600;font-size:12px;letter-spacing:3px;
+    cursor:pointer;text-transform:uppercase;transition:background-color .15s,box-shadow .15s;
+    outline:none;-webkit-appearance:none;appearance:none;}
+  .panel .close:hover{background-color:#2a3340;
+    box-shadow:0 0 18px rgba(200,215,225,.25);}
+  .panel .close.danger{border-color:rgba(255,80,80,.5);color:#ff6b6b;}
+  .panel .close.danger:hover{background-color:#2a1218;box-shadow:0 0 18px rgba(255,80,80,.3);}
+  .panel .close:focus{outline:none;}
+  .panel .seg{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end;}
+  .panel .seg div{padding:6px 12px;border:1px solid rgba(200,215,225,.25);border-radius:2px;
+    font-size:11px;letter-spacing:1px;cursor:pointer;font-family:"Rajdhani",sans-serif;font-weight:600;
+    text-transform:uppercase;transition:background .15s,border-color .15s,color .15s;
+    outline:none;-webkit-appearance:none;appearance:none;}
+  .panel .seg div.on{background:rgba(200,215,225,.18);border-color:#c8d7e0;color:#fff;}
+  .panel .seg.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;justify-content:stretch;}
+  .panel .seg.grid div{text-align:center;padding:8px 4px;}
+  .panel .seg.grid.wide{grid-template-columns:repeat(3,1fr);}
+  .panel input[type=range]{width:140px;accent-color:#4fd1ff;outline:none;}
+  .panel input[type=color]{width:44px;height:30px;padding:0;border:1px solid rgba(200,215,225,.35);
+    border-radius:3px;background:transparent;cursor:pointer;outline:none;
+    -webkit-appearance:none;appearance:none;flex-shrink:0;}
+  .panel input[type=color]::-webkit-color-swatch-wrapper{padding:0;}
+  .panel input[type=color]::-webkit-color-swatch{border:none;border-radius:2px;}
+  .panel input[type=color]::-moz-color-swatch{border:none;border-radius:2px;}
+  .panel .kbd{display:inline-block;padding:2px 8px;border:1px solid rgba(200,215,225,.28);
+    border-radius:2px;font-family:"Oswald",sans-serif;font-size:11px;letter-spacing:1.5px;
+    margin:0 2px;background:rgba(255,255,255,.04);color:#e8eef3;text-transform:uppercase;}
+  .panel .footer{display:flex;gap:10px;justify-content:flex-end;margin-top:20px;}
+
+  /* 准星预览（80x80） */
+  #chPreview{
+    width:80px;height:80px;flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;
+    background:rgba(0,0,0,.25);border:1px solid rgba(200,215,225,.2);border-radius:4px;}
+  #chPreview svg{width:100%;height:100%;display:block;}
+
+  #perfWarn{display:none;margin-top:8px;padding:8px 12px;background:rgba(255,60,90,.12);
+    border:1px solid rgba(255,60,90,.5);border-radius:3px;font-family:"Rajdhani",sans-serif;
+    font-size:11px;letter-spacing:1.5px;color:#ff3b5c;line-height:1.7;text-transform:uppercase;}
+  #perfWarn .hl{color:#fff;font-weight:700;}
+
+  #toast{position:fixed;left:50%;top:12%;transform:translateX(-50%);z-index:30;pointer-events:none;
+    padding:12px 26px;background:linear-gradient(180deg,rgba(28,35,42,.95),rgba(16,20,25,.95));
+    border:1px solid rgba(200,215,225,.4);border-radius:2px;font-family:"Rajdhani",sans-serif;
+    font-weight:600;font-size:13px;letter-spacing:3px;color:#ffffff;text-transform:uppercase;
+    box-shadow:0 0 30px rgba(0,0,0,.6);opacity:0;transition:opacity .3s,transform .3s;}
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(6px);}
+  #flash{position:fixed;inset:0;z-index:25;pointer-events:none;
+    background:radial-gradient(circle at 50% 50%,rgba(255,60,90,.35),transparent 70%);
+    opacity:0;transition:opacity .25s;}
+
+  @media (max-width:640px){
+    #title{letter-spacing:10px;font-size:clamp(52px,17vw,88px);}
+    #subtitle{letter-spacing:6px;font-size:10px;}
+    .btn{font-size:9px;letter-spacing:1px;gap:3px;height:28px;}
+    .btn .ico{width:11px;height:11px;}
+    #device,#version{font-size:10px;letter-spacing:1.5px;}
+    #device{left:14px;}#version{right:14px;}
+    .panel{padding:20px 18px;}
+    .panel input[type=range]{width:100px;}
+    .panel .seg.grid{grid-template-columns:repeat(3,1fr);}
+  }
+</style>
+</head>
+<body>
+<div id="bg"></div>
+<canvas id="particles"></canvas>
+<div id="grid"></div>
+<div id="vignette"></div>
+
+<div id="ui">
+  <div id="device">设备：<b>—</b></div>
+  <div id="version">版本：<b id="versionLabel">—</b></div>
+  <div id="titleWrap">
+    <div id="title">T-BOX</div>
+    <div id="subtitle">T-BOX · 专业沙盒</div>
+    <div id="hiddenText">隐藏区域 · 你找到了隐藏区域</div>
+  </div>
+  <div id="btns">
+    <div class="btn" id="btnStart">
+      <svg class="ico" viewBox="0 0 24 24"><polygon points="6,4 20,12 6,20"/></svg>
+      <span>开始游戏</span>
+    </div>
+    <div class="btn" id="btnChar">
+      <svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg>
+      <span>角色编辑</span>
+    </div>
+    <div class="btn" id="btnLayout" style="display:none;">
+      <svg class="ico" viewBox="0 0 24 24">
+        <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+        <rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
+      </svg>
+      <span>布局编辑</span>
+    </div>
+    <div class="btn" id="btnSettings">
+      <svg class="ico" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+      </svg>
+      <span>设置</span>
+    </div>
+    <div class="btn" id="btnControls">
+      <svg class="ico" viewBox="0 0 24 24">
+        <rect x="2" y="6" width="20" height="12" rx="2"/>
+        <line x1="6" y1="10" x2="6" y2="10"/><line x1="10" y1="10" x2="10" y2="10"/>
+        <line x1="14" y1="10" x2="14" y2="10"/><line x1="18" y1="10" x2="18" y2="10"/>
+        <line x1="7" y1="14" x2="17" y2="14"/>
+      </svg>
+      <span>操作</span>
+    </div>
+    <div class="btn" id="btnAbout">
+      <svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="8"/></svg>
+      <span>关于</span>
+    </div>
+  </div>
+</div>
+
+<!-- 设置弹窗 -->
+<div class="modal" id="mSettings">
+  <div class="panel">
+    <h2>设置</h2>
+
+    <div class="section">画面</div>
+    <div class="row"><span class="lbl">画质</span><span class="seg" id="segQuality"><div data-v="low">低</div><div data-v="mid">中</div><div data-v="high">高</div><div data-v="ultra">超</div><div data-v="auto">自动</div></span></div>
+    <div class="row"><span class="lbl">分辨率缩放</span><span><input type="range" id="resScale" min="50" max="200" value="100"> <span class="val" id="resScaleVal">100%</span></span></div>
+    <div class="row"><span class="lbl">抗锯齿</span><span class="seg" id="segAA"><div data-v="off">关</div><div data-v="low">低</div><div data-v="high">高</div></span></div>
+    <div class="row"><span class="lbl">光影</span><span class="seg" id="segLighting"><div data-v="0">关</div><div data-v="1">开</div></span></div>
+    <div class="row"><span class="lbl">影子</span><span class="seg" id="segShadow"><div data-v="0">关</div><div data-v="1">开</div></span></div>
+    <div class="row"><span class="lbl">影子质量</span><span class="seg" id="segShadowQ"><div data-v="low">低</div><div data-v="mid">中</div><div data-v="high">高</div><div data-v="ultra">超</div></span></div>
+    <div class="row"><span class="lbl">雾效</span><span class="seg" id="segFog"><div data-v="0">关</div><div data-v="1">开</div></span></div>
+    <div class="row"><span class="lbl">泛光</span><span class="seg" id="segBloom"><div data-v="0">关</div><div data-v="1">开</div></span></div>
+    <div class="row"><span class="lbl">暗角</span><span class="seg" id="segVignette"><div data-v="0">关</div><div data-v="1">开</div></span></div>
+    <div class="row"><span class="lbl">速度线</span><span class="seg" id="segSpeedLines"><div data-v="0">关</div><div data-v="1">开</div></span></div>
+    <div class="row"><span class="lbl">高动态范围</span><span class="seg" id="segHDR"><div data-v="0">关</div><div data-v="1">开</div></span></div>
+
+    <div class="section light">光影增强</div>
+    <div class="row"><span class="lbl">阴影类型</span><span class="seg" id="segShadowType"><div data-v="pcf">百分比过滤</div><div data-v="pcfsoft">百分比过滤柔和</div><div data-v="vsm">方差阴影</div></span></div>
+    <div class="row"><span class="lbl">阴影距离</span><span class="seg" id="segShadowDist"><div data-v="near">近</div><div data-v="mid">中</div><div data-v="far">远</div></span></div>
+    <div class="row"><span class="lbl">环境光强度</span><span><input type="range" id="ambientIntensity" min="0" max="200" value="100"> <span class="val" id="ambientIntensityVal">100%</span></span></div>
+    <div class="row"><span class="lbl">太阳光强度</span><span><input type="range" id="sunIntensity" min="0" max="200" value="100"> <span class="val" id="sunIntensityVal">100%</span></span></div>
+    <div class="row"><span class="lbl">太阳角度</span><span><input type="range" id="sunAngle" min="0" max="360" value="180"> <span class="val" id="sunAngleVal">180°</span></span></div>
+    <div class="row"><span class="lbl">色调映射</span><span class="seg" id="segToneMapping"><div data-v="aces">电影级</div><div data-v="reinhard">莱因哈德</div><div data-v="cineon">西尼昂</div><div data-v="linear">线性</div></span></div>
+    <div class="row"><span class="lbl">曝光度</span><span><input type="range" id="exposure" min="50" max="200" value="105"> <span class="val" id="exposureVal">1.05</span></span></div>
+    <div class="row"><span class="lbl">快速抗锯齿</span><span class="seg" id="segFXAA"><div data-v="off">关</div><div data-v="low">低</div><div data-v="high">高</div></span></div>
+    <div class="row"><span class="lbl">阴影柔和度</span><span><input type="range" id="shadowSoft" min="0" max="5" value="2"> <span class="val" id="shadowSoftVal">2</span></span></div>
+    <div class="row"><span class="lbl">雾效浓度</span><span><input type="range" id="fogDensity" min="0" max="100" value="100"> <span class="val" id="fogDensityVal">100%</span></span></div>
+    <div class="row"><span class="lbl">泛光强度</span><span><input type="range" id="bloomStrength" min="0" max="200" value="50"> <span class="val" id="bloomStrengthVal">50%</span></span></div>
+    <div class="row"><span class="lbl">级联阴影</span><span class="seg" id="segCSM"><div data-v="0">关</div><div data-v="1">开</div></span></div>
+
+    <div class="section warn">后处理增强</div>
+    <div class="row"><span class="lbl">性能模式</span><span class="seg" id="segPerfMode"><div data-v="0">关</div><div data-v="1">开</div></span></div>
+    <div class="row"><span class="lbl">运动模糊</span><span class="seg" id="segMotionBlur"><div data-v="0">关</div><div data-v="1">开</div></span></div>
+    <div class="row"><span class="lbl">胶片颗粒</span><span class="seg" id="segFilmGrain"><div data-v="0">关</div><div data-v="1">开</div></span></div>
+    <div class="row"><span class="lbl">色彩校正</span><span class="seg" id="segColorGrade"><div data-v="0">关</div><div data-v="1">开</div></span></div>
+    <div class="row"><span class="lbl">饱和度</span><span><input type="range" id="colorSaturation" min="0" max="200" value="100"> <span class="val" id="colorSaturationVal">100%</span></span></div>
+    <div class="row"><span class="lbl">对比度</span><span><input type="range" id="colorContrast" min="0" max="200" value="100"> <span class="val" id="colorContrastVal">100%</span></span></div>
+    <div class="row"><span class="lbl">亮度</span><span><input type="range" id="colorBrightness" min="0" max="200" value="100"> <span class="val" id="colorBrightnessVal">100%</span></span></div>
+
+    <div id="perfWarn"></div>
+
+    <div class="section">相机</div>
+    <div class="row"><span class="lbl">视场角</span><span><input type="range" id="fov" min="60" max="120" value="120"> <span class="val" id="fovVal">120</span></span></div>
+    <div class="row"><span class="lbl">默认视角</span><span class="seg" id="segView"><div data-v="fps">第一人称</div><div data-v="tps">第三人称</div></span></div>
+    <div class="row"><span class="lbl">第三人称距离</span><span><input type="range" id="tpsDist" min="20" max="80" value="45"> <span class="val" id="tpsDistVal">4.5</span></span></div>
+    <div class="row"><span class="lbl">第三人称高度</span><span><input type="range" id="tpsH" min="10" max="25" value="16"> <span class="val" id="tpsHVal">1.6</span></span></div>
+    <div class="row"><span class="lbl">相机平滑</span><span class="seg" id="segCamSmooth"><div data-v="0">关</div><div data-v="1">开</div></span></div>
+    <div class="row"><span class="lbl">视角震动</span><span class="seg" id="segShake"><div data-v="off">关</div><div data-v="low">低</div><div data-v="mid">中</div><div data-v="high">高</div></span></div>
+    <div class="row"><span class="lbl">相机摇晃强度</span><span><input type="range" id="shakeAmount" min="0" max="200" value="100"> <span class="val" id="shakeAmountVal">100%</span></span></div>
+
+    <div class="section">视角</div>
+    <div class="row"><span class="lbl">微动视角</span><span class="seg" id="segViewSway"><div data-v="0">关</div><div data-v="1">开</div></span></div>
+    <div class="row"><span class="lbl">微动幅度</span><span><input type="range" id="swayAmount" min="0" max="200" value="100"> <span class="val" id="swayAmountVal">100%</span></span></div>
+    <div class="row"><span class="lbl">跑步视角晃动</span><span class="seg" id="segRunShake"><div data-v="0">关</div><div data-v="1">开</div></span></div>
+    <div class="row"><span class="lbl">跑步晃动幅度</span><span><input type="range" id="runShakeAmount" min="0" max="200" value="100"> <span class="val" id="runShakeAmountVal">100%</span></span></div>
+    <div class="row"><span class="lbl">受击晃动</span><span class="seg" id="segHitShake"><div data-v="0">关</div><div data-v="1">开</div></span></div>
+    <div class="row"><span class="lbl">受击黑边</span><span class="seg" id="segHitFrame"><div data-v="0">关</div><div data-v="1">开</div></span></div>
+    <div class="row"><span class="lbl">濒死眨眼</span><span class="seg" id="segBlinkFx"><div data-v="0">关</div><div data-v="1">开</div></span></div>
+    <div class="row"><span class="lbl">濒死慢动作</span><span class="seg" id="segSlowMo"><div data-v="0">关</div><div data-v="1">开</div></span></div>
+    <div class="row"><span class="lbl">重伤去饱和</span><span class="seg" id="segDesatFx"><div data-v="0">关</div><div data-v="1">开</div></span></div>
+    <div class="row"><span class="lbl">视角回正速度</span><span><input type="range" id="viewRecenterSpeed" min="0" max="100" value="50"> <span class="val" id="viewRecenterSpeedVal">50</span></span></div>
+
+    <div class="section">生命监测</div>
+    <div class="row"><span class="lbl">心跳/呼吸检测仪</span><span class="seg" id="segVitals"><div data-v="0">关</div><div data-v="1">开</div></span></div>
+    <div class="row"><span class="lbl">监测音效</span><span class="seg" id="segVitalsSound"><div data-v="0">关</div><div data-v="1">开</div></span></div>
+    <div class="row"><span class="lbl">心跳声</span><span class="seg" id="segHeartSound"><div data-v="0">关</div><div data-v="1">开</div></span></div>
+    <div class="row"><span class="lbl">呼吸声</span><span class="seg" id="segBreathSound"><div data-v="0">关</div><div data-v="1">开</div></span></div>
+
+    <div class="section">操作</div>
+    <div class="row"><span class="lbl">灵敏度</span><span><input type="range" id="sens" min="1" max="100" value="22"> <span class="val" id="sensVal">22</span></span></div>
+    <div class="row"><span class="lbl">鼠标加速</span><span class="seg" id="segMouseAccel"><div data-v="0">关</div><div data-v="1">开</div></span></div>
+    <div class="row"><span class="lbl">反转 Y 轴</span><span class="seg" id="segInvertY"><div data-v="0">关</div><div data-v="1">开</div></span></div>
+    <div class="row"><span class="lbl">摇杆死区</span><span><input type="range" id="joyDead" min="0" max="50" value="15"> <span class="val" id="joyDeadVal">0.15</span></span></div>
+
+    <div class="section">音频</div>
+    <div class="row"><span class="lbl">主音量</span><span><input type="range" id="volMaster" min="0" max="100" value="70"> <span class="val" id="volMasterVal">70</span></span></div>
+    <div class="row"><span class="lbl">音效音量</span><span><input type="range" id="volSfx" min="0" max="100" value="70"> <span class="val" id="volSfxVal">70</span></span></div>
+    <div class="row"><span class="lbl">音效开关</span><span class="seg" id="segSfxOn"><div data-v="0">关</div><div data-v="1">开</div></span></div>
+
+    <div class="section">界面</div>
+    <div class="row"><span class="lbl">显示帧率</span><span class="seg" id="segFps"><div data-v="off">关</div><div data-v="on">开</div></span></div>
+    <div class="row"><span class="lbl">显示坐标</span><span class="seg" id="segCoord"><div data-v="0">关</div><div data-v="1">开</div></span></div>
+    <div class="row"><span class="lbl">显示状态</span><span class="seg" id="segStance"><div data-v="0">关</div><div data-v="1">开</div></span></div>
+    <div class="row"><span class="lbl">显示罗盘</span><span class="seg" id="segCompass"><div data-v="0">关</div><div data-v="1">开</div></span></div>
+    <div class="row"><span class="lbl">显示准星</span><span class="seg" id="segShowCrosshair"><div data-v="0">关</div><div data-v="1">开</div></span></div>
+    <div class="row"><span class="lbl">显示血量</span><span class="seg" id="segShowHp"><div data-v="0">关</div><div data-v="1">开</div></span></div>
+    <div class="row"><span class="lbl">受伤红晕</span><span class="seg" id="segHurtVignette"><div data-v="0">关</div><div data-v="1">开</div></span></div>
+    <div class="row"><span class="lbl">界面透明度</span><span><input type="range" id="hudOpacity" min="0" max="100" value="100"> <span class="val" id="hudOpacityVal">100%</span></span></div>
+    <div class="row"><span class="lbl">罗盘透明度</span><span><input type="range" id="compassOpacity" min="0" max="100" value="100"> <span class="val" id="compassOpacityVal">100%</span></span></div>
+    <div class="row"><span class="lbl">罗盘位置</span><span class="seg" id="segCompassPos"><div data-v="top">顶部</div><div data-v="bottom">底部</div></span></div>
+    <div class="row"><span class="lbl">界面缩放</span><span><input type="range" id="hudScale" min="50" max="150" value="100"> <span class="val" id="hudScaleVal">100%</span></span></div>
+    <div class="row"><span class="lbl">帧率位置</span><span class="seg grid wide" id="segFpsPos"><!-- JS 动态填 --></span></div>
+    <div class="row"><span class="lbl">帧率字号</span><span><input type="range" id="fpsSize" min="8" max="20" value="11"> <span class="val" id="fpsSizeVal">11</span></span></div>
+
+    <div class="section">准星</div>
+    <div class="row">
+      <span class="lbl">样式预览</span>
+      <div id="chPreview"><svg id="chPreviewSvg" viewBox="0 0 32 32"></svg></div>
+    </div>
+    <div class="row"><span class="lbl">准星样式</span><span class="seg grid wide" id="segChStyle"><!-- JS 动态填 --></span></div>
+    <div class="row"><span class="lbl">准星颜色</span><span class="seg" id="segChColor"><!-- JS 动态填 --></span></div>
+    <div class="row"><span class="lbl">自定义颜色</span><span><input type="color" id="chColorCustom" value="#ffffff"> <span class="val" id="chColorCustomVal">#ffffff</span></span></div>
+    <div class="row"><span class="lbl">准星大小</span><span><input type="range" id="chSize" min="50" max="200" value="100"> <span class="val" id="chSizeVal">100%</span></span></div>
+    <div class="row"><span class="lbl">准星粗细</span><span><input type="range" id="chThickness" min="1" max="5" value="2"> <span class="val" id="chThicknessVal">2</span></span></div>
+    <div class="row"><span class="lbl">准星间隙</span><span><input type="range" id="chGap" min="0" max="20" value="8"> <span class="val" id="chGapVal">8</span></span></div>
+    <div class="row"><span class="lbl">准星透明度</span><span><input type="range" id="chOpacity" min="10" max="100" value="100"> <span class="val" id="chOpacityVal">100%</span></span></div>
+    <div class="row"><span class="lbl">动态扩散</span><span class="seg" id="segChDynamic"><div data-v="0">关</div><div data-v="1">开</div></span></div>
+    <div class="row"><span class="lbl">准星阴影</span><span class="seg" id="segChShadow"><div data-v="0">关</div><div data-v="1">开</div></span></div>
+
+    <div class="section">击中提示</div>
+    <div class="row"><span class="lbl">显示数字伤害</span><span class="seg" id="segShowDmgNumber"><div data-v="0">关</div><div data-v="1">开</div></span></div>
+    <div class="row"><span class="lbl">数字大小</span><span><input type="range" id="dmgSize" min="50" max="200" value="100"> <span class="val" id="dmgSizeVal">100%</span></span></div>
+    <div class="row"><span class="lbl">显示击中图标</span><span class="seg" id="segShowDmgIcon"><div data-v="0">关</div><div data-v="1">开</div></span></div>
+    <div class="row"><span class="lbl">击中图标样式</span><span class="seg grid" id="segHitStyle"><!-- JS 动态填 --></span></div>
+    <div class="row"><span class="lbl">击中图标大小</span><span><input type="range" id="hitSize" min="50" max="200" value="100"> <span class="val" id="hitSizeVal">100%</span></span></div>
+    <div class="row"><span class="lbl">漂浮高度</span><span><input type="range" id="hitFloat" min="0" max="100" value="60"> <span class="val" id="hitFloatVal">60</span></span></div>
+
+    <div class="section">更多</div>
+    <div class="row"><span class="lbl">受击方向指示</span><span class="seg" id="segHitDirection"><div data-v="0">关</div><div data-v="1">开</div></span></div>
+    <div class="row"><span class="lbl">击杀图标</span><span class="seg" id="segKillIcon"><div data-v="0">关</div><div data-v="1">开</div></span></div>
+    <div class="row"><span class="lbl">血量低警告音</span><span class="seg" id="segLowHpSound"><div data-v="0">关</div><div data-v="1">开</div></span></div>
+    <div class="row"><span class="lbl">自动拾取</span><span class="seg" id="segAutoPickup"><div data-v="0">关</div><div data-v="1">开</div></span></div>
+
+    <div class="section">移动端</div>
+    <div class="row"><span class="lbl">左侧摇杆灵敏度</span><span><input type="range" id="joySens" min="0" max="200" value="100"> <span class="val" id="joySensVal">100%</span></span></div>
+    <div class="row"><span class="lbl">右侧滑动灵敏度</span><span><input type="range" id="lookSens" min="0" max="200" value="100"> <span class="val" id="lookSensVal">100%</span></span></div>
+    <div class="row"><span class="lbl">按钮大小</span><span><input type="range" id="btnScale" min="80" max="150" value="100"> <span class="val" id="btnScaleVal">100%</span></span></div>
+    <div class="row"><span class="lbl">按钮透明度</span><span><input type="range" id="btnOpacity" min="30" max="100" value="100"> <span class="val" id="btnOpacityVal">100%</span></span></div>
+    <div class="row"><span class="lbl">震动反馈</span><span class="seg" id="segVibrate"><div data-v="0">关</div><div data-v="1">开</div></span></div>
+
+    <div class="section">其他</div>
+    <div class="row"><span class="lbl">游戏时间速度</span><span><input type="range" id="timeScale" min="50" max="200" value="100"> <span class="val" id="timeScaleVal">100%</span></span></div>
+    <div class="row"><span class="lbl">返回时暂停</span><span class="seg" id="segPauseOnBack"><div data-v="0">关</div><div data-v="1">开</div></span></div>
+    <div class="row"><span class="lbl">帧率上限</span><span class="seg" id="segFpsLimit"><div data-v="30">30</div><div data-v="60">60</div><div data-v="90">90</div><div data-v="120">120</div><div data-v="0">无限制</div></span></div>
+    <div class="row"><span class="lbl">自动保存布局</span><span class="seg" id="segAutoSaveLayout"><div data-v="0">关</div><div data-v="1">开</div></span></div>
+
+    <div class="footer">
+      <span class="close danger" id="btnReset">重置设置</span>
+      <span class="close" data-close>关闭</span>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="mControls">
+  <div class="panel">
+    <h2>操作</h2>
+    <div id="controlsPC">
+      <p class="hl">桌面端（键盘 + 鼠标）</p>
+      <div class="row"><span class="lbl">移动</span><span class="val"><span class="kbd">WASD</span></span></div>
+      <div class="row"><span class="lbl">冲刺</span><span class="val"><span class="kbd">SHIFT</span></span></div>
+      <div class="row"><span class="lbl">膝撞</span><span class="val"><span class="kbd">CTRL</span></span></div>
+      <div class="row"><span class="lbl">跳跃</span><span class="val"><span class="kbd">SPACE</span></span></div>
+      <div class="row"><span class="lbl">大跳</span><span class="val"><span class="kbd">SHIFT</span>+<span class="kbd">SPACE</span></span></div>
+      <div class="row"><span class="lbl">攀爬</span><span class="val"><span class="kbd">N</span></span></div>
+      <div class="row"><span class="lbl">左直 / 右直</span><span class="val"><span class="kbd">LMB</span> <span class="kbd">RMB</span></span></div>
+      <div class="row"><span class="lbl">左勾 / 右勾</span><span class="val"><span class="kbd">V</span> <span class="kbd">B</span></span></div>
+      <div class="row"><span class="lbl">锤拳 / 掌击</span><span class="val"><span class="kbd">M</span> <span class="kbd">,</span></span></div>
+      <div class="row"><span class="lbl">左肘 / 右肘</span><span class="val"><span class="kbd">G</span> <span class="kbd">H</span></span></div>
+      <div class="row"><span class="lbl">左踢 / 右踢 / 推人</span><span class="val"><span class="kbd">Q</span> <span class="kbd">R</span> <span class="kbd">E</span></span></div>
+      <div class="row"><span class="lbl">格挡</span><span class="val"><span class="kbd">F</span></span></div>
+      <div class="row"><span class="lbl">闪避 / 后闪</span><span class="val"><span class="kbd">双击 A/D</span> <span class="kbd">双击 S</span></span></div>
+      <div class="row"><span class="lbl">检视</span><span class="val"><span class="kbd">I</span></span></div>
+      <div class="row"><span class="lbl">切换视角</span><span class="val"><span class="kbd">T</span></span></div>
+      <div class="row"><span class="lbl">返回菜单</span><span class="val"><span class="kbd">ESC</span></span></div>
+    </div>
+    <div id="controlsTouch" style="display:none">
+      <p class="hl">移动端（触屏）</p>
+      <div class="row"><span class="lbl">移动</span><span class="val">左下角移动区</span></div>
+      <div class="row"><span class="lbl">视角</span><span class="val">右侧滑动</span></div>
+      <div class="row"><span class="lbl">攻击 / 动作</span><span class="val">屏幕两侧按钮</span></div>
+      <div class="row"><span class="lbl">闪避 / 后闪</span><span class="val">左侧移动区双击</span></div>
+    </div>
+    <div style="text-align:right">
+      <span class="close" data-close>关闭</span>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="mAbout">
+  <div class="panel">
+    <h2>关于</h2>
+    <p class="hl">T-BOX</p>
+    <p>版本：<span id="aboutVersion">—</span></p>
+    <p>类型：第一人称 / 第三人称 方块沙盒</p>
+    <p style="margin-top:16px">本项目为开源学习项目，基于 MIT 协议开源。</p>
+    <p>仅供学习参考，请勿直接照搬、盗用、商用。</p>
+    <p>如需使用代码，请注明来源。</p>
+    <p style="opacity:.55;font-size:11px;margin-top:16px">本项目并非独立创作，仅为学习参考。如有侵犯任何第三方权益，请联系删除。</p>
+    <div style="text-align:right">
+      <span class="close" data-close>关闭</span>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+<div id="flash"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  var embedMatch = location.search.match(/[?&]embed=(\w+)/);
+  var embedType = embedMatch ? embedMatch[1] : null;
+  var isEmbed = !!embedType;
+  if(isEmbed){
+    document.body.classList.add('embed-mode');
+    var targetModal = document.getElementById('m' + embedType.charAt(0).toUpperCase() + embedType.slice(1));
+    if(targetModal) targetModal.classList.add('embed-target', 'on');
+  }
+
+  var VERSION_LABEL = (window.TBOX && window.TBOX.VERSION && window.TBOX.VERSION.LABEL) || '—';
+  var versionLabelEl = document.getElementById('versionLabel');
+  if(versionLabelEl) versionLabelEl.textContent = VERSION_LABEL;
+  var aboutVersionEl = document.getElementById('aboutVersion');
+  if(aboutVersionEl) aboutVersionEl.textContent = VERSION_LABEL;
+
+  var isTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
+  try { localStorage.setItem('tbox_device', isTouch ? 'touch' : 'pc'); } catch(e){}
+
+  if(isTouch){
+    var btnLayout = document.getElementById('btnLayout');
+    if(btnLayout) btnLayout.style.display = 'flex';
+  }
+
+  /* 粒子背景 */
+  var canvas = document.getElementById('particles');
+  if(canvas && !isEmbed){
+    var ctx = canvas.getContext('2d');
+    var W = 0, H = 0, DPR = 1;
+    function resize(){
+      DPR = Math.min(window.devicePixelRatio || 1, 2);
+      W = window.innerWidth; H = window.innerHeight;
+      canvas.width = W * DPR; canvas.height = H * DPR;
+      canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+      ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    }
+    window.addEventListener('resize', resize);
+    resize();
+    var PCOUNT = isTouch ? 32 : 56;
+    var particles = [];
+    for(var i=0;i<PCOUNT;i++){
+      particles.push({
+        x: Math.random()*W, y: Math.random()*H,
+        vx: (Math.random()-0.5)*0.22, vy: (Math.random()-0.5)*0.22,
+        size: 2+Math.random()*5, rot: Math.random()*Math.PI*2,
+        vr: (Math.random()-0.5)*0.5,
+        baseA: 0.10+Math.random()*0.22, a: 0.10,
+        isBlock: Math.random() > 0.5
+      });
+    }
+    var mouseX = -9999, mouseY = -9999;
+    window.addEventListener('mousemove', function(e){ mouseX = e.clientX; mouseY = e.clientY; });
+    window.addEventListener('touchmove', function(e){
+      if(e.touches[0]){ mouseX = e.touches[0].clientX; mouseY = e.touches[0].clientY; }
+    }, {passive:true});
+    window.addEventListener('mouseleave', function(){ mouseX = -9999; mouseY = -9999; });
+    var t = 0;
+    function draw(){
+      t += 0.016;
+      ctx.clearRect(0, 0, W, H);
+      for(var pi=0;pi<particles.length;pi++){
+        var p = particles[pi];
+        var dx = p.x - mouseX, dy = p.y - mouseY;
+        var d = Math.hypot(dx, dy);
+        var boost = 0;
+        if(d < 160) boost = (1-d/160)*0.5;
+        p.a = p.baseA + boost;
+        p.x += p.vx + Math.sin(t*0.6+p.y*0.01)*0.10;
+        p.y += p.vy + Math.cos(t*0.5+p.x*0.01)*0.10;
+        p.rot += p.vr;
+        p.vx *= 0.97; p.vy *= 0.97;
+        if(Math.abs(p.vx) < 0.22) p.vx += (Math.random()-0.5)*0.03;
+        if(Math.abs(p.vy) < 0.22) p.vy += (Math.random()-0.5)*0.03;
+        if(p.x < -20) p.x = W+20; if(p.x > W+20) p.x = -20;
+        if(p.y < -20) p.y = H+20; if(p.y > H+20) p.y = -20;
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.rot);
+        ctx.globalAlpha = p.a;
+        if(p.isBlock){
+          ctx.fillStyle = 'rgba(200,215,225,.9)';
+          ctx.fillRect(-p.size/2, -p.size/2, p.size, p.size);
+          ctx.strokeStyle = 'rgba(255,255,255,.4)';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(-p.size/2, -p.size/2, p.size, p.size);
+        } else {
+          ctx.fillStyle = 'rgba(180,195,205,.7)';
+          ctx.beginPath();
+          ctx.arc(0, 0, p.size*0.55, 0, Math.PI*2);
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+      requestAnimationFrame(draw);
+    }
+    draw();
+  }
+
+  function openModal(id){
+    document.querySelectorAll('.modal').forEach(function(m){ m.classList.remove('on'); });
+    var el = document.getElementById(id);
+    if(el) el.classList.add('on');
+    if(id === 'mSettings'){ updatePerfWarn(); }
+  }
+  function closeModals(){
+    document.querySelectorAll('.modal').forEach(function(m){ m.classList.remove('on'); });
+    if(isEmbed){
+      try { window.parent.postMessage({ type: 'tbox-settings-close' }, '*'); } catch(e){}
+    }
+  }
+  document.querySelectorAll('[data-close]').forEach(function(el){
+    el.addEventListener('click', closeModals);
+  });
+  document.querySelectorAll('.modal').forEach(function(m){
+    m.addEventListener('click', function(e){ if(e.target === m) closeModals(); });
+  });
+  window.addEventListener('keydown', function(e){
+    if(e.code === 'Escape') closeModals();
+  });
+
+  var btnStartEl = document.getElementById('btnStart');
+  if(btnStartEl) btnStartEl.addEventListener('click', function(){ window.location.href = 'game.html'; });
+  var btnCharEl = document.getElementById('btnChar');
+  if(btnCharEl) btnCharEl.addEventListener('click', function(){ window.location.href = 'char.html'; });
+  var btnLayoutEl = document.getElementById('btnLayout');
+  if(btnLayoutEl) btnLayoutEl.addEventListener('click', function(){
+    if(!isTouch) return;
+    window.location.href = 'layout.html';
+  });
+  var btnSettingsEl = document.getElementById('btnSettings');
+  if(btnSettingsEl) btnSettingsEl.addEventListener('click', function(){ openModal('mSettings'); });
+  var btnControlsEl = document.getElementById('btnControls');
+  if(btnControlsEl) btnControlsEl.addEventListener('click', function(){
+    var pcEl = document.getElementById('controlsPC');
+    var touchEl = document.getElementById('controlsTouch');
+    if(pcEl) pcEl.style.display = isTouch ? 'none' : 'block';
+    if(touchEl) touchEl.style.display = isTouch ? 'block' : 'none';
+    openModal('mControls');
+  });
+  var btnAboutEl = document.getElementById('btnAbout');
+  if(btnAboutEl) btnAboutEl.addEventListener('click', function(){ openModal('mAbout'); });
+
+  var LS = {
+    get: function(k, def){ try { var v = localStorage.getItem(k); return v === null ? def : v; } catch(e){ return def; } },
+    set: function(k, v){ try { localStorage.setItem(k, v); } catch(e){} }
+  };
+
+  /* ============================================================
+   * 动态填充样式选择器
+   * ============================================================ */
+  function buildDynamicSegs(){
+    var D = (window.TBOX && TBOX.DATA) ? TBOX.DATA : {};
+    console.log('[index] buildDynamicSegs, DATA:', !!window.TBOX, !!window.TBOX.DATA);
+
+    /* 准星样式 */
+    var segChStyle = document.getElementById('segChStyle');
+    if(segChStyle && D.CH_STYLES){
+      segChStyle.innerHTML = '';
+      D.CH_STYLES.forEach(function(s){
+        var d = document.createElement('div');
+        d.dataset.v = s.id;
+        d.textContent = s.label;
+        segChStyle.appendChild(d);
+      });
+      console.log('[index] 准星样式已填充:', D.CH_STYLES.length, '种');
+    }
+
+    /* 准星颜色 */
+    var segChColor = document.getElementById('segChColor');
+    if(segChColor && D.CH_COLORS){
+      segChColor.innerHTML = '';
+      D.CH_COLORS.forEach(function(c){
+        var d = document.createElement('div');
+        d.dataset.v = c.id;
+        d.textContent = c.label;
+        segChColor.appendChild(d);
+      });
+      console.log('[index] 准星颜色已填充:', D.CH_COLORS.length, '种');
+    }
+
+    /* 击中图标样式 */
+    var segHitStyle = document.getElementById('segHitStyle');
+    if(segHitStyle && D.HIT_STYLES){
+      segHitStyle.innerHTML = '';
+      D.HIT_STYLES.forEach(function(s){
+        var d = document.createElement('div');
+        d.dataset.v = s.id;
+        d.textContent = s.label;
+        segHitStyle.appendChild(d);
+      });
+      console.log('[index] 击中图标已填充:', D.HIT_STYLES.length, '种');
+    }
+
+    /* 帧率位置 */
+    var segFpsPos = document.getElementById('segFpsPos');
+    if(segFpsPos && D.FPS_POSITIONS){
+      segFpsPos.innerHTML = '';
+      D.FPS_POSITIONS.forEach(function(s){
+        var d = document.createElement('div');
+        d.dataset.v = s.id;
+        d.textContent = s.label;
+        segFpsPos.appendChild(d);
+      });
+      console.log('[index] 帧率位置已填充:', D.FPS_POSITIONS.length, '种');
+    }
+  }
+
+  function bindSeg(id, key, def){
+    var el = document.getElementById(id);
+    if(!el) return;
+    var val = LS.get(key, def);
+    el.querySelectorAll('div').forEach(function(d){
+      d.classList.toggle('on', d.dataset.v === val);
+      d.addEventListener('click', function(){
+        el.querySelectorAll('div').forEach(function(x){ x.classList.remove('on'); });
+        d.classList.add('on');
+        LS.set(key, d.dataset.v);
+        updatePerfWarn();
+        if(key === 'tbox_chStyle' || key === 'tbox_chColor'){
+          updateChPreview();
+        }
+        if(isEmbed){
+          try { window.parent.postMessage({ type: 'tbox-setting-changed', key: key, value: d.dataset.v }, '*'); } catch(e){}
+        }
+      });
+    });
+  }
+
+  function bindRange(id, valId, key, def, div, suffix){
+    var el = document.getElementById(id);
+    var valEl = document.getElementById(valId);
+    if(!el) return;
+    var v = Number(LS.get(key, def));
+    el.value = v;
+    function show(){
+      if(!valEl) return;
+      if(suffix === '%') valEl.textContent = (v/div).toFixed(0)+suffix;
+      else if(suffix === '°') valEl.textContent = v+suffix;
+      else if(div === 100) valEl.textContent = (v/100).toFixed(2);
+      else valEl.textContent = v;
+    }
+    show();
+    el.addEventListener('input', function(){
+      v = Number(el.value);
+      show();
+      LS.set(key, v);
+      if(key.indexOf('ch') === 0) updateChPreview();
+      if(isEmbed){
+        try { window.parent.postMessage({ type: 'tbox-setting-changed', key: key, value: String(v) }, '*'); } catch(e){}
+      }
+    });
+  }
+
+  function bindColor(id, valId, key, def){
+    var el = document.getElementById(id);
+    var valEl = document.getElementById(valId);
+    if(!el) return;
+    var v = LS.get(key, def);
+    el.value = v;
+    if(valEl) valEl.textContent = v;
+    el.addEventListener('input', function(){
+      var nv = el.value;
+      LS.set(key, nv);
+      if(valEl) valEl.textContent = nv;
+      updateChPreview();
+      if(isEmbed){
+        try { window.parent.postMessage({ type: 'tbox-setting-changed', key: key, value: nv }, '*'); } catch(e){}
+      }
+    });
+  }
+
+  /* ============================================================
+   * 准星预览
+   * ============================================================ */
+  function getChColor(){
+    var color = LS.get('tbox_chColor', 'white');
+    var custom = LS.get('tbox_chColorCustom', '#ffffff');
+    var map = {
+      white: '#ffffff', red: '#ff3b5c', green: '#4fff7a',
+      yellow: '#ffcc33', blue: '#4fd1ff', cyan: '#00ffff', magenta: '#ff00ff'
+    };
+    return color === 'custom' ? custom : (map[color] || '#ffffff');
+  }
+
+  function buildChSvg(style, color){
+    var c = color;
+    var th = 2;
+    var gap = 8;
+    var svg = '';
+    var mid = 16;
+    switch(style){
+      case 'cross':
+        svg =
+          '<line x1="16" y1="2" x2="16" y2="' + (mid - gap) + '" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round"/>' +
+          '<line x1="16" y1="' + (mid + gap) + '" x2="16" y2="30" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round"/>' +
+          '<line x1="2" y1="16" x2="' + (mid - gap) + '" y2="16" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round"/>' +
+          '<line x1="' + (mid + gap) + '" y1="16" x2="30" y2="16" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round"/>';
+        break;
+      case 'dot':
+        svg = '<circle cx="16" cy="16" r="2.5" fill="' + c + '"/>';
+        break;
+      case 'circle':
+        svg = '<circle cx="16" cy="16" r="7" fill="none" stroke="' + c + '" stroke-width="' + th + '"/>';
+        break;
+      case 'circle-dot':
+        svg =
+          '<circle cx="16" cy="16" r="7" fill="none" stroke="' + c + '" stroke-width="' + th + '"/>' +
+          '<circle cx="16" cy="16" r="1.6" fill="' + c + '"/>';
+        break;
+      case 'cross-dot':
+        svg =
+          '<circle cx="16" cy="16" r="2" fill="' + c + '"/>' +
+          '<circle cx="16" cy="' + (mid - gap) + '" r="1.6" fill="' + c + '"/>' +
+          '<circle cx="16" cy="' + (mid + gap) + '" r="1.6" fill="' + c + '"/>' +
+          '<circle cx="' + (mid - gap) + '" cy="16" r="1.6" fill="' + c + '"/>' +
+          '<circle cx="' + (mid + gap) + '" cy="16" r="1.6" fill="' + c + '"/>';
+        break;
+      case 'x':
+        var x1 = 6;
+        var x2 = 26;
+        var xin = mid - gap * 0.7;
+        var xin2 = mid + gap * 0.7;
+        svg =
+          '<line x1="' + x1 + '" y1="' + x1 + '" x2="' + xin + '" y2="' + xin + '" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round"/>' +
+          '<line x1="' + xin2 + '" y1="' + xin2 + '" x2="' + x2 + '" y2="' + x2 + '" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round"/>' +
+          '<line x1="' + x2 + '" y1="' + x1 + '" x2="' + xin2 + '" y2="' + xin + '" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round"/>' +
+          '<line x1="' + x1 + '" y1="' + x2 + '" x2="' + xin + '" y2="' + xin2 + '" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round"/>';
+        break;
+      case 'star':
+        svg = '<path d="M16 3 L19 12 L28 12 L21 18 L24 27 L16 21 L8 27 L11 18 L4 12 L13 12 Z" fill="none" stroke="' + c + '" stroke-width="' + th + '" stroke-linejoin="round"/>';
+        break;
+      case 'star-filled':
+        svg = '<path d="M16 3 L19 12 L28 12 L21 18 L24 27 L16 21 L8 27 L11 18 L4 12 L13 12 Z" fill="' + c + '"/>';
+        break;
+      case 'diamond':
+        svg = '<path d="M16 4 L28 16 L16 28 L4 16 Z" fill="none" stroke="' + c + '" stroke-width="' + th + '" stroke-linejoin="round"/>';
+        break;
+      case 'square':
+        svg = '<rect x="8" y="8" width="16" height="16" fill="none" stroke="' + c + '" stroke-width="' + th + '"/>';
+        break;
+      case 't-shape':
+        svg =
+          '<line x1="16" y1="2" x2="16" y2="' + (mid - gap) + '" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round"/>' +
+          '<line x1="2" y1="16" x2="' + (mid - gap) + '" y2="16" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round"/>' +
+          '<line x1="' + (mid + gap) + '" y1="16" x2="30" y2="16" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round"/>';
+        break;
+      case 'brackets':
+        svg =
+          '<path d="M10 6 L6 6 L6 26 L10 26" fill="none" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round" stroke-linejoin="round"/>' +
+          '<path d="M22 6 L26 6 L26 26 L22 26" fill="none" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round" stroke-linejoin="round"/>';
+        break;
+      default:
+        svg = '<circle cx="16" cy="16" r="2" fill="' + c + '"/>';
+    }
+    return svg;
+  }
+
+  function updateChPreview(){
+    var svg = document.getElementById('chPreviewSvg');
+    if(!svg) return;
+    var style = LS.get('tbox_chStyle', 'cross');
+    var color = getChColor();
+    var thickness = Number(LS.get('tbox_chThickness', 2));
+    var gap = Number(LS.get('tbox_chGap', 8));
+    svg.innerHTML = buildChSvg(style, color);
+    /* 重新填充样式 */
+    if(!svg.innerHTML){
+      svg.innerHTML = '<circle cx="16" cy="16" r="2" fill="' + color + '"/>';
+    }
+  }
+
+  /* ============================================================
+   * 初始化 + 绑定
+   * ============================================================ */
+  function initAll(){
+    console.log('[index] initAll');
+    buildDynamicSegs();
+    bindAllSettings();
+    updateChPreview();
+  }
+
+  function bindAllSettings(){
+    bindSeg('segQuality', 'tbox_quality', 'auto');
+    bindRange('resScale', 'resScaleVal', 'tbox_resScale', 100, 100, '%');
+    bindSeg('segAA', 'tbox_aa', 'off');
+    bindSeg('segLighting', 'tbox_lighting', '0');
+    bindSeg('segShadow', 'tbox_shadow', '0');
+    bindSeg('segShadowQ', 'tbox_shadowQ', 'mid');
+    bindSeg('segFog', 'tbox_fog', '1');
+    bindSeg('segBloom', 'tbox_bloom', '0');
+    bindSeg('segVignette', 'tbox_vignette', '1');
+    bindSeg('segSpeedLines', 'tbox_speedlines', '1');
+    bindSeg('segHDR', 'tbox_hdr', '0');
+    bindSeg('segShadowType', 'tbox_shadowType', 'pcfsoft');
+    bindSeg('segShadowDist', 'tbox_shadowDist', 'mid');
+    bindRange('ambientIntensity', 'ambientIntensityVal', 'tbox_ambientIntensity', 100, 100, '%');
+    bindRange('sunIntensity', 'sunIntensityVal', 'tbox_sunIntensity', 100, 100, '%');
+    bindRange('sunAngle', 'sunAngleVal', 'tbox_sunAngle', 180, 1, '°');
+    bindSeg('segToneMapping', 'tbox_toneMapping', 'aces');
+    bindRange('exposure', 'exposureVal', 'tbox_exposure', 105, 100, '');
+    bindSeg('segFXAA', 'tbox_fxaa', 'off');
+    bindRange('shadowSoft', 'shadowSoftVal', 'tbox_shadowSoft', 2, 1, '');
+    bindRange('fogDensity', 'fogDensityVal', 'tbox_fogDensity', 100, 100, '%');
+    bindRange('bloomStrength', 'bloomStrengthVal', 'tbox_bloomStrength', 50, 100, '%');
+    bindSeg('segCSM', 'tbox_csmEnabled', '0');
+
+    bindSeg('segPerfMode', 'tbox_perfMode', '0');
+    bindSeg('segMotionBlur', 'tbox_motionBlur', '0');
+    bindSeg('segFilmGrain', 'tbox_filmGrain', '0');
+    bindSeg('segColorGrade', 'tbox_colorGrade', '0');
+    bindRange('colorSaturation', 'colorSaturationVal', 'tbox_colorSaturation', 100, 100, '%');
+    bindRange('colorContrast', 'colorContrastVal', 'tbox_colorContrast', 100, 100, '%');
+    bindRange('colorBrightness', 'colorBrightnessVal', 'tbox_colorBrightness', 100, 100, '%');
+
+    bindRange('fov', 'fovVal', 'tbox_fov', 120, 1, '');
+    bindSeg('segView', 'tbox_view', 'fps');
+    bindRange('tpsDist', 'tpsDistVal', 'tbox_tpsDist', 45, 10, '');
+    bindRange('tpsH', 'tpsHVal', 'tbox_tpsH', 16, 10, '');
+    bindSeg('segCamSmooth', 'tbox_camSmooth', '1');
+    bindSeg('segShake', 'tbox_shake', 'high');
+    bindRange('shakeAmount', 'shakeAmountVal', 'tbox_shakeAmount', 100, 100, '%');
+    bindSeg('segViewSway', 'tbox_viewSway', '1');
+    bindRange('swayAmount', 'swayAmountVal', 'tbox_swayAmount', 100, 100, '%');
+    bindSeg('segRunShake', 'tbox_runShake', '1');
+    bindRange('runShakeAmount', 'runShakeAmountVal', 'tbox_runShakeAmount', 100, 100, '%');
+    bindSeg('segHitShake', 'tbox_hitShake', '1');
+    bindSeg('segHitFrame', 'tbox_hitFrame', '1');
+    bindSeg('segBlinkFx', 'tbox_blinkFx', '1');
+    bindSeg('segSlowMo', 'tbox_slowMo', '1');
+    bindSeg('segDesatFx', 'tbox_desatFx', '1');
+    bindRange('viewRecenterSpeed', 'viewRecenterSpeedVal', 'tbox_viewRecenterSpeed', 50, 1, '');
+    bindSeg('segVitals', 'tbox_vitals', '1');
+    bindSeg('segVitalsSound', 'tbox_vitalsSound', '1');
+    bindSeg('segHeartSound', 'tbox_heartSound', '1');
+    bindSeg('segBreathSound', 'tbox_breathSound', '1');
+    bindRange('sens', 'sensVal', 'tbox_sens', 22, 1, '');
+    bindSeg('segMouseAccel', 'tbox_mouseAccel', '0');
+    bindSeg('segInvertY', 'tbox_invertY', '0');
+    bindRange('joyDead', 'joyDeadVal', 'tbox_joyDead', 15, 100, '');
+    bindRange('volMaster', 'volMasterVal', 'tbox_volMaster', 70, 1, '');
+    bindRange('volSfx', 'volSfxVal', 'tbox_volSfx', 70, 1, '');
+    bindSeg('segSfxOn', 'tbox_sfxOn', '1');
+    bindSeg('segFps', 'tbox_showfps', 'off');
+    bindSeg('segCoord', 'tbox_showCoord', '0');
+    bindSeg('segStance', 'tbox_showStance', '1');
+    bindSeg('segCompass', 'tbox_showCompass', '1');
+    bindSeg('segShowCrosshair', 'tbox_showCrosshair', '1');
+    bindSeg('segShowHp', 'tbox_showHp', '1');
+    bindSeg('segHurtVignette', 'tbox_hurtVignette', '1');
+    bindRange('hudOpacity', 'hudOpacityVal', 'tbox_hudOpacity', 100, 100, '%');
+    bindRange('compassOpacity', 'compassOpacityVal', 'tbox_compassOpacity', 100, 100, '%');
+    bindSeg('segCompassPos', 'tbox_compassPos', 'top');
+    bindRange('hudScale', 'hudScaleVal', 'tbox_hudScale', 100, 100, '%');
+    bindSeg('segFpsPos', 'tbox_fpsPos', 'top-left');
+    bindRange('fpsSize', 'fpsSizeVal', 'tbox_fpsSize', 11, 1, '');
+
+    bindSeg('segChStyle', 'tbox_chStyle', 'cross');
+    bindSeg('segChColor', 'tbox_chColor', 'white');
+    bindColor('chColorCustom', 'chColorCustomVal', 'tbox_chColorCustom', '#ffffff');
+    bindRange('chSize', 'chSizeVal', 'tbox_chSize', 100, 100, '%');
+    bindRange('chThickness', 'chThicknessVal', 'tbox_chThickness', 2, 1, '');
+    bindRange('chGap', 'chGapVal', 'tbox_chGap', 8, 1, '');
+    bindRange('chOpacity', 'chOpacityVal', 'tbox_chOpacity', 100, 100, '%');
+    bindSeg('segChDynamic', 'tbox_chDynamic', '1');
+    bindSeg('segChShadow', 'tbox_chShadow', '1');
+
+    bindSeg('segShowDmgNumber', 'tbox_showDmgNumber', '1');
+    bindRange('dmgSize', 'dmgSizeVal', 'tbox_dmgSize', 100, 100, '%');
+    bindSeg('segShowDmgIcon', 'tbox_showDmgIcon', '1');
+    bindSeg('segHitStyle', 'tbox_hitStyle', 'cross');
+    bindRange('hitSize', 'hitSizeVal', 'tbox_hitSize', 100, 100, '%');
+    bindRange('hitFloat', 'hitFloatVal', 'tbox_hitFloat', 60, 1, '');
+
+    bindSeg('segHitDirection', 'tbox_hitDirection', '1');
+    bindSeg('segKillIcon', 'tbox_killIcon', '1');
+    bindSeg('segLowHpSound', 'tbox_lowHpSound', '1');
+    bindSeg('segAutoPickup', 'tbox_autoPickup', '1');
+    bindRange('joySens', 'joySensVal', 'tbox_joySens', 100, 100, '%');
+    bindRange('lookSens', 'lookSensVal', 'tbox_lookSens', 100, 100, '%');
+    bindRange('btnScale', 'btnScaleVal', 'tbox_btnScale', 100, 100, '%');
+    bindRange('btnOpacity', 'btnOpacityVal', 'tbox_btnOpacity', 100, 100, '%');
+    bindSeg('segVibrate', 'tbox_vibrate', '1');
+    bindRange('timeScale', 'timeScaleVal', 'tbox_timeScale', 100, 100, '%');
+    bindSeg('segPauseOnBack', 'tbox_pauseOnBack', '0');
+    bindSeg('segFpsLimit', 'tbox_fpsLimit', '60');
+    bindSeg('segAutoSaveLayout', 'tbox_autoSaveLayout', '1');
+  }
+
+  function updatePerfWarn(){
+    var el = document.getElementById('perfWarn');
+    if(!el) return;
+    var q = LS.get('tbox_quality', 'auto');
+    var hdr = LS.get('tbox_hdr', '0');
+    var shadowQ = LS.get('tbox_shadowQ', 'mid');
+    var csm = LS.get('tbox_csmEnabled', '0');
+    var mblur = LS.get('tbox_motionBlur', '0');
+    var grain = LS.get('tbox_filmGrain', '0');
+    var grade = LS.get('tbox_colorGrade', '0');
+
+    var perf = 'high';
+    try {
+      var cores = navigator.hardwareConcurrency || 4;
+      var mem = navigator.deviceMemory || 4;
+      var mobile = isTouch;
+      var score = Math.min(cores, 8) + Math.min(mem, 8) + (mobile ? 0 : 4);
+      perf = score >= 14 ? 'high' : (score >= 8 ? 'mid' : 'low');
+    } catch(e){}
+
+    var wantsHeavy = (q === 'ultra' || hdr === '1' || shadowQ === 'ultra' || csm === '1' || mblur === '1' || grain === '1' || grade === '1');
+
+    if(wantsHeavy && perf === 'low'){
+      el.style.display = 'block';
+      el.innerHTML = '<span class="hl">⚠ 性能警告</span><br>当前设备性能评级为「低」，开启超画质/后处理/级联阴影可能严重掉帧';
+    } else if(wantsHeavy && perf === 'mid'){
+      el.style.display = 'block';
+      el.innerHTML = '<span class="hl">⚠ 性能警告</span><br>当前设备性能评级为「中」，开启超画质/后处理/级联阴影可能掉帧';
+    } else {
+      el.style.display = 'none';
+    }
+  }
+
+  var btnResetEl = document.getElementById('btnReset');
+  if(btnResetEl) btnResetEl.addEventListener('click', function(){
+    if(!confirm('确定要重置所有设置吗？')) return;
+    var keys = [];
+    for(var i=0;i<localStorage.length;i++){
+      var k = localStorage.key(i);
+      if(k && k.startsWith('tbox_')) keys.push(k);
+    }
+    keys.forEach(function(k){ try { localStorage.removeItem(k); } catch(e){} });
+    toast('设置已重置 · 刷新中…');
+
+    setTimeout(function(){
+      if(window.parent !== window){
+        try { window.parent.postMessage({ type: 'tbox-settings-reset' }, '*'); } catch(e){}
+        setTimeout(function(){
+          try { window.parent.postMessage({ type: 'tbox-settings-close' }, '*'); } catch(e){}
+        }, 300);
+      } else {
+        location.reload();
+      }
+    }, 1200);
+  });
+
+  var toastEl = document.getElementById('toast');
+  var toastTimer = null;
+  function toast(msg, ms){
+    if(!toastEl) return;
+    toastEl.textContent = msg;
+    toastEl.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function(){ toastEl.classList.remove('show'); }, ms || 1800);
+  }
+
+  var titleEl = document.getElementById('title');
+  var hiddenTextEl = document.getElementById('hiddenText');
+  if(titleEl){
+    titleEl.addEventListener('click', function(){
+      titleEl.classList.remove('shake');
+      void titleEl.offsetWidth;
+      titleEl.classList.add('shake');
+    });
+    var titleHoldTimer = null;
+    function titleHoldStart(){
+      clearTimeout(titleHoldTimer);
+      titleHoldTimer = setTimeout(function(){
+        if(hiddenTextEl && !hiddenTextEl.classList.contains('show')){
+          hiddenTextEl.classList.add('show');
+          toast('隐藏区域 · 你发现了隐藏区域');
+        }
+      }, 3000);
+    }
+    function titleHoldEnd(){ clearTimeout(titleHoldTimer); }
+    titleEl.addEventListener('mousedown', titleHoldStart);
+    titleEl.addEventListener('mouseup', titleHoldEnd);
+    titleEl.addEventListener('mouseleave', titleHoldEnd);
+    titleEl.addEventListener('touchstart', titleHoldStart, {passive:true});
+    titleEl.addEventListener('touchend', titleHoldEnd);
+    titleEl.addEventListener('touchcancel', titleHoldEnd);
+  }
+
+  /* ★★★ 关键：data.js 已同步加载，直接初始化 ★★★ */
+  if(window.TBOX && window.TBOX.DATA && window.TBOX.DATA.CH_STYLES){
+    initAll();
+  } else {
+    console.warn('[index] data.js 未就绪，等待...');
+    var waitTries = 0;
+    var waitTimer = setInterval(function(){
+      waitTries++;
+      if(window.TBOX && window.TBOX.DATA && window.TBOX.DATA.CH_STYLES){
+        clearInterval(waitTimer);
+        initAll();
+      } else if(waitTries > 40){
+        clearInterval(waitTimer);
+        console.error('[index] data.js 超时未加载');
+        initAll();
+      }
+    }, 50);
+  }
+})();
+</script>
+</body>
+</html>
