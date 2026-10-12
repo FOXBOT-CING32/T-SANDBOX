@@ -1,0 +1,534 @@
+/* ============================================================
+ * spawnmenu.css · 生成菜单样式
+ * V1.0.0 · GMod 风格 + T-BOX 字体 + 虚拟滚动
+ * ============================================================ */
+
+#spawnmenu-root *{
+  box-sizing:border-box;
+  margin:0;
+  padding:0;
+  font-family:"Rajdhani","Oswald",Consolas,"Courier New",monospace;
+  color:#cfd2d6;
+  -webkit-tap-highlight-color:transparent;
+}
+
+#spawnmenu-root{
+  position:fixed;
+  inset:0;
+  z-index:100;
+  display:none;
+  flex-direction:column;
+  background:#1b1d1e;
+  user-select:none;
+  overflow:hidden;
+}
+
+#spawnmenu-root.open{
+  display:flex;
+}
+
+/* ---------- 顶部 ---------- */
+#spawnmenu-root .sm-top{
+  height:48px;
+  background:#252728;
+  border-bottom:1px solid #111;
+  display:flex;
+  align-items:center;
+  padding:0 12px;
+  gap:12px;
+  flex-shrink:0;
+}
+
+#spawnmenu-root .sm-title{
+  font-family:"Oswald","Rajdhani",sans-serif;
+  font-weight:700;
+  font-size:18px;
+  letter-spacing:4px;
+  color:#fff;
+  white-space:nowrap;
+  text-transform:uppercase;
+}
+
+#spawnmenu-root .sm-title span{
+  color:#8a8c8e;
+  font-weight:400;
+  margin-left:6px;
+  letter-spacing:2px;
+}
+
+#spawnmenu-root .sm-search{
+  flex:1;
+  max-width:520px;
+  height:30px;
+  background:#1b1d1e;
+  border:1px solid #333;
+  padding:0 10px;
+  outline:none;
+  font-size:13px;
+  border-radius:2px;
+  color:#cfd2d6;
+}
+
+#spawnmenu-root .sm-search:focus{
+  border-color:#4a90e2;
+}
+
+#spawnmenu-root .sm-top-right{
+  margin-left:auto;
+  display:flex;
+  align-items:center;
+  gap:16px;
+}
+
+#spawnmenu-root .sm-clock{
+  color:#8a8c8e;
+  font-size:13px;
+  font-variant-numeric:tabular-nums;
+}
+
+#spawnmenu-root .sm-close{
+  background:#3a3c3e;
+  border:none;
+  width:28px;
+  height:28px;
+  cursor:pointer;
+  font-size:16px;
+  border-radius:2px;
+  color:#cfd2d6;
+  line-height:1;
+}
+
+#spawnmenu-root .sm-close:hover{
+  background:#d32f2f;
+  color:#fff;
+}
+
+/* ---------- 标签栏 ---------- */
+#spawnmenu-root .sm-tabs{
+  height:36px;
+  background:#222425;
+  border-bottom:1px solid #111;
+  display:flex;
+  flex-shrink:0;
+  overflow-x:auto;
+}
+
+#spawnmenu-root .sm-tab{
+  padding:0 16px;
+  height:100%;
+  display:flex;
+  align-items:center;
+  cursor:pointer;
+  font-size:13px;
+  border-right:1px solid #111;
+  white-space:nowrap;
+  transition:background .15s;
+}
+
+#spawnmenu-root .sm-tab:hover{
+  background:#2a2c2d;
+}
+
+#spawnmenu-root .sm-tab.active{
+  background:#1b1d1e;
+  border-bottom:2px solid #4a90e2;
+}
+
+/* ---------- 主区域 ---------- */
+#spawnmenu-root .sm-main{
+  flex:1;
+  display:flex;
+  overflow:hidden;
+  min-height:0;
+}
+
+/* ---------- 左侧分类树 ---------- */
+#spawnmenu-root .sm-left{
+  width:240px;
+  background:#1e2021;
+  border-right:1px solid #111;
+  overflow-y:auto;
+  padding:6px 0;
+  flex-shrink:0;
+}
+
+#spawnmenu-root .sm-pkg{
+  font-size:13px;
+}
+
+#spawnmenu-root .sm-ph{
+  display:flex;
+  align-items:center;
+  padding:6px 12px;
+  cursor:pointer;
+  font-weight:700;
+  color:#cfd2d6;
+  font-size:13px;
+}
+
+#spawnmenu-root .sm-ph:hover{
+  background:#2a2c2d;
+}
+
+#spawnmenu-root .sm-ph::before{
+  content:"›";
+  margin-right:6px;
+  transition:.2s;
+  color:#8a8c8e;
+  display:inline-block;
+}
+
+#spawnmenu-root .sm-pkg.open > .sm-ph::before{
+  transform:rotate(90deg);
+}
+
+#spawnmenu-root .sm-plist{
+  display:none;
+  padding-left:12px;
+}
+
+#spawnmenu-root .sm-pkg.open > .sm-plist{
+  display:block;
+}
+
+#spawnmenu-root .sm-it{
+  padding:5px 12px 5px 24px;
+  cursor:pointer;
+  font-size:13px;
+  color:#b0b3b6;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+
+#spawnmenu-root .sm-it:hover{
+  background:#2a2c2d;
+  color:#fff;
+}
+
+#spawnmenu-root .sm-it.active{
+  background:#2b3e52;
+  color:#fff;
+}
+
+#spawnmenu-root .sm-cnt{
+  color:#6a6c6e;
+  font-size:11px;
+  margin-left:4px;
+}
+
+/* ---------- 右侧内容区 ---------- */
+#spawnmenu-root .sm-right{
+  flex:1;
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+  background:#1b1d1e;
+  min-width:0;
+}
+
+#spawnmenu-root .sm-crumb{
+  padding:8px 14px;
+  font-size:12px;
+  color:#8a8c8e;
+  background:#1e2021;
+  border-bottom:1px solid #111;
+  flex-shrink:0;
+}
+
+#spawnmenu-root .sm-crumb span{
+  color:#cfd2d6;
+}
+
+/* ---------- 虚拟滚动容器 ---------- */
+#spawnmenu-root .sm-grid-area{
+  flex:1;
+  overflow-y:auto;
+  overflow-x:hidden;
+  position:relative;
+  padding:14px;
+}
+
+#spawnmenu-root .sm-grid-phantom{
+  position:relative;
+  width:100%;
+}
+
+#spawnmenu-root .sm-grid-view{
+  position:absolute;
+  left:0;
+  right:0;
+  top:0;
+  display:flex;
+  flex-wrap:wrap;
+  gap:12px;
+  align-content:flex-start;
+  will-change:transform;
+}
+
+/* ---------- 物品图标 ---------- */
+#spawnmenu-root .sm-icon{
+  width:140px;
+  aspect-ratio:1/1;
+  background:#2b2d2f;
+  border:1px solid #1a1a1a;
+  position:relative;
+  cursor:pointer;
+  overflow:hidden;
+  flex-shrink:0;
+  border-radius:2px;
+  transition:border-color .12s;
+}
+
+#spawnmenu-root .sm-icon:hover{
+  border-color:#555;
+}
+
+#spawnmenu-root .sm-icon.sel{
+  border-color:#4a90e2;
+  box-shadow:0 0 0 1px #4a90e2 inset;
+}
+
+#spawnmenu-root .sm-icon svg{
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  display:block;
+}
+
+#spawnmenu-root .sm-lbl{
+  position:absolute;
+  left:4px;
+  right:4px;
+  bottom:4px;
+  height:18px;
+  padding:0 6px;
+  background:rgba(40,40,40,.62);
+  display:flex;
+  align-items:center;
+  font-size:11px;
+  color:#e6e6e6;
+  text-shadow:0 1px 1px rgba(0,0,0,.8);
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  z-index:2;
+  pointer-events:none;
+  border-radius:1px;
+}
+
+/* ---------- 空内容 ---------- */
+#spawnmenu-root .sm-empty{
+  flex:1;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  color:#6a6c6e;
+  font-size:14px;
+  letter-spacing:2px;
+  text-transform:uppercase;
+}
+
+/* ---------- 底部状态栏 ---------- */
+#spawnmenu-root .sm-bot{
+  height:28px;
+  background:#252728;
+  border-top:1px solid #111;
+  display:flex;
+  align-items:center;
+  padding:0 12px;
+  font-size:12px;
+  color:#8a8c8e;
+  flex-shrink:0;
+}
+
+#spawnmenu-root .sm-bot span{
+  color:#cfd2d6;
+  margin:0 4px;
+}
+
+/* ---------- 右侧工具/属性栏 ---------- */
+#spawnmenu-root .sm-side{
+  width:225px;
+  background:#1e2021;
+  border-left:1px solid #111;
+  display:flex;
+  flex-direction:column;
+  flex-shrink:0;
+}
+
+#spawnmenu-root .sm-stabs{
+  display:flex;
+  height:36px;
+  border-bottom:1px solid #111;
+}
+
+#spawnmenu-root .sm-rtab{
+  flex:1;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  cursor:pointer;
+  font-size:12px;
+  background:#222425;
+  color:#b0b3b6;
+}
+
+#spawnmenu-root .sm-rtab.active{
+  background:#1e2021;
+  border-bottom:2px solid #4a90e2;
+  color:#fff;
+}
+
+#spawnmenu-root .sm-sbody{
+  flex:1;
+  overflow-y:auto;
+  padding:6px 0;
+}
+
+#spawnmenu-root .sm-rcat{
+  padding:8px 12px 4px;
+  font-size:11px;
+  color:#8a8c8e;
+  font-weight:700;
+  text-transform:uppercase;
+  letter-spacing:1px;
+}
+
+#spawnmenu-root .sm-ritem{
+  padding:5px 12px;
+  font-size:13px;
+  cursor:pointer;
+  color:#b0b3b6;
+}
+
+#spawnmenu-root .sm-ritem:hover{
+  background:#2a2c2d;
+  color:#fff;
+}
+
+#spawnmenu-root .sm-ritem.sel{
+  background:#2b3e52;
+  color:#fff;
+}
+
+/* ---------- 右键菜单 ---------- */
+#spawnmenu-ctx{
+  position:fixed;
+  background:#2b2d2f;
+  border:1px solid #444;
+  box-shadow:0 4px 12px rgba(0,0,0,.5);
+  display:none;
+  z-index:200;
+  min-width:160px;
+  padding:4px 0;
+  font-size:13px;
+  font-family:"Rajdhani","Oswald",Consolas,monospace;
+}
+
+#spawnmenu-ctx div{
+  padding:6px 14px;
+  cursor:pointer;
+  color:#cfd2d6;
+}
+
+#spawnmenu-ctx div:hover{
+  background:#3a3c3e;
+}
+
+#spawnmenu-ctx hr{
+  border:none;
+  border-top:1px solid #444;
+  margin:4px 0;
+}
+
+/* ---------- 手机端菜单按钮 ---------- */
+#btnMenu{
+  position:absolute;
+  pointer-events:auto;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background:transparent;
+  border:2px solid rgba(255,255,255,.85);
+  color:#ffffff;
+  font-family:"Rajdhani","Oswald",sans-serif;
+  font-weight:700;
+  font-size:14px;
+  border-radius:4px;
+  cursor:pointer;
+  outline:none;
+  -webkit-appearance:none;
+  appearance:none;
+  text-shadow:0 1px 3px rgba(0,0,0,.9);
+  transition:transform .06s,background .06s;
+  z-index:3;
+}
+
+#btnMenu.press{
+  transform:scale(.92);
+  background:rgba(255,255,255,.2);
+}
+
+/* ---------- 手机端按钮统一风格（Winlator） ---------- */
+#touchUI.winlator-style .key{
+  background:transparent !important;
+  border:2px solid rgba(255,255,255,.85) !important;
+  color:#ffffff !important;
+  border-radius:4px !important;
+  box-shadow:none !important;
+  font-family:"Rajdhani","Oswald",sans-serif !important;
+  font-weight:700 !important;
+  font-size:14px !important;
+  letter-spacing:1px;
+  text-shadow:0 1px 3px rgba(0,0,0,.9);
+}
+
+#touchUI.winlator-style .key .sub{
+  display:none !important;
+}
+
+#touchUI.winlator-style .key.press{
+  background:rgba(255,255,255,.2) !important;
+  color:#ffffff !important;
+  transform:scale(.92);
+}
+
+/* ---------- 响应式 ---------- */
+@media(max-width:900px){
+  #spawnmenu-root .sm-left{
+    position:absolute;
+    left:0;
+    top:0;
+    bottom:0;
+    z-index:66;
+    transform:translateX(-100%);
+    transition:.25s;
+  }
+  #spawnmenu-root .sm-left.show{
+    transform:translateX(0);
+  }
+  #spawnmenu-root .sm-side{
+    position:absolute;
+    right:0;
+    top:0;
+    bottom:0;
+    z-index:67;
+    transform:translateX(100%);
+    transition:.25s;
+  }
+  #spawnmenu-root .sm-side.show{
+    transform:translateX(0);
+  }
+  #spawnmenu-root .sm-icon{
+    width:110px;
+  }
+  #spawnmenu-root .sm-lbl{
+    font-size:10px;
+  }
+  #spawnmenu-root .sm-title{
+    font-size:15px;
+    letter-spacing:2px;
+  }
+}

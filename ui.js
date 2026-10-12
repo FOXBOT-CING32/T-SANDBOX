@@ -1,6 +1,6 @@
 /* ============================================================
  * ui.js · UI 系统
- * V1.1.0 · 12 种准星 + 8 种击中图标 + 7 种帧率位置 + 后处理
+ * V1.0.0 · 29 种准星 + 29 种击中图标 + 菜单打开时隐藏准星
  * ============================================================ */
 window.TBOX = window.TBOX || {};
 
@@ -97,6 +97,7 @@ TBOX.UI = {
     this._applySettings();
     this._bindEvents();
     this._bindBackButton();
+    this._bindMenuState();
   },
 
   _bindEvents(){
@@ -115,6 +116,9 @@ TBOX.UI = {
       if(e.data.type === 'tbox-settings-reset'){
         self._applySettings();
       }
+      if(e.data.type === 'tbox-char-saved'){
+        self.updatePlayerName();
+      }
     });
   },
 
@@ -128,6 +132,35 @@ TBOX.UI = {
         TBOX.Engine.controls.unlock();
       }
     });
+  },
+
+  /* ★ 监听菜单状态，隐藏/显示准星 */
+  _bindMenuState(){
+    var self = this;
+    if(!window.TBOX) return;
+    /* 每秒轮询一次菜单状态（简单可靠） */
+    setInterval(function(){
+      var open = !!(TBOX.SpawnMenu && TBOX.SpawnMenu.opened);
+      self._applyMenuVisibility(open);
+    }, 100);
+  },
+
+  _applyMenuVisibility(open){
+    if(this._menuOpen === open) return;
+    this._menuOpen = open;
+
+    if(this.els.crosshair){
+      this.els.crosshair.style.display = open ? 'none' : (TBOX.Save.get('tbox_showCrosshair', '1') === '1' ? 'block' : 'none');
+    }
+    if(this.els.hitmarker){
+      this.els.hitmarker.style.opacity = open ? '0' : '';
+    }
+    if(this.els.compass){
+      this.els.compass.style.opacity = open ? '0' : (TBOX.Save.get('tbox_compassOpacity', 100) / 100);
+    }
+    if(this.els.compassDeg){
+      this.els.compassDeg.style.opacity = open ? '0' : (TBOX.Save.get('tbox_compassOpacity', 100) / 100);
+    }
   },
 
   _applySetting(key, value){
@@ -355,6 +388,132 @@ TBOX.UI = {
           '<path d="M10 6 L6 6 L6 26 L10 26" fill="none" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round" stroke-linejoin="round"/>' +
           '<path d="M22 6 L26 6 L26 26 L22 26" fill="none" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round" stroke-linejoin="round"/>';
         break;
+      case 'therefore':
+        svg =
+          '<circle cx="12.5" cy="9" r="1.4" fill="' + c + '"/>' +
+          '<circle cx="19.5" cy="9" r="1.4" fill="' + c + '"/>' +
+          '<circle cx="12.5" cy="14" r="1.4" fill="' + c + '"/>' +
+          '<circle cx="19.5" cy="14" r="1.4" fill="' + c + '"/>' +
+          '<line x1="9" y1="20" x2="23" y2="20" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round"/>';
+        break;
+      case 'plus':
+        svg =
+          '<line x1="16" y1="6" x2="16" y2="26" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round"/>' +
+          '<line x1="6" y1="16" x2="26" y2="16" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round"/>';
+        break;
+      case 'brackets-dot':
+        svg =
+          '<path d="M10 6 L6 6 L6 26 L10 26" fill="none" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round" stroke-linejoin="round"/>' +
+          '<path d="M22 6 L26 6 L26 26 L22 26" fill="none" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round" stroke-linejoin="round"/>' +
+          '<circle cx="16" cy="16" r="2" fill="' + c + '"/>';
+        break;
+      case 'brackets-cross':
+        svg =
+          '<path d="M10 6 L6 6 L6 26 L10 26" fill="none" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round" stroke-linejoin="round"/>' +
+          '<path d="M22 6 L26 6 L26 26 L22 26" fill="none" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round" stroke-linejoin="round"/>' +
+          '<line x1="16" y1="10" x2="16" y2="22" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round"/>' +
+          '<line x1="10" y1="16" x2="22" y2="16" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round"/>';
+        break;
+      case 'brackets-cross-dot':
+        svg =
+          '<path d="M10 6 L6 6 L6 26 L10 26" fill="none" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round" stroke-linejoin="round"/>' +
+          '<path d="M22 6 L26 6 L26 26 L22 26" fill="none" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round" stroke-linejoin="round"/>' +
+          '<circle cx="16" cy="16" r="1.8" fill="' + c + '"/>' +
+          '<circle cx="16" cy="11" r="1.2" fill="' + c + '"/>' +
+          '<circle cx="16" cy="21" r="1.2" fill="' + c + '"/>' +
+          '<circle cx="11" cy="16" r="1.2" fill="' + c + '"/>' +
+          '<circle cx="21" cy="16" r="1.2" fill="' + c + '"/>';
+        break;
+      case 'brackets-x':
+        svg =
+          '<path d="M10 6 L6 6 L6 26 L10 26" fill="none" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round" stroke-linejoin="round"/>' +
+          '<path d="M22 6 L26 6 L26 26 L22 26" fill="none" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round" stroke-linejoin="round"/>' +
+          '<line x1="11" y1="11" x2="21" y2="21" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round"/>' +
+          '<line x1="21" y1="11" x2="11" y2="21" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round"/>';
+        break;
+      case 'brackets-circle':
+        svg =
+          '<path d="M10 6 L6 6 L6 26 L10 26" fill="none" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round" stroke-linejoin="round"/>' +
+          '<path d="M22 6 L26 6 L26 26 L22 26" fill="none" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round" stroke-linejoin="round"/>' +
+          '<circle cx="16" cy="16" r="5" fill="none" stroke="' + c + '" stroke-width="' + th + '"/>';
+        break;
+      case 'brackets-star':
+        svg =
+          '<path d="M10 6 L6 6 L6 26 L10 26" fill="none" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round" stroke-linejoin="round"/>' +
+          '<path d="M22 6 L26 6 L26 26 L22 26" fill="none" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round" stroke-linejoin="round"/>' +
+          '<path d="M16 10 L17.5 14 L22 14 L18.5 16.5 L20 21 L16 18 L12 21 L13.5 16.5 L10 14 L14.5 14 Z" fill="' + c + '"/>';
+        break;
+      case 'hexagon':
+        svg = '<path d="M16 4 L26 10 L26 22 L16 28 L6 22 L6 10 Z" fill="none" stroke="' + c + '" stroke-width="' + th + '" stroke-linejoin="round"/>';
+        break;
+      case 'triangle':
+        svg = '<path d="M16 5 L27 26 L5 26 Z" fill="none" stroke="' + c + '" stroke-width="' + th + '" stroke-linejoin="round"/>';
+        break;
+      case 'target':
+        svg =
+          '<circle cx="16" cy="16" r="9" fill="none" stroke="' + c + '" stroke-width="' + th + '"/>' +
+          '<circle cx="16" cy="16" r="5" fill="none" stroke="' + c + '" stroke-width="' + th + '"/>' +
+          '<circle cx="16" cy="16" r="1.6" fill="' + c + '"/>';
+        break;
+      case 'segmented-circle': {
+        var segCount = 4;
+        var segR = 8 + sp;
+        var segStr = '';
+        for(var si = 0; si < segCount; si++){
+          var a0 = (Math.PI * 2 / segCount) * si + 0.2;
+          var a1 = (Math.PI * 2 / segCount) * (si + 1) - 0.2;
+          var sx0 = 16 + Math.cos(a0) * segR;
+          var sy0 = 16 + Math.sin(a0) * segR;
+          var sx1 = 16 + Math.cos(a0 + 0.6) * segR;
+          var sy1 = 16 + Math.sin(a0 + 0.6) * segR;
+          segStr += '<line x1="' + sx0.toFixed(2) + '" y1="' + sy0.toFixed(2) + '" x2="' + sx1.toFixed(2) + '" y2="' + sy1.toFixed(2) + '" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round"/>';
+          var sx2 = 16 + Math.cos(a1 - 0.6) * segR;
+          var sy2 = 16 + Math.sin(a1 - 0.6) * segR;
+          var sx3 = 16 + Math.cos(a1) * segR;
+          var sy3 = 16 + Math.sin(a1) * segR;
+          segStr += '<line x1="' + sx2.toFixed(2) + '" y1="' + sy2.toFixed(2) + '" x2="' + sx3.toFixed(2) + '" y2="' + sy3.toFixed(2) + '" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round"/>';
+        }
+        svg = segStr;
+        break;
+      }
+      case 'dashed-circle': {
+        var dashCount = 12;
+        var dashR = 8 + sp;
+        var dashStr = '';
+        for(var di = 0; di < dashCount; di++){
+          var ang = (Math.PI * 2 / dashCount) * di;
+          var dx0 = 16 + Math.cos(ang) * dashR;
+          var dy0 = 16 + Math.sin(ang) * dashR;
+          var dx1 = 16 + Math.cos(ang + 0.15) * dashR;
+          var dy1 = 16 + Math.sin(ang + 0.15) * dashR;
+          dashStr += '<line x1="' + dx0.toFixed(2) + '" y1="' + dy0.toFixed(2) + '" x2="' + dx1.toFixed(2) + '" y2="' + dy1.toFixed(2) + '" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round"/>';
+        }
+        svg = dashStr;
+        break;
+      }
+      case 'arrow':
+        svg = '<path d="M16 4 L22 16 L18 16 L18 28 L14 28 L14 16 L10 16 Z" fill="' + c + '"/>';
+        break;
+      case 'dots':
+        svg =
+          '<circle cx="16" cy="6" r="1.6" fill="' + c + '"/>' +
+          '<circle cx="16" cy="11" r="1.6" fill="' + c + '"/>' +
+          '<circle cx="16" cy="16" r="2" fill="' + c + '"/>' +
+          '<circle cx="16" cy="21" r="1.6" fill="' + c + '"/>' +
+          '<circle cx="16" cy="26" r="1.6" fill="' + c + '"/>';
+        break;
+      case 'rotating-cross':
+        svg =
+          '<line x1="16" y1="3" x2="16" y2="29" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round" transform="rotate(45 16 16)"/>' +
+          '<line x1="3" y1="16" x2="29" y2="16" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round" transform="rotate(45 16 16)"/>';
+        break;
+      case 'cross-brackets':
+        svg =
+          '<line x1="16" y1="11" x2="16" y2="21" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round"/>' +
+          '<line x1="11" y1="16" x2="21" y2="16" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round"/>' +
+          '<path d="M7 11 L4 11 L4 21 L7 21" fill="none" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round" stroke-linejoin="round"/>' +
+          '<path d="M25 11 L28 11 L28 21 L25 21" fill="none" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round" stroke-linejoin="round"/>';
+        break;
       default:
         svg = '<circle cx="16" cy="16" r="2" fill="' + c + '"/>';
     }
@@ -365,7 +524,7 @@ TBOX.UI = {
     var ch = this.els.crosshair;
     if(!ch) return;
     var show = TBOX.Save.get('tbox_showCrosshair', '1') === '1';
-    if(!show){ ch.style.display = 'none'; return; }
+    if(!show || this._menuOpen){ ch.style.display = 'none'; return; }
     ch.style.display = 'block';
 
     var style = TBOX.Save.get('tbox_chStyle', 'cross');
@@ -398,6 +557,7 @@ TBOX.UI = {
   hitCrosshair(kill){
     var ch = this.els.crosshair;
     if(!ch) return;
+    if(this._menuOpen) return;
     ch.classList.remove('hit', 'kill');
     void ch.offsetWidth;
     ch.classList.add(kill ? 'kill' : 'hit');
@@ -424,31 +584,134 @@ TBOX.UI = {
           '<line x1="34" y1="6" x2="24" y2="16" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round"/>' +
           '<line x1="6" y1="34" x2="16" y2="24" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round"/>' +
           '<line x1="34" y1="34" x2="24" y2="24" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round"/>';
-      case 'x':
-        return '<line x1="8" y1="8" x2="32" y2="32" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round"/>' +
-          '<line x1="32" y1="8" x2="8" y2="32" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round"/>';
       case 'dot':
         return '<circle cx="20" cy="20" r="5" fill="' + c + '"/>';
       case 'circle':
         return '<circle cx="20" cy="20" r="10" fill="none" stroke="' + c + '" stroke-width="' + th + '"/>';
+      case 'circle-dot':
+        return '<circle cx="20" cy="20" r="10" fill="none" stroke="' + c + '" stroke-width="' + th + '"/>' +
+          '<circle cx="20" cy="20" r="2.5" fill="' + c + '"/>';
+      case 'cross-dot':
+        return '<circle cx="20" cy="20" r="3" fill="' + c + '"/>' +
+          '<circle cx="20" cy="9" r="2.2" fill="' + c + '"/>' +
+          '<circle cx="20" cy="31" r="2.2" fill="' + c + '"/>' +
+          '<circle cx="9" cy="20" r="2.2" fill="' + c + '"/>' +
+          '<circle cx="31" cy="20" r="2.2" fill="' + c + '"/>';
+      case 'x':
+        return '<line x1="8" y1="8" x2="32" y2="32" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round"/>' +
+          '<line x1="32" y1="8" x2="8" y2="32" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round"/>';
       case 'star':
         return '<path d="M20 4 L24 15 L36 15 L27 22 L30 34 L20 27 L10 34 L13 22 L4 15 L16 15 Z" fill="none" stroke="' + c + '" stroke-width="' + th + '" stroke-linejoin="round"/>';
+      case 'star-filled':
+        return '<path d="M20 4 L24 15 L36 15 L27 22 L30 34 L20 27 L10 34 L13 22 L4 15 L16 15 Z" fill="' + c + '"/>';
       case 'diamond':
         return '<path d="M20 5 L35 20 L20 35 L5 20 Z" fill="none" stroke="' + c + '" stroke-width="' + th + '" stroke-linejoin="round"/>';
+      case 'square':
+        return '<rect x="10" y="10" width="20" height="20" fill="none" stroke="' + c + '" stroke-width="' + th + '"/>';
+      case 't-shape':
+        return '<line x1="20" y1="4" x2="20" y2="15" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round"/>' +
+          '<line x1="4" y1="20" x2="15" y2="20" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round"/>' +
+          '<line x1="25" y1="20" x2="36" y2="20" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round"/>';
       case 'brackets':
         return '<path d="M12 8 L7 8 L7 32 L12 32" fill="none" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round" stroke-linejoin="round"/>' +
           '<path d="M28 8 L33 8 L33 32 L28 32" fill="none" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round" stroke-linejoin="round"/>';
-      case 'burst':
-        var lines = '';
-        for(var i = 0; i < 8; i++){
-          var ang = (Math.PI * 2 / 8) * i;
-          var x1 = 20 + Math.cos(ang) * 7;
-          var y1 = 20 + Math.sin(ang) * 7;
-          var x2 = 20 + Math.cos(ang) * 16;
-          var y2 = 20 + Math.sin(ang) * 16;
-          lines += '<line x1="' + x1.toFixed(2) + '" y1="' + y1.toFixed(2) + '" x2="' + x2.toFixed(2) + '" y2="' + y2.toFixed(2) + '" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round"/>';
+      case 'therefore':
+        return '<circle cx="15" cy="11" r="2" fill="' + c + '"/>' +
+          '<circle cx="25" cy="11" r="2" fill="' + c + '"/>' +
+          '<circle cx="15" cy="18" r="2" fill="' + c + '"/>' +
+          '<circle cx="25" cy="18" r="2" fill="' + c + '"/>' +
+          '<line x1="11" y1="27" x2="29" y2="27" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round"/>';
+      case 'plus':
+        return '<line x1="20" y1="7" x2="20" y2="33" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round"/>' +
+          '<line x1="7" y1="20" x2="33" y2="20" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round"/>';
+      case 'brackets-dot':
+        return '<path d="M12 8 L7 8 L7 32 L12 32" fill="none" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round" stroke-linejoin="round"/>' +
+          '<path d="M28 8 L33 8 L33 32 L28 32" fill="none" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round" stroke-linejoin="round"/>' +
+          '<circle cx="20" cy="20" r="3.5" fill="' + c + '"/>';
+      case 'brackets-cross':
+        return '<path d="M12 8 L7 8 L7 32 L12 32" fill="none" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round" stroke-linejoin="round"/>' +
+          '<path d="M28 8 L33 8 L33 32 L28 32" fill="none" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round" stroke-linejoin="round"/>' +
+          '<line x1="20" y1="11" x2="20" y2="29" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round"/>' +
+          '<line x1="11" y1="20" x2="29" y2="20" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round"/>';
+      case 'brackets-cross-dot':
+        return '<path d="M12 8 L7 8 L7 32 L12 32" fill="none" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round" stroke-linejoin="round"/>' +
+          '<path d="M28 8 L33 8 L33 32 L28 32" fill="none" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round" stroke-linejoin="round"/>' +
+          '<circle cx="20" cy="20" r="3" fill="' + c + '"/>' +
+          '<circle cx="20" cy="13" r="2" fill="' + c + '"/>' +
+          '<circle cx="20" cy="27" r="2" fill="' + c + '"/>' +
+          '<circle cx="13" cy="20" r="2" fill="' + c + '"/>' +
+          '<circle cx="27" cy="20" r="2" fill="' + c + '"/>';
+      case 'brackets-x':
+        return '<path d="M12 8 L7 8 L7 32 L12 32" fill="none" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round" stroke-linejoin="round"/>' +
+          '<path d="M28 8 L33 8 L33 32 L28 32" fill="none" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round" stroke-linejoin="round"/>' +
+          '<line x1="13" y1="13" x2="27" y2="27" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round"/>' +
+          '<line x1="27" y1="13" x2="13" y2="27" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round"/>';
+      case 'brackets-circle':
+        return '<path d="M12 8 L7 8 L7 32 L12 32" fill="none" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round" stroke-linejoin="round"/>' +
+          '<path d="M28 8 L33 8 L33 32 L28 32" fill="none" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round" stroke-linejoin="round"/>' +
+          '<circle cx="20" cy="20" r="7" fill="none" stroke="' + c + '" stroke-width="' + th + '"/>';
+      case 'brackets-star':
+        return '<path d="M12 8 L7 8 L7 32 L12 32" fill="none" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round" stroke-linejoin="round"/>' +
+          '<path d="M28 8 L33 8 L33 32 L28 32" fill="none" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round" stroke-linejoin="round"/>' +
+          '<path d="M20 12 L22 18 L28 18 L23 22 L25 28 L20 24 L15 28 L17 22 L12 18 L18 18 Z" fill="' + c + '"/>';
+      case 'hexagon':
+        return '<path d="M20 4 L33 11 L33 29 L20 36 L7 29 L7 11 Z" fill="none" stroke="' + c + '" stroke-width="' + th + '" stroke-linejoin="round"/>';
+      case 'triangle':
+        return '<path d="M20 5 L35 33 L5 33 Z" fill="none" stroke="' + c + '" stroke-width="' + th + '" stroke-linejoin="round"/>';
+      case 'target':
+        return '<circle cx="20" cy="20" r="12" fill="none" stroke="' + c + '" stroke-width="' + th + '"/>' +
+          '<circle cx="20" cy="20" r="7" fill="none" stroke="' + c + '" stroke-width="' + th + '"/>' +
+          '<circle cx="20" cy="20" r="2.5" fill="' + c + '"/>';
+      case 'segmented-circle': {
+        var segCount = 4;
+        var segR = 12;
+        var segStr = '';
+        for(var si = 0; si < segCount; si++){
+          var a0 = (Math.PI * 2 / segCount) * si + 0.2;
+          var a1 = (Math.PI * 2 / segCount) * (si + 1) - 0.2;
+          var sx0 = 20 + Math.cos(a0) * segR;
+          var sy0 = 20 + Math.sin(a0) * segR;
+          var sx1 = 20 + Math.cos(a0 + 0.6) * segR;
+          var sy1 = 20 + Math.sin(a0 + 0.6) * segR;
+          segStr += '<line x1="' + sx0.toFixed(2) + '" y1="' + sy0.toFixed(2) + '" x2="' + sx1.toFixed(2) + '" y2="' + sy1.toFixed(2) + '" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round"/>';
+          var sx2 = 20 + Math.cos(a1 - 0.6) * segR;
+          var sy2 = 20 + Math.sin(a1 - 0.6) * segR;
+          var sx3 = 20 + Math.cos(a1) * segR;
+          var sy3 = 20 + Math.sin(a1) * segR;
+          segStr += '<line x1="' + sx2.toFixed(2) + '" y1="' + sy2.toFixed(2) + '" x2="' + sx3.toFixed(2) + '" y2="' + sy3.toFixed(2) + '" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round"/>';
         }
-        return lines;
+        return segStr;
+      }
+      case 'dashed-circle': {
+        var dashCount = 12;
+        var dashR = 12;
+        var dashStr = '';
+        for(var di = 0; di < dashCount; di++){
+          var ang = (Math.PI * 2 / dashCount) * di;
+          var dx0 = 20 + Math.cos(ang) * dashR;
+          var dy0 = 20 + Math.sin(ang) * dashR;
+          var dx1 = 20 + Math.cos(ang + 0.15) * dashR;
+          var dy1 = 20 + Math.sin(ang + 0.15) * dashR;
+          dashStr += '<line x1="' + dx0.toFixed(2) + '" y1="' + dy0.toFixed(2) + '" x2="' + dx1.toFixed(2) + '" y2="' + dy1.toFixed(2) + '" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round"/>';
+        }
+        return dashStr;
+      }
+      case 'arrow':
+        return '<path d="M20 5 L28 20 L23 20 L23 35 L17 35 L17 20 L12 20 Z" fill="' + c + '"/>';
+      case 'dots':
+        return '<circle cx="20" cy="7" r="2.5" fill="' + c + '"/>' +
+          '<circle cx="20" cy="14" r="2.5" fill="' + c + '"/>' +
+          '<circle cx="20" cy="20" r="3" fill="' + c + '"/>' +
+          '<circle cx="20" cy="26" r="2.5" fill="' + c + '"/>' +
+          '<circle cx="20" cy="33" r="2.5" fill="' + c + '"/>';
+      case 'rotating-cross':
+        return '<line x1="20" y1="4" x2="20" y2="36" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round" transform="rotate(45 20 20)"/>' +
+          '<line x1="4" y1="20" x2="36" y2="20" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round" transform="rotate(45 20 20)"/>';
+      case 'cross-brackets':
+        return '<line x1="20" y1="14" x2="20" y2="26" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round"/>' +
+          '<line x1="14" y1="20" x2="26" y2="20" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round"/>' +
+          '<path d="M9 14 L5 14 L5 26 L9 26" fill="none" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round" stroke-linejoin="round"/>' +
+          '<path d="M31 14 L35 14 L35 26 L31 26" fill="none" stroke="' + c + '" stroke-width="' + th + '" stroke-linecap="round" stroke-linejoin="round"/>';
       default:
         return '<circle cx="20" cy="20" r="4" fill="' + c + '"/>';
     }
@@ -457,17 +720,24 @@ TBOX.UI = {
   showHitMarker(){
     var hm = this.els.hitmarker;
     if(!hm) return;
-    /* 如果击中图标关了，不显示 */
-    if(TBOX.Save.get('tbox_showDmgIcon', '1') !== '1'){
-      return;
-    }
+    if(this._menuOpen) return;
     var style = TBOX.Save.get('tbox_hitStyle', 'cross');
     var size = TBOX.Save.getNum('tbox_hitSize', 100) / 100;
     var svgSize = 40;
+
+    while(hm.firstChild){
+      hm.removeChild(hm.firstChild);
+    }
+    if(typeof hm.replaceChildren === 'function'){
+      try { hm.replaceChildren(); } catch(e){}
+    }
+    hm.textContent = '';
+
     hm.setAttribute('viewBox', '0 0 40 40');
     hm.setAttribute('width', svgSize * size);
     hm.setAttribute('height', svgSize * size);
     hm.innerHTML = this._buildHitSvg40(style);
+
     hm.classList.remove('show');
     void hm.offsetWidth;
     hm.classList.add('show');
@@ -475,6 +745,7 @@ TBOX.UI = {
 
   spawnHitIcon(worldPos, camera, isKill){
     if(TBOX.Save.get('tbox_showDmgIcon', '1') !== '1') return;
+    if(this._menuOpen) return;
     var dl = this.els.dmgLayer;
     if(!dl || !camera) return;
     var v3 = new THREE.Vector3().copy(worldPos).project(camera);
@@ -516,6 +787,7 @@ TBOX.UI = {
   flashHit(strength){
     var hf = this.els.hitFlash;
     if(!hf) return;
+    if(this._menuOpen) return;
     hf.style.opacity = String(strength);
     var my = ++this.hitFlashToken;
     setTimeout(function(){
@@ -551,6 +823,7 @@ TBOX.UI = {
 
   spawnDamageNumber(worldPos, value, camera, isKill){
     if(TBOX.Save.get('tbox_showDmgNumber', '1') !== '1') return;
+    if(this._menuOpen) return;
     var dl = this.els.dmgLayer;
     if(!dl || !camera) return;
     var v3 = new THREE.Vector3().copy(worldPos).project(camera);
@@ -586,6 +859,7 @@ TBOX.UI = {
   spawnArmorBreak(worldPos, camera){
     var al = this.els.armorLayer;
     if(!al || !camera) return;
+    if(this._menuOpen) return;
     var v3 = new THREE.Vector3().copy(worldPos).project(camera);
     if(v3.z > 1) return;
     var x = (v3.x * 0.5 + 0.5) * window.innerWidth;
@@ -623,17 +897,27 @@ TBOX.UI = {
   },
 
   updatePlayerName(){
-    var el = this.els.playerNameHud;
+    var el = document.getElementById('playerName');
     if(!el) return;
-    var cfg = TBOX.Save.get('tbox_charConfig', null);
-    if(cfg){
+    var name = 'Player';
+
+    if(window.TBOX && TBOX.DATA && TBOX.DATA.CHAR && TBOX.DATA.CHAR.name){
+      name = TBOX.DATA.CHAR.name;
+    }
+    if((!name || name === 'Player') && TBOX.Save && TBOX.Save.getChar){
       try {
-        var parsed = JSON.parse(cfg);
-        el.textContent = parsed.name || 'Player';
-        return;
+        var cfg = TBOX.Save.getChar();
+        if(cfg && cfg.name) name = cfg.name;
       } catch(e){}
     }
-    el.textContent = 'Player';
+    if((!name || name === 'Player')){
+      try {
+        var sn = localStorage.getItem('tbox_charName');
+        if(sn) name = sn;
+      } catch(e){}
+    }
+
+    el.textContent = String(name).toUpperCase();
   },
 
   _buildCompassCOD(){
@@ -659,6 +943,7 @@ TBOX.UI = {
   updateCompass(yaw){
     var strip = this.els.compassStrip;
     if(!strip) return;
+    if(this._menuOpen) return;
 
     var yawDeg = ((yaw * 180 / Math.PI) % 360 + 360) % 360;
     var C = this._compass;
@@ -826,6 +1111,7 @@ TBOX.UI = {
 
   updateVitals(vitals, p){
     if(!vitals || !p) return;
+    if(this._menuOpen) return;
     var heartPhase = vitals.heartPhase;
     var lungPhase = vitals.lungPhase;
     var ecgVal = this._ecgSample(heartPhase);

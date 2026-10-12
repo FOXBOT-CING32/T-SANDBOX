@@ -1,6 +1,6 @@
 /* ============================================================
  * main.js · 启动 + 玩家逻辑
- * V1.1.0 · 纯中文 + 视角回正 + 无自动奔跑
+ * V1.0.0 · Q 菜单 + K 左正踢 + E 抓取 + X 推人
  * ============================================================ */
 window.TBOX = window.TBOX || {};
 
@@ -45,6 +45,7 @@ TBOX.Player = {
   climbStartX: 0, climbStartY: 0, climbStartZ: 0,
   climbEndX: 0, climbEndY: 0, climbEndZ: 0,
   climbHanging: false,
+  climbDirX: 0, climbDirZ: 0,
   lastTapA: 0, lastTapD: 0, lastTapS: 0,
   hp: 100, maxHp: 100,
   stamina: 100, maxStamina: 100,
@@ -61,6 +62,10 @@ TBOX.Player = {
 };
 
 var _tmpDir = new THREE.Vector3();
+
+function isMenuOpen(){
+  return !!(TBOX.SpawnMenu && TBOX.SpawnMenu.opened);
+}
 
 TBOX.PlayerKnockdown = {
   knockDown(fromX, fromZ, force){
@@ -98,7 +103,20 @@ TBOX.PlayerKnockdown = {
     var lieDur = KN.lieDur || 1.2;
     var getUpDur = KN.getUpDur || 0.8;
     if(p.knockPhase === 'falling'){
-      p.x += p.vx * dt; p.z += p.vz * dt;
+      var stepX = p.vx * dt, stepZ = p.vz * dt;
+      var stepLen = Math.hypot(stepX, stepZ);
+      var maxStep = 0.08;
+      if(stepLen > maxStep){
+        var n = Math.ceil(stepLen / maxStep);
+        for(var i = 0; i < n; i++){
+          p.x += stepX / n;
+          p.z += stepZ / n;
+          TBOX.Engine.resolvePlayerCollision(p);
+        }
+      } else {
+        p.x += stepX; p.z += stepZ;
+        TBOX.Engine.resolvePlayerCollision(p);
+      }
       p.vx *= (1 - dt * 3); p.vz *= (1 - dt * 3);
       if(p.knockTimer >= fallDur){ p.knockPhase = 'lying'; p.knockTimer = 0; p.vx = 0; p.vz = 0; }
     } else if(p.knockPhase === 'lying'){
@@ -121,9 +139,28 @@ function interruptClimb(){
   if(p.climbing || p.climbHanging){ p.climbing = false; p.climbHanging = false; p.climbTimer = 0; p.onGround = false; p.vy = 0; }
 }
 
+function moveWithCollision(p, vx, vz, dt){
+  var stepX = vx * dt, stepZ = vz * dt;
+  var stepLen = Math.hypot(stepX, stepZ);
+  var maxStep = 0.08;
+  if(stepLen > maxStep){
+    var n = Math.ceil(stepLen / maxStep);
+    for(var i = 0; i < n; i++){
+      p.x += stepX / n;
+      p.z += stepZ / n;
+      TBOX.Engine.resolvePlayerCollision(p);
+    }
+  } else {
+    p.x += stepX; p.z += stepZ;
+    TBOX.Engine.resolvePlayerCollision(p);
+  }
+}
+
 function tryAttack(type){
   var p = TBOX.Player;
   if(!TBOX.Engine.running || !p.alive || p.dead) return;
+  if(isMenuOpen()) return;
+  if(TBOX.Layout && TBOX.Layout.editing) return;
   if(p.climbing || p.climbHanging) return;
   if(p.holdingBlock) return;
   if(p.knockedDown) return;
@@ -145,7 +182,9 @@ function tryAttack(type){
 function tryJump(){
   var p = TBOX.Player;
   if(!TBOX.Engine.running || !p.alive || p.dead) return;
-  if(p.climbing || p.climbHanging) return;
+  if(isMenuOpen()) return;
+  if(TBOX.Layout && TBOX.Layout.editing) return;
+  if(p.climbing || p.climbHanging){ interruptClimb(); return; }
   if(p.dodging || p.knockedDown) return;
   interruptInspect();
   if(p.onGround){
@@ -159,7 +198,9 @@ function tryJump(){
 function tryBigJump(){
   var p = TBOX.Player;
   if(!TBOX.Engine.running || !p.alive || p.dead) return;
-  if(p.climbing || p.climbHanging) return;
+  if(isMenuOpen()) return;
+  if(TBOX.Layout && TBOX.Layout.editing) return;
+  if(p.climbing || p.climbHanging){ interruptClimb(); return; }
   if(p.dodging || p.knockedDown) return;
   interruptInspect();
   if(p.onGround){
@@ -173,6 +214,8 @@ function tryBigJump(){
 function tryInspect(){
   var p = TBOX.Player;
   if(!TBOX.Engine.running || !p.alive || p.dead) return;
+  if(isMenuOpen()) return;
+  if(TBOX.Layout && TBOX.Layout.editing) return;
   if(p.inspecting) return;
   if(p.attackTimer > 0) return;
   if(p.kneeing || p.dodging) return;
@@ -184,6 +227,8 @@ function tryInspect(){
 function tryDodge(dir, type){
   var p = TBOX.Player;
   if(!TBOX.Engine.running || !p.alive || p.dead) return;
+  if(isMenuOpen()) return;
+  if(TBOX.Layout && TBOX.Layout.editing) return;
   if(p.climbing || p.climbHanging) return;
   if(p.dodging || p.kneeing) return;
   if(!p.onGround) return;
@@ -197,6 +242,8 @@ function tryDodge(dir, type){
 function tryDodgeBack(){
   var p = TBOX.Player;
   if(!TBOX.Engine.running || !p.alive || p.dead) return;
+  if(isMenuOpen()) return;
+  if(TBOX.Layout && TBOX.Layout.editing) return;
   if(p.climbing || p.climbHanging) return;
   if(p.dodging || p.kneeing) return;
   if(!p.onGround) return;
@@ -210,6 +257,8 @@ function tryDodgeBack(){
 function tryKnee(){
   var p = TBOX.Player;
   if(!TBOX.Engine.running || !p.alive || p.dead) return;
+  if(isMenuOpen()) return;
+  if(TBOX.Layout && TBOX.Layout.editing) return;
   if(p.climbing || p.climbHanging) return;
   if(p.kneeing) return;
   if(!p.onGround) return;
@@ -225,9 +274,12 @@ function tryKnee(){
   TBOX.Audio.playKick();
 }
 
+/* ★ 推人：改成 X 键触发，逻辑不变 */
 function tryPush(){
   var p = TBOX.Player;
   if(!TBOX.Engine.running || !p.alive || p.dead) return;
+  if(isMenuOpen()) return;
+  if(TBOX.Layout && TBOX.Layout.editing) return;
   if(p.climbing || p.climbHanging) return;
   if(p.holdingBlock) return;
   if(p.knockedDown) return;
@@ -243,6 +295,9 @@ function tryPush(){
 function trySprintKick(side){
   var p = TBOX.Player;
   if(!TBOX.Engine.running || !p.alive || p.dead) return;
+  if(isMenuOpen()) return;
+  if(TBOX.Layout && TBOX.Layout.editing) return;
+  if(p.climbing || p.climbHanging) return;
   if(!p.sprinting || p.speedFactor < 0.5) return;
   if(p.attackTimer > 0 || p.attackCooldown > 0) return;
   if(p.holdingBlock) return;
@@ -257,62 +312,106 @@ function trySprintKick(side){
   TBOX.Audio.playWhoosh();
 }
 
+/* ★ 抓取：E 键触发 */
+function tryGrab(){
+  var p = TBOX.Player;
+  if(!TBOX.Engine.running || !p.alive || p.dead) return;
+  if(isMenuOpen()) return;
+  if(TBOX.Layout && TBOX.Layout.editing) return;
+  if(p.climbing || p.climbHanging) return;
+  if(p.knockedDown) return;
+  if(!TBOX.Engine.grabProp) return;
+  if(TBOX.Engine.grabbedProp){
+    TBOX.Engine.releaseProp();
+    TBOX.UI.toast('已放下');
+  } else {
+    var ok = TBOX.Engine.grabProp();
+    if(ok) TBOX.UI.toast('已抓取');
+    else TBOX.UI.toast('前方没有可抓取的物体');
+  }
+}
+
 function tryClimb(){
   var p = TBOX.Player;
   if(!TBOX.Engine.running || !p.alive || p.dead) return;
+  if(isMenuOpen()) return;
+  if(TBOX.Layout && TBOX.Layout.editing) return;
   if(p.knockedDown) return;
-  if(p.climbHanging){
-    p.climbHanging = false; p.climbing = true; p.climbTimer = 0;
-    if(p.climbTarget){
-      p.climbEndX = p.climbTarget.x;
-      p.climbEndY = p.climbTarget.topY;
-      p.climbEndZ = p.climbTarget.z - (p.climbTarget.halfD || 0.5) + 0.2;
-    }
-    return;
-  }
-  if(p.climbing) return;
+  if(p.climbing || p.climbHanging){ interruptClimb(); return; }
   if(!p.onGround) return;
   interruptInspect();
+
   var yaw = TBOX.Engine.camState.yaw;
-  var fwd = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw));
+  var fwdX = -Math.sin(yaw), fwdZ = -Math.cos(yaw);
+  var rgtX = Math.cos(yaw), rgtZ = -Math.sin(yaw);
+
+  var dirs = [
+    { x: fwdX,  z: fwdZ,  name: 'front' },
+    { x: -fwdX, z: -fwdZ, name: 'back' },
+    { x: rgtX,  z: rgtZ,  name: 'right' },
+    { x: -rgtX, z: -rgtZ, name: 'left' }
+  ];
+
   var best = null;
-  var bestDist = 99;
-  for(var i = 0; i < TBOX.Engine.stairs.length; i++){
-    var s = TBOX.Engine.stairs[i];
-    var dx = s.x - p.x, dz = s.z - p.z;
-    var dist = Math.hypot(dx, dz);
-    if(dist > TBOX.DATA.CLIMB_RANGE * 1.5) continue;
-    var dh = s.topY - p.y;
-    if(dh <= 0.2) continue;
+  var bestScore = -Infinity;
+
+  for(var d = 0; d < dirs.length; d++){
+    var dir = dirs[d];
+    var wx = p.x + dir.x * TBOX.DATA.CLIMB_WALL_DETECT_RANGE;
+    var wz = p.z + dir.z * TBOX.DATA.CLIMB_WALL_DETECT_RANGE;
+    var gy = TBOX.Engine.resolvePlayerGround({ x: wx, z: wz, y: p.y + 3 });
+    var dh = gy - p.y;
+    if(dh <= TBOX.DATA.CLIMB_MIN_HEIGHT) continue;
     if(dh > TBOX.DATA.CLIMB_MAX_HEIGHT) continue;
-    var toX = dx / dist, toZ = dz / dist;
-    var dot = fwd.x * toX + fwd.z * toZ;
-    if(dot < 0.3) continue;
-    if(dist < bestDist){ best = s; bestDist = dist; }
-  }
-  if(!best && TBOX.DATA.CLIMB_ANY_SURFACE){
-    var wx = p.x + fwd.x * TBOX.DATA.CLIMB_WALL_DETECT_RANGE;
-    var wz = p.z + fwd.z * TBOX.DATA.CLIMB_WALL_DETECT_RANGE;
-    var groundY = TBOX.Engine.resolvePlayerGround({ x: wx, z: wz, y: p.y + 3 });
-    if(groundY > p.y + TBOX.DATA.CLIMB_MIN_HEIGHT && groundY < p.y + TBOX.DATA.CLIMB_MAX_HEIGHT){
-      best = { x: wx, z: wz, topY: groundY, halfW: 0.5, halfD: 0.5, virtual: true };
+
+    var targetBox = null;
+    for(var i = 0; i < TBOX.Engine.aabbStatic.length; i++){
+      var box = TBOX.Engine.aabbStatic[i];
+      var bdx = wx - box.x, bdz = wz - box.z;
+      if(Math.abs(bdx) < box.hw + 0.5 && Math.abs(bdz) < box.hd + 0.5){
+        if(Math.abs(box.topY - gy) < 0.3){ targetBox = box; break; }
+      }
+    }
+
+    var score = dh;
+    if(d === 0) score += 0.5;
+    if(score > bestScore){
+      bestScore = score;
+      best = {
+        x: targetBox ? targetBox.x : wx,
+        z: targetBox ? targetBox.z : wz,
+        topY: gy,
+        halfW: targetBox ? targetBox.hw : 0.5,
+        halfD: targetBox ? targetBox.hd : 0.5,
+        dirX: dir.x,
+        dirZ: dir.z,
+        box: targetBox
+      };
     }
   }
+
   if(!best){
-    TBOX.UI.toast('前方没有可攀爬的台阶');
+    TBOX.UI.toast('附近没有可攀爬的台阶');
     return;
   }
+
   p.climbing = true; p.climbTimer = 0;
   p.climbTarget = best;
   p.climbStartX = p.x; p.climbStartY = p.y; p.climbStartZ = p.z;
-  p.climbEndX = best.x; p.climbEndY = best.topY;
-  p.climbEndZ = best.z - (best.halfD || 0.5) + 0.2;
+
+  var pushOut = TBOX.DATA.PLAYER_RADIUS + 0.1;
+  p.climbEndX = best.x - best.dirX * (best.halfW + pushOut);
+  p.climbEndZ = best.z - best.dirZ * (best.halfD + pushOut);
+  p.climbEndY = best.topY;
+
   TBOX.Audio.playClimb();
 }
 
 function tryBlockStart(){
   var p = TBOX.Player;
   if(!TBOX.Engine.running || !p.alive || p.dead) return;
+  if(isMenuOpen()) return;
+  if(TBOX.Layout && TBOX.Layout.editing) return;
   if(p.climbing || p.climbHanging) return;
   if(p.knockedDown) return;
   interruptInspect();
@@ -389,6 +488,38 @@ function respawnPlayer(){
 window.respawnPlayer = respawnPlayer;
 window.damagePlayer = damagePlayer;
 
+function updateClimb(p, dt){
+  var D = TBOX.DATA;
+  p.climbTimer += dt;
+  var cp = Math.min(1, p.climbTimer / D.CLIMB_DUR);
+  var targetX = TBOX.Utils.lerp(p.climbStartX, p.climbEndX, cp);
+  var targetY = TBOX.Utils.lerp(p.climbStartY, p.climbEndY, cp);
+  var targetZ = TBOX.Utils.lerp(p.climbStartZ, p.climbEndZ, cp);
+  var dx = targetX - p.x;
+  var dy = targetY - p.y;
+  var dz = targetZ - p.z;
+  var len = Math.hypot(dx, dy, dz);
+  var maxStep = D.CLIMB_STEP_MAX || 0.08;
+  if(len > maxStep){
+    var n = Math.ceil(len / maxStep);
+    for(var i = 0; i < n; i++){
+      p.x += dx / n; p.y += dy / n; p.z += dz / n;
+      TBOX.Engine.resolvePlayerCollision(p);
+    }
+  } else {
+    p.x += dx; p.y += dy; p.z += dz;
+    TBOX.Engine.resolvePlayerCollision(p);
+  }
+  if(cp >= 1){
+    p.climbing = false;
+    p.climbTimer = 0;
+    p.onGround = true;
+    p.vy = 0;
+    p.y = p.climbEndY;
+    TBOX.Engine.resolvePlayerCollision(p);
+  }
+}
+
 function updatePlayer(dt, now){
   var p = TBOX.Player;
   var E = TBOX.Engine;
@@ -403,6 +534,12 @@ function updatePlayer(dt, now){
     return;
   }
   if(p.invulnerable > 0) p.invulnerable -= dt;
+  if(isMenuOpen()) return;
+  if(p.climbing || p.climbHanging){
+    if(p.climbing) updateClimb(p, dt);
+    updateAttack(dt);
+    return;
+  }
 
   var mx = 0, mz = 0;
   if(E.isTouch){
@@ -449,34 +586,19 @@ function updatePlayer(dt, now){
     if(p.dodgeType === 'back'){ vx += fwdX * -TBOX.DATA.DODGE.backSpeed; vz += fwdZ * -TBOX.DATA.DODGE.backSpeed; }
     else { vx += rgtX * p.dodgeDir * TBOX.DATA.DODGE.sideDist; vz += rgtZ * p.dodgeDir * TBOX.DATA.DODGE.sideDist; }
   }
-  if(!p.climbing && !p.climbHanging && isFinite(vx) && isFinite(vz)){
-    p.x += vx * dt; p.z += vz * dt;
+  if(isFinite(vx) && isFinite(vz)){
+    moveWithCollision(p, vx, vz, dt);
   }
-
-  E.resolvePlayerCollision(p);
 
   var moving = inputMag > 0.08;
   p.speedFactor = U.lerp(p.speedFactor, moving ? 1 : 0, Math.min(1, dt * 10));
-  if(moving && !p.kneeing && !p.climbing && !p.climbHanging){
+  if(moving && !p.kneeing){
     var stride = isSprinting ? 13 : (inputMag > 0.5 ? 9.5 : 7);
     p.runPhase += dt * stride;
   }
 
-  /* ★ 视角回正：只回正 pitch 到 0 */
-  if(!moving && p.onGround && !p.attackTimer && !p.inspecting && !p.dead){
-    var recenterSpeed = TBOX.Save.getNum('tbox_viewRecenterSpeed', 50) / 100;
-    if(recenterSpeed > 0){
-      var targetPitch = 0;
-      var lambda = recenterSpeed * 3;
-      E.camState.pitch = U.damp(E.camState.pitch, targetPitch, lambda, dt);
-    }
-  }
-
   var groundY = E.resolvePlayerGround(p);
-
-  if(p.climbing || p.climbHanging){
-    p.vy = 0;
-  } else if(!p.onGround){
+  if(!p.onGround){
     p.vy += TBOX.DATA.GRAVITY * dt * (TBOX.DATA.GRAVITY_MUL || 1);
     p.y += p.vy * dt;
     if(p.y <= groundY + 0.001){
@@ -530,6 +652,7 @@ function updateAttack(dt){
 
 function updateHoldAttacks(){
   var p = TBOX.Player;
+  if(isMenuOpen()) return;
   if(p.attackTimer > 0 || p.attackCooldown > 0) return;
   if(p.climbing || p.climbHanging) return;
   if(p.holdingBlock) return;
@@ -558,6 +681,20 @@ function bindInputEvents(){
   var p = TBOX.Player;
 
   TBOX.Events.on('input:keydown', function(e){
+    /* Q 键：菜单开关 */
+    if(e.code === 'KeyQ'){
+      e.preventDefault();
+      if(TBOX.SpawnMenu && TBOX.SpawnMenu.toggle) TBOX.SpawnMenu.toggle();
+      return;
+    }
+    /* 菜单打开时：只允许 ESC */
+    if(isMenuOpen()){
+      if(e.code === 'Escape'){
+        e.preventDefault();
+        if(TBOX.SpawnMenu && TBOX.SpawnMenu.close) TBOX.SpawnMenu.close();
+      }
+      return;
+    }
     if(e.code === 'Escape'){
       e.preventDefault();
       TBOX.Engine.pause();
@@ -565,9 +702,19 @@ function bindInputEvents(){
       if(!E.isTouch && E.controls && E.controls.isLocked) E.controls.unlock();
       return;
     }
-    if(e.code === 'Space'){ e.preventDefault(); if(p.sprinting) tryBigJump(); else tryJump(); }
+    if(TBOX.Layout && TBOX.Layout.editing) return;
+
+    if(e.code === 'Space'){
+      e.preventDefault();
+      if(p.climbing || p.climbHanging){ interruptClimb(); return; }
+      if(p.sprinting) tryBigJump(); else tryJump();
+    }
     if(e.code === 'ControlLeft' || e.code === 'ControlRight'){ e.preventDefault(); tryKnee(); }
     if(e.code === 'KeyN'){ e.preventDefault(); tryClimb(); }
+
+    /* K 键：左正踢 */
+    if(e.code === 'KeyK'){ e.preventDefault(); tryAttack('leftKick'); p.holdingLeftKick = true; }
+
     if(e.code === 'KeyA'){
       var now = performance.now();
       if(now - p.lastTapA < 250) tryDodge(-1, 'side');
@@ -583,8 +730,12 @@ function bindInputEvents(){
       if(now3 - p.lastTapS < 250) tryDodgeBack();
       p.lastTapS = now3;
     }
-    if(e.code === 'KeyQ'){ e.preventDefault(); tryAttack('leftKick'); p.holdingLeftKick = true; }
-    if(e.code === 'KeyE'){ e.preventDefault(); p.holdingPush = true; tryPush(); }
+
+    /* E 键：抓取 */
+    if(e.code === 'KeyE'){ e.preventDefault(); tryGrab(); }
+    /* X 键：推人（原 E） */
+    if(e.code === 'KeyX'){ e.preventDefault(); tryPush(); p.holdingPush = true; }
+
     if(e.code === 'KeyR'){ e.preventDefault(); tryAttack('rightKick'); p.holdingRightKick = true; }
     if(e.code === 'KeyV'){ e.preventDefault(); p.holdingHookL = true; tryAttack('hookL'); }
     if(e.code === 'KeyB'){ e.preventDefault(); p.holdingHookR = true; tryAttack('hookR'); }
@@ -599,8 +750,8 @@ function bindInputEvents(){
   });
 
   TBOX.Events.on('input:keyup', function(e){
-    if(e.code === 'KeyQ') p.holdingLeftKick = false;
-    if(e.code === 'KeyE') p.holdingPush = false;
+    if(e.code === 'KeyK') p.holdingLeftKick = false;
+    if(e.code === 'KeyX') p.holdingPush = false;
     if(e.code === 'KeyR') p.holdingRightKick = false;
     if(e.code === 'KeyV') p.holdingHookL = false;
     if(e.code === 'KeyB') p.holdingHookR = false;
@@ -611,8 +762,20 @@ function bindInputEvents(){
     if(e.code === 'KeyF') p.holdingBlock = false;
   });
 
-  TBOX.Events.on('input:lmb', function(v){ p.holdingL = v; if(v) tryAttack('jab'); });
-  TBOX.Events.on('input:rmb', function(v){ p.holdingR = v; if(v) tryAttack('cross'); });
+  /* 左键：抓取时抛出，否则攻击 */
+  TBOX.Events.on('input:lmb', function(v){
+    if(isMenuOpen()) return;
+    if(TBOX.Engine.grabbedProp){
+      if(v) TBOX.Engine.throwProp();
+      return;
+    }
+    p.holdingL = v; if(v) tryAttack('jab');
+  });
+
+  TBOX.Events.on('input:rmb', function(v){
+    if(isMenuOpen()) return;
+    p.holdingR = v; if(v) tryAttack('cross');
+  });
 }
 
 function bindBackOverlay(){
@@ -642,7 +805,6 @@ function openIframe(type){
   var iframe = document.getElementById('settingsIframe');
   var inner = document.getElementById('settingsFrameInner');
   if(!frame || !iframe) return;
-
   if(inner){
     if(type === 'char'){
       inner.style.width = '92vw';
@@ -652,7 +814,6 @@ function openIframe(type){
       inner.style.height = 'min(88vh, 900px)';
     }
   }
-
   if(type === 'char'){
     iframe.src = 'char.html?embed=1';
   } else {
@@ -680,33 +841,34 @@ window.addEventListener('message', function(e){
   }
   if(e.data.type === 'tbox-char-close' || e.data.type === 'tbox-char-saved'){
     closeIframe();
-    if(e.data.type === 'tbox-char-saved' && TBOX.Action && TBOX.Action.rebuildCharacter){
-      TBOX.Action.rebuildCharacter();
+    if(e.data.type === 'tbox-char-saved'){
+      if(TBOX.Action && TBOX.Action.rebuildCharacter) TBOX.Action.rebuildCharacter();
+      try {
+        var cfg = TBOX.Save.getChar();
+        if(cfg && cfg.name){
+          if(TBOX.DATA.CHAR) TBOX.DATA.CHAR.name = cfg.name;
+          try { localStorage.setItem('tbox_charName', cfg.name); } catch(err){}
+          var pnEl = document.getElementById('playerName');
+          if(pnEl) pnEl.textContent = String(cfg.name).toUpperCase();
+        }
+      } catch(err){}
     }
   }
   if(e.data.type === 'tbox-settings-reset'){
-    console.log('[main] 收到重置消息，重新应用设置');
-    if(TBOX.Engine && TBOX.Engine._applyAllSettings){
-      TBOX.Engine._applyAllSettings();
-    }
-    if(TBOX.UI && TBOX.UI._applySettings){
-      TBOX.UI._applySettings();
-    }
+    console.log('[main] 收到重置消息');
+    if(TBOX.Engine && TBOX.Engine._applyAllSettings) TBOX.Engine._applyAllSettings();
+    if(TBOX.UI && TBOX.UI._applySettings) TBOX.UI._applySettings();
   }
 });
 
 document.addEventListener('DOMContentLoaded', function(){
   var closeBtn = document.getElementById('settingsClose');
   if(closeBtn){
-    closeBtn.addEventListener('click', function(){
-      closeIframe();
-    });
+    closeBtn.addEventListener('click', function(){ closeIframe(); });
   }
   var frame = document.getElementById('settingsFrame');
   if(frame){
-    frame.addEventListener('click', function(e){
-      if(e.target === frame){ closeIframe(); }
-    });
+    frame.addEventListener('click', function(e){ if(e.target === frame) closeIframe(); });
   }
 });
 
@@ -723,6 +885,8 @@ function bindTouchControls(){
 
     joyZone.addEventListener('touchstart', function(e){
       e.preventDefault();
+      if(isMenuOpen()) return;
+      if(TBOX.Layout && TBOX.Layout.editing) return;
       var t = e.changedTouches[0];
       var now = performance.now();
       var dt = now - lastJoyTapTime;
@@ -746,7 +910,6 @@ function bindTouchControls(){
       lastJoyTapTime = now;
       lastJoyTapX = t.clientX;
       lastJoyTapY = t.clientY;
-
       if(window.TBOX_Joy.active) return;
       var J = window.TBOX_Joy;
       J.id = t.identifier; J.active = true;
@@ -756,6 +919,8 @@ function bindTouchControls(){
     }, { passive: false });
     joyZone.addEventListener('touchmove', function(e){
       e.preventDefault();
+      if(isMenuOpen()) return;
+      if(TBOX.Layout && TBOX.Layout.editing) return;
       var J = window.TBOX_Joy;
       for(var i = 0; i < e.changedTouches.length; i++){
         var t = e.changedTouches[i];
@@ -786,11 +951,15 @@ function bindTouchControls(){
     var lookId = null, lastX = 0, lastY = 0;
     lookZone.addEventListener('touchstart', function(e){
       e.preventDefault();
+      if(isMenuOpen()) return;
+      if(TBOX.Layout && TBOX.Layout.editing) return;
       var t = e.changedTouches[0];
       lookId = t.identifier; lastX = t.clientX; lastY = t.clientY;
     }, { passive: false });
     lookZone.addEventListener('touchmove', function(e){
       e.preventDefault();
+      if(isMenuOpen()) return;
+      if(TBOX.Layout && TBOX.Layout.editing) return;
       for(var i = 0; i < e.changedTouches.length; i++){
         var t = e.changedTouches[i];
         if(t.identifier !== lookId) continue;
@@ -824,6 +993,8 @@ function bindTouchButtons(){
     var repeatTimer = null;
     function press(e){
       if(e){ e.preventDefault(); }
+      if(isMenuOpen()) return;
+      if(TBOX.Layout && TBOX.Layout.editing) return;
       if(pressed) return;
       pressed = true;
       el.classList.add('press');
@@ -833,6 +1004,8 @@ function bindTouchButtons(){
           if(!pressed) return;
           repeatTimer = setInterval(function(){
             if(!pressed) return;
+            if(isMenuOpen()) return;
+            if(TBOX.Layout && TBOX.Layout.editing) return;
             try { onDown(); } catch(err){}
           }, 160);
         }, 240);
@@ -866,12 +1039,39 @@ function bindTouchButtons(){
   bindKey('btnRightKick', function(){ p.holdingRightKick = true; tryAttack('rightKick'); }, function(){ p.holdingRightKick = false; }, true);
   bindKey('btnBackSpin', function(){ p.holdingPush = true; tryPush(); }, function(){ p.holdingPush = false; }, true);
   bindKey('btnKnee',     function(){ tryKnee(); }, null, true);
-  bindKey('btnJump',     function(){ if(p.sprinting) tryBigJump(); else tryJump(); }, null, true);
+  bindKey('btnJump',     function(){
+    if(p.climbing || p.climbHanging){ interruptClimb(); return; }
+    if(p.sprinting) tryBigJump(); else tryJump();
+  }, null, true);
   bindKey('btnSprint',   function(){ p.sprinting = !p.sprinting; }, null, false);
   bindKey('btnBlock',    function(){ tryBlockStart(); }, function(){ tryBlockEnd(); }, false);
   bindKey('btnClimb',    function(){ tryClimb(); }, null, true);
   bindKey('btnView',     function(){ TBOX.Engine.toggleView(); }, null, false);
   bindKey('btnInspect',  function(){ tryInspect(); }, null, false);
+
+  var btnMenu = document.getElementById('btnMenu');
+  if(btnMenu){
+    var menuPressed = false;
+    function menuPress(e){
+      if(e){ e.preventDefault(); }
+      if(menuPressed) return;
+      menuPressed = true;
+      btnMenu.classList.add('press');
+      if(TBOX.SpawnMenu && TBOX.SpawnMenu.toggle) TBOX.SpawnMenu.toggle();
+    }
+    function menuRelease(e){
+      if(e){ e.preventDefault(); }
+      if(!menuPressed) return;
+      menuPressed = false;
+      btnMenu.classList.remove('press');
+    }
+    btnMenu.addEventListener('touchstart', menuPress, { passive: false });
+    btnMenu.addEventListener('touchend', menuRelease, { passive: false });
+    btnMenu.addEventListener('touchcancel', menuRelease, { passive: false });
+    btnMenu.addEventListener('mousedown', menuPress);
+    btnMenu.addEventListener('mouseup', menuRelease);
+    btnMenu.addEventListener('mouseleave', menuRelease);
+  }
 }
 
 function applyLang(){ /* 无语言切换 */ }
@@ -883,13 +1083,17 @@ TBOX.Layout = {
   _bound: false,
   _savedSnapshot: null,
 
+  _getDefaults(){
+    return (TBOX.DATA && TBOX.DATA.DEFAULT_LAYOUT) ? TBOX.DATA.DEFAULT_LAYOUT : {};
+  },
+
   init(){
     if(!TBOX.Engine.isTouch) return;
     if(this._bound) return;
     this._bound = true;
     this._bindEditButtons();
     this._bindDrag();
-    this._loadLayout();
+    this._applyLayoutFromStorage();
   },
 
   _bindEditButtons(){
@@ -911,7 +1115,6 @@ TBOX.Layout = {
     var self = this;
     var preview = document.getElementById('touchUI');
     if(!preview) return;
-
     function startDrag(e){
       if(!self.editing) return;
       var t = e.target.closest('.key');
@@ -923,8 +1126,8 @@ TBOX.Layout = {
       self.dragOffset.x = point.clientX - rect.left;
       self.dragOffset.y = point.clientY - rect.top;
       t.style.zIndex = '100';
+      t.classList.add('selected');
     }
-
     function moveDrag(e){
       if(!self.dragTarget) return;
       e.preventDefault();
@@ -941,14 +1144,12 @@ TBOX.Layout = {
       self.dragTarget.style.right = 'auto';
       self.dragTarget.style.bottom = 'auto';
     }
-
     function endDrag(){
       if(!self.dragTarget) return;
       self.dragTarget.style.zIndex = '';
+      self.dragTarget.classList.remove('selected');
       self.dragTarget = null;
-      self.saveLayout();
     }
-
     preview.addEventListener('mousedown', startDrag);
     window.addEventListener('mousemove', moveDrag);
     window.addEventListener('mouseup', endDrag);
@@ -962,10 +1163,8 @@ TBOX.Layout = {
     if(this.editing) return;
     this.editing = true;
     this._savedSnapshot = this._snapshot();
-    document.querySelectorAll('#touchUI .key').forEach(function(el){
-      el.style.outline = '2px dashed #4fd1ff';
-      el.style.pointerEvents = 'auto';
-    });
+    var ui = document.getElementById('touchUI');
+    if(ui) ui.classList.add('on', 'edit-mode');
     var topBar = document.getElementById('editTopBar');
     var bottomBar = document.getElementById('editBottomBar');
     var hint = document.getElementById('editHint');
@@ -985,7 +1184,8 @@ TBOX.Layout = {
       this.saveLayout();
       TBOX.UI.toast('布局已保存');
     }
-    document.querySelectorAll('#touchUI .key').forEach(function(el){ el.style.outline = ''; });
+    var ui = document.getElementById('touchUI');
+    if(ui) ui.classList.remove('edit-mode');
     var topBar = document.getElementById('editTopBar');
     var bottomBar = document.getElementById('editBottomBar');
     var hint = document.getElementById('editHint');
@@ -993,7 +1193,8 @@ TBOX.Layout = {
     if(bottomBar) bottomBar.classList.remove('on');
     if(hint) hint.classList.remove('on');
     var backBtn = document.getElementById('btnBackGame');
-    if(backBtn) backBtn.style.display = 'flex';
+    if(backBtn && TBOX.Engine.isTouch) backBtn.style.display = 'flex';
+    this._applyLayoutFromStorage();
   },
 
   _snapshot(){
@@ -1018,9 +1219,27 @@ TBOX.Layout = {
   },
 
   autoLayout(){
+    var preview = document.getElementById('touchUI');
+    if(!preview) return;
+    var rect = preview.getBoundingClientRect();
+    var def = this._getDefaults();
     document.querySelectorAll('#touchUI .key').forEach(function(el){
-      el.style.left = ''; el.style.top = ''; el.style.right = ''; el.style.bottom = '';
-      el.style.width = ''; el.style.height = '';
+      var id = el.id;
+      var d = def[id];
+      if(!d){
+        el.style.left = ''; el.style.top = ''; el.style.right = ''; el.style.bottom = '';
+        return;
+      }
+      var pw = d.w * rect.width;
+      var ph = d.h * rect.height;
+      var px = d.x * rect.width;
+      var py = d.y * rect.height;
+      el.style.left = (px - pw / 2) + 'px';
+      el.style.top  = (py - ph / 2) + 'px';
+      el.style.width = pw + 'px';
+      el.style.height = ph + 'px';
+      el.style.right = 'auto';
+      el.style.bottom = 'auto';
     });
     try { localStorage.removeItem('tbox_uiLayout'); } catch(e){}
     TBOX.UI.toast('已应用自动布局');
@@ -1028,28 +1247,50 @@ TBOX.Layout = {
 
   saveLayout(){
     try {
-      var layout = this._snapshot();
+      var preview = document.getElementById('touchUI');
+      if(!preview) return;
+      var rect = preview.getBoundingClientRect();
+      var layout = {};
+      document.querySelectorAll('#touchUI .key').forEach(function(el){
+        if(!el.id) return;
+        var r = el.getBoundingClientRect();
+        layout[el.id] = {
+          x: (r.left + r.width / 2 - rect.left) / rect.width,
+          y: (r.top + r.height / 2 - rect.top) / rect.height,
+          w: r.width / rect.width,
+          h: r.height / rect.height
+        };
+      });
       localStorage.setItem('tbox_uiLayout', JSON.stringify(layout));
     } catch(e){}
   },
 
-  _loadLayout(){
+  _applyLayoutFromStorage(){
+    var preview = document.getElementById('touchUI');
+    if(!preview) return;
+    var rect = preview.getBoundingClientRect();
+    var layout = null;
     try {
       var raw = localStorage.getItem('tbox_uiLayout');
-      if(!raw) return;
-      var layout = JSON.parse(raw);
-      for(var id in layout){
-        var el = document.getElementById(id);
-        if(!el) continue;
-        var d = layout[id];
-        if(d.left || d.top){
-          el.style.left = d.left || '';
-          el.style.top = d.top || '';
-          el.style.right = d.right || '';
-          el.style.bottom = d.bottom || '';
-        }
-      }
-    } catch(e){}
+      if(raw) layout = JSON.parse(raw);
+    } catch(e){ layout = null; }
+    if(!layout) layout = this._getDefaults();
+    document.querySelectorAll('#touchUI .key').forEach(function(el){
+      var id = el.id;
+      var d = layout[id];
+      if(!d) return;
+      if(d.x === undefined || d.y === undefined) return;
+      var pw = (d.w !== undefined ? d.w : 0.06) * rect.width;
+      var ph = (d.h !== undefined ? d.h : 0.12) * rect.height;
+      var px = d.x * rect.width;
+      var py = d.y * rect.height;
+      el.style.left = (px - pw / 2) + 'px';
+      el.style.top  = (py - ph / 2) + 'px';
+      el.style.width = pw + 'px';
+      el.style.height = ph + 'px';
+      el.style.right = 'auto';
+      el.style.bottom = 'auto';
+    });
   },
 
   reset(){
@@ -1058,6 +1299,7 @@ TBOX.Layout = {
       el.style.left = ''; el.style.top = ''; el.style.right = ''; el.style.bottom = '';
       el.style.width = ''; el.style.height = '';
     });
+    this._applyLayoutFromStorage();
     TBOX.UI.toast('布局已重置');
   }
 };
@@ -1077,7 +1319,7 @@ function TBOX_START(){
     if(typeof TBOX.Save === 'undefined') missing.push('Save');
     if(typeof TBOX.Events === 'undefined') missing.push('Events');
     if(missing.length > 0){
-      throw new Error('模块加载失败: ' + missing.join(', ') + '（请检查文件是否存在/路径是否正确）');
+      throw new Error('模块加载失败: ' + missing.join(', '));
     }
     TBOX.loadCharConfig();
     try {
@@ -1092,6 +1334,15 @@ function TBOX_START(){
     var startGame = function(charCfg){
       if(charCfg){
         TBOX.DATA.CHAR = Object.assign({}, TBOX.DATA.CHAR || {}, charCfg);
+      }
+      if(charCfg && charCfg.name){
+        TBOX.DATA.CHAR.name = charCfg.name;
+        try { localStorage.setItem('tbox_charName', charCfg.name); } catch(e){}
+      } else {
+        try {
+          var sn = localStorage.getItem('tbox_charName');
+          if(sn && TBOX.DATA.CHAR) TBOX.DATA.CHAR.name = sn;
+        } catch(e){}
       }
       TBOX.Action.buildCharacter();
       TBOX.Action.buildDummy();
@@ -1129,6 +1380,7 @@ function TBOX_START(){
         bindTouchControls();
         bindTouchButtons();
         TBOX.Layout.init();
+        TBOX.Layout._applyLayoutFromStorage();
       } else {
         if(touchUI) touchUI.classList.remove('on');
         if(pcHud) pcHud.style.display = 'block';
@@ -1145,10 +1397,22 @@ function TBOX_START(){
       var pnEl = document.getElementById('playerName');
       if(pnEl){
         var nm = (TBOX.DATA.CHAR && TBOX.DATA.CHAR.name) ? TBOX.DATA.CHAR.name : 'Player';
-        pnEl.textContent = nm.toUpperCase();
+        pnEl.textContent = String(nm).toUpperCase();
       }
 
       TBOX.Engine.start();
+
+      var wantEdit = false;
+      try {
+        var params = new URLSearchParams(location.search);
+        wantEdit = params.get('edit') === '1';
+      } catch(e){}
+      if(wantEdit && isTouch && TBOX.Layout){
+        setTimeout(function(){
+          TBOX.Engine.pause();
+          TBOX.Layout.enterEdit();
+        }, 300);
+      }
 
       if(!isTouch){
         setTimeout(function(){
@@ -1161,16 +1425,12 @@ function TBOX_START(){
 
       var loading = document.getElementById('loading');
       if(loading) loading.style.display = 'none';
-      console.log('T-BOX started ·', TBOX.DATA.VERSION_LABEL, '· device:', isTouch ? 'touch' : 'pc');
+      console.log('T-BOX started ·', TBOX.DATA.VERSION_LABEL, '· device:', isTouch ? 'touch' : 'pc', '· name:', TBOX.DATA.CHAR.name);
     };
 
     if(TBOX.Save && TBOX.Save.getCharAsync){
-      TBOX.Save.getCharAsync().then(function(cfg){
-        startGame(cfg);
-      }).catch(function(err){
-        console.warn('[TBOX] 异步加载失败，用同步:', err);
-        startGame(TBOX.Save.getChar());
-      });
+      TBOX.Save.getCharAsync().then(function(cfg){ startGame(cfg); })
+      .catch(function(err){ console.warn('[TBOX] 异步加载失败:', err); startGame(TBOX.Save.getChar()); });
     } else {
       startGame(TBOX.Save.getChar());
     }
@@ -1186,9 +1446,7 @@ function TBOX_START(){
 if(window.TBOX_THREE_READY){
   window.addEventListener('tbox:scripts-ready', TBOX_START, { once: true });
 } else {
-  window.addEventListener('tbox:three-ready', function(){
-    window.TBOX_THREE_READY = true;
-  }, { once: true });
+  window.addEventListener('tbox:three-ready', function(){ window.TBOX_THREE_READY = true; }, { once: true });
   window.addEventListener('tbox:scripts-ready', TBOX_START, { once: true });
 }
 

@@ -1,6 +1,6 @@
 /* ============================================================
  * data.js · 数据系统
- * V1.0.0 · 纯中文 + 准星/击中/HUD/后处理扩展
+ * V1.0.0 · 纯中文 + 准星29种/击中29种 + AABB + 踢飞 + 物理
  * ============================================================ */
 window.TBOX = window.TBOX || {};
 
@@ -65,7 +65,67 @@ TBOX.DATA = {
     leftKick: 0.38, rightKick: 0.38, push: 0.35, knee: 0.40
   },
 
-  SPRINT_ATK: { kickMul: 1.5, kickKnockBack: 4.0, pushMul: 1.75, pushForce: 14.0 },
+  SPRINT_ATK: { kickMul: 6.0, kickKnockBack: 12.0, pushMul: 1.75, pushForce: 14.0 },
+
+  KICK_FLY: {
+    enable: true,
+    maxDistance: 3.0,
+    flySpeed: 14.0,
+    flyUp: 3.5,
+    gravity: -22,
+    friction: 3.5,
+    minDmgForFly: 3,
+    armPart: 'arm',
+    headPart: 'head',
+    bodyPart: 'body',
+    legPart: 'leg'
+  },
+
+  HIT_PART: {
+    headMinY: 1.45,
+    headMaxY: 1.75,
+    armMinY: 1.10,
+    armMaxY: 1.45,
+    bodyMinY: 0.85,
+    bodyMaxY: 1.45,
+    legMinY: 0.0,
+    legMaxY: 0.85
+  },
+
+  /* ★ 物体物理配置 */
+  PHYSICS: {
+    enable: true,
+    gravity: -22,           /* 物体重力 */
+    friction: 4.0,          /* 地面摩擦（每秒衰减） */
+    airFriction: 0.5,       /* 空中摩擦 */
+    restitution: 0.15,      /* 弹性（0 = 不弹，1 = 完全弹） */
+    sleepSpeed: 0.05,       /* 小于这个速度就睡觉 */
+    sleepTime: 0.5,         /* 持续多久睡觉 */
+    maxProps: 300,          /* 最大物体数量（超过自动删最早的） */
+    /* 物体间碰撞 */
+    propCollision: true,
+    /* 物体撞台阶 */
+    collideStairs: true,
+    /* 玩家推物体 */
+    playerPush: true,
+    playerPushForce: 6.0,   /* 推力量 */
+    /* 物体跟随玩家（抓取） */
+    grabFollowLambda: 20    /* 跟随插值速度 */
+  },
+
+  /* ★ 抓取配置 */
+  GRAB: {
+    enable: true,
+    range: 3.0,             /* 射线检测距离 */
+    holdDistance: 1.5,      /* 物体离玩家手的距离 */
+    holdHeight: 1.3,        /* 物体在手上的高度（世界 Y） */
+    throwSpeed: 12.0,       /* 抛出初速度 */
+    grabKey: 'KeyE',        /* 抓取键 */
+    throwKey: 'Mouse0',     /* 抛出键（可选，左键） */
+    /* 抓取时，物体朝向玩家 */
+    facePlayer: true
+  },
+
   PUSH: {
     range: 2.2, dotThreshold: 0.30, force: 8.0,
     pushBackSelf: 0.5, knockDownChance: 1.0,
@@ -99,11 +159,24 @@ TBOX.DATA = {
   CLIMB_WALL_DETECT_RANGE: 2.5,
   CLIMB_MULTI_DIR: true,
   CLIMB_MIN_HEIGHT: 0.5,
-  CLIMB_MAX_HEIGHT: 3.5,
+  CLIMB_MAX_HEIGHT: 4.5,
+  CLIMB_OMNI_DIR: true,
+  CLIMB_CANCEL_KEY: 'both',
+  CLIMB_NO_ATTACK: true,
+  CLIMB_STEP_MAX: 0.08,
   SLIDE_SIDE: {
     enabled: true, bodyDrop: 0.70, sideTilt: 0.45,
     twistAmount: 0.35, camRoll: 0.45, legSpreadY: 0.30,
     duration: 1.0, speed: 8.5
+  },
+
+  AABB: {
+    enable: true,
+    playerRadius: 0.35,
+    playerHeight: 1.60,
+    maxPushIter: 4,
+    staticList: [],
+    dynamicList: []
   },
 
   MAX_HP: 100, MAX_STAMINA: 100,
@@ -164,23 +237,59 @@ TBOX.DATA = {
   },
   STAIRS: { count: 5, height: 1.5, width: 3.0, depth: 2.0, baseX: 4, baseZ: -6 },
 
-  /* 准星样式枚举（12 种） */
+  DEFAULT_LAYOUT: {
+    btnJab:       { x: 0.255, y: 0.92, w: 0.065, h: 0.12 },
+    btnHook:      { x: 0.255, y: 0.78, w: 0.065, h: 0.12 },
+    btnElbowL:    { x: 0.255, y: 0.64, w: 0.065, h: 0.12 },
+    btnHammerL:   { x: 0.255, y: 0.50, w: 0.065, h: 0.12 },
+    btnCross:     { x: 0.955, y: 0.92, w: 0.065, h: 0.12 },
+    btnHookR:     { x: 0.955, y: 0.78, w: 0.065, h: 0.12 },
+    btnElbowR:    { x: 0.955, y: 0.64, w: 0.065, h: 0.12 },
+    btnPalmR:     { x: 0.955, y: 0.50, w: 0.065, h: 0.12 },
+    btnLeftKick:  { x: 0.385, y: 0.92, w: 0.055, h: 0.10 },
+    btnRightKick: { x: 0.465, y: 0.92, w: 0.055, h: 0.10 },
+    btnBackSpin:  { x: 0.385, y: 0.80, w: 0.055, h: 0.10 },
+    btnKnee:      { x: 0.465, y: 0.80, w: 0.055, h: 0.10 },
+    btnView:      { x: 0.385, y: 0.68, w: 0.055, h: 0.10 },
+    btnInspect:   { x: 0.465, y: 0.68, w: 0.055, h: 0.10 },
+    btnJump:      { x: 0.875, y: 0.92, w: 0.055, h: 0.10 },
+    btnSprint:    { x: 0.875, y: 0.68, w: 0.055, h: 0.10 },
+    btnBlock:     { x: 0.875, y: 0.56, w: 0.055, h: 0.10 },
+    btnClimb:     { x: 0.875, y: 0.44, w: 0.055, h: 0.10 }
+  },
+
   CH_STYLES: [
-    { id: 'cross',       label: '十字' },
-    { id: 'dot',         label: '点' },
-    { id: 'circle',      label: '圆' },
-    { id: 'circle-dot',  label: '圆点' },
-    { id: 'cross-dot',   label: '十字点' },
-    { id: 'x',           label: 'X 型' },
-    { id: 'star',        label: '星形' },
-    { id: 'star-filled', label: '实心星' },
-    { id: 'diamond',     label: '菱形' },
-    { id: 'square',      label: '方块' },
-    { id: 't-shape',     label: 'T 型' },
-    { id: 'brackets',    label: '括号' }
+    { id: 'cross',           label: '十字' },
+    { id: 'dot',             label: '点' },
+    { id: 'circle',          label: '圆' },
+    { id: 'circle-dot',      label: '圆点' },
+    { id: 'cross-dot',       label: '十字点' },
+    { id: 'x',               label: 'X 型' },
+    { id: 'star',            label: '星形' },
+    { id: 'star-filled',     label: '实心星' },
+    { id: 'diamond',         label: '菱形' },
+    { id: 'square',          label: '方块' },
+    { id: 't-shape',         label: 'T 型' },
+    { id: 'brackets',        label: '括号' },
+    { id: 'therefore',       label: '三点' },
+    { id: 'plus',            label: '加号' },
+    { id: 'brackets-dot',    label: '括号圆点' },
+    { id: 'brackets-cross',  label: '括号加号' },
+    { id: 'brackets-cross-dot', label: '括号十字点' },
+    { id: 'brackets-x',      label: '括号叉叉' },
+    { id: 'brackets-circle', label: '括号圆' },
+    { id: 'brackets-star',   label: '括号星' },
+    { id: 'hexagon',         label: '六边形' },
+    { id: 'triangle',        label: '三角' },
+    { id: 'target',          label: '靶心' },
+    { id: 'segmented-circle',label: '分段圆' },
+    { id: 'dashed-circle',   label: '虚线圆' },
+    { id: 'arrow',           label: '箭头' },
+    { id: 'dots',            label: '点阵' },
+    { id: 'rotating-cross',  label: '旋转十字' },
+    { id: 'cross-brackets',  label: '十字括号' }
   ],
 
-  /* 准星颜色推荐（7 色 + 自定义） */
   CH_COLORS: [
     { id: 'white',   label: '白',   value: '#ffffff' },
     { id: 'red',     label: '红',   value: '#ff3b5c' },
@@ -192,19 +301,38 @@ TBOX.DATA = {
     { id: 'custom',  label: '自定义', value: '' }
   ],
 
-  /* 击中图标样式枚举（8 种） */
   HIT_STYLES: [
-    { id: 'cross',    label: '十字' },
-    { id: 'x',        label: 'X 型' },
-    { id: 'dot',      label: '点' },
-    { id: 'circle',   label: '圆' },
-    { id: 'star',     label: '星形' },
-    { id: 'diamond',  label: '菱形' },
-    { id: 'brackets', label: '括号' },
-    { id: 'burst',    label: '爆裂' }
+    { id: 'cross',           label: '十字' },
+    { id: 'dot',             label: '点' },
+    { id: 'circle',          label: '圆' },
+    { id: 'circle-dot',      label: '圆点' },
+    { id: 'cross-dot',       label: '十字点' },
+    { id: 'x',               label: 'X 型' },
+    { id: 'star',            label: '星形' },
+    { id: 'star-filled',     label: '实心星' },
+    { id: 'diamond',         label: '菱形' },
+    { id: 'square',          label: '方块' },
+    { id: 't-shape',         label: 'T 型' },
+    { id: 'brackets',        label: '括号' },
+    { id: 'therefore',       label: '三点' },
+    { id: 'plus',            label: '加号' },
+    { id: 'brackets-dot',    label: '括号圆点' },
+    { id: 'brackets-cross',  label: '括号加号' },
+    { id: 'brackets-cross-dot', label: '括号十字点' },
+    { id: 'brackets-x',      label: '括号叉叉' },
+    { id: 'brackets-circle', label: '括号圆' },
+    { id: 'brackets-star',   label: '括号星' },
+    { id: 'hexagon',         label: '六边形' },
+    { id: 'triangle',        label: '三角' },
+    { id: 'target',          label: '靶心' },
+    { id: 'segmented-circle',label: '分段圆' },
+    { id: 'dashed-circle',   label: '虚线圆' },
+    { id: 'arrow',           label: '箭头' },
+    { id: 'dots',            label: '点阵' },
+    { id: 'rotating-cross',  label: '旋转十字' },
+    { id: 'cross-brackets',  label: '十字括号' }
   ],
 
-  /* 帧率位置枚举（7 种） */
   FPS_POSITIONS: [
     { id: 'top-left',      label: '左上' },
     { id: 'top-center',    label: '顶部居中' },
@@ -311,90 +439,47 @@ TBOX.DATA = {
   NET_AUDIO: {},
 
   DEFAULT_SETTINGS: {
-    /* 画质 */
     tbox_quality: 'auto', tbox_resScale: 100, tbox_aa: 'off',
     tbox_lighting: '0', tbox_shadow: '0', tbox_shadowQ: 'mid',
     tbox_fog: '1', tbox_bloom: '0', tbox_vignette: '1', tbox_speedlines: '1',
     tbox_hdr: '0',
-
-    /* 光影增强 */
     tbox_shadowType: 'pcfsoft', tbox_shadowDist: 'mid',
-    tbox_ambientIntensity: 100, tbox_sunIntensity: 100, tbox_sunAngle: 180,
+    tbox_ambientIntensity: 100,
     tbox_toneMapping: 'aces', tbox_exposure: 105,
     tbox_fxaa: 'off', tbox_shadowSoft: 2, tbox_fogDensity: 100,
     tbox_bloomStrength: 50, tbox_csmEnabled: '0',
-
-    /* 后处理增强 */
-    tbox_motionBlur: '0',
-    tbox_filmGrain: '0',
-    tbox_colorGrade: '0',
-    tbox_colorSaturation: 100,
-    tbox_colorContrast: 100,
-    tbox_colorBrightness: 100,
-    tbox_perfMode: '0',    /* ★ 性能模式：一键关所有后处理 */
-
-    /* 相机 */
+    tbox_motionBlur: '0', tbox_filmGrain: '0', tbox_colorGrade: '0',
+    tbox_colorSaturation: 100, tbox_colorContrast: 100, tbox_colorBrightness: 100,
+    tbox_perfMode: '0',
     tbox_fov: 120, tbox_view: 'fps', tbox_tpsDist: 45, tbox_tpsH: 16,
     tbox_camSmooth: '1', tbox_shake: 'high',
     tbox_sens: 22, tbox_mouseAccel: '0', tbox_invertY: '0', tbox_joyDead: 15,
-
-    /* 音频 */
     tbox_volMaster: 70, tbox_volSfx: 70, tbox_sfxOn: '1',
-
-    /* UI */
     tbox_showfps: 'off', tbox_showCoord: '0', tbox_showStance: '1',
     tbox_showCompass: '1',
     tbox_showCrosshair: '1', tbox_showHp: '1',
-    tbox_compassOpacity: 100,
-    tbox_compassPos: 'top',
-    tbox_hudOpacity: 100,
-    tbox_hudScale: 100,
-    tbox_fpsPos: 'top-left',
-    tbox_fpsSize: 11,
+    tbox_compassOpacity: 100, tbox_compassPos: 'top',
+    tbox_hudOpacity: 100, tbox_hudScale: 100,
+    tbox_fpsPos: 'top-left', tbox_fpsSize: 11,
     tbox_hurtVignette: '1',
-
-    /* 准星 */
-    tbox_chStyle: 'cross',
-    tbox_chColor: 'white',
-    tbox_chColorCustom: '#ffffff',
-    tbox_chSize: 100,
-    tbox_chThickness: 2,
-    tbox_chGap: 8,
-    tbox_chOpacity: 100,
-    tbox_chDynamic: '1',
-    tbox_chShadow: '1',
-
-    /* ★ 伤害显示：数字/图标 独立开关 */
-    tbox_showDmgNumber: '1',   /* 显示数字伤害 */
-    tbox_showDmgIcon: '1',     /* 显示击中图标 */
-    tbox_hitStyle: 'cross',
-    tbox_hitSize: 100,
-    tbox_hitFloat: 60,
-    tbox_dmgSize: 100,
-
-    /* 视角 */
+    tbox_chStyle: 'cross', tbox_chColor: 'white', tbox_chColorCustom: '#ffffff',
+    tbox_chSize: 100, tbox_chThickness: 2, tbox_chGap: 8, tbox_chOpacity: 100,
+    tbox_chDynamic: '1', tbox_chShadow: '1',
+    tbox_showDmgNumber: '1', tbox_showDmgIcon: '1',
+    tbox_hitStyle: 'cross', tbox_hitSize: 100, tbox_hitFloat: 60, tbox_dmgSize: 100,
     tbox_viewSway: '1', tbox_runShake: '1',
     tbox_swayAmount: 100, tbox_runShakeAmount: 100,
     tbox_hitShake: '1', tbox_hitFrame: '1',
     tbox_blinkFx: '1', tbox_slowMo: '1', tbox_desatFx: '1',
-    tbox_viewRecenterSpeed: 50,
-
-    /* 生命监测 */
     tbox_vitals: '1', tbox_vitalsSound: '1',
     tbox_heartSound: '1', tbox_breathSound: '1',
     tbox_ambientSound: '1', tbox_killFeed: '1',
-
-    /* 更多 */
     tbox_hitDirection: '1', tbox_killIcon: '1',
     tbox_lowHpSound: '1', tbox_autoPickup: '1',
-
-    /* 移动端 */
     tbox_joySens: 100, tbox_lookSens: 100,
     tbox_btnScale: 100, tbox_btnOpacity: 100, tbox_vibrate: '1',
-
-    /* 其他 */
     tbox_charName: 'Player',
-    tbox_pauseOnBack: '0', tbox_timeScale: 100,
+    tbox_pauseOnBack: '0',
     tbox_fpsLimit: 60, tbox_autoSaveLayout: '1'
   }
 };

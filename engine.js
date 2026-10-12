@@ -1,6 +1,6 @@
 /* ============================================================
  * engine.js · 游戏引擎系统
- * V1.1.0 · 后处理修复（renderToScreen）+ 低端降级 + 准星扩散
+ * V1.0.0 · 90 独立几何体 + 物理系统 + 抓取系统
  * ============================================================ */
 window.TBOX = window.TBOX || {};
 
@@ -14,6 +14,7 @@ TBOX.Engine = {
   ground: null,
   groundMat: null,
   stairs: [],
+  props: [],
   clock: 0,
   running: false,
   paused: false,
@@ -27,7 +28,6 @@ TBOX.Engine = {
   hdrTexture: null,
   envTexture: null,
 
-  /* 后处理 */
   composer: null,
   bloomPass: null,
   fxaaPass: null,
@@ -38,11 +38,12 @@ TBOX.Engine = {
   postProcessingEnabled: false,
   postProcessingAllowed: true,
 
-  /* CSM */
   csm: null,
   csmEnabled: false,
 
-  /* 准星动态扩散 */
+  aabbStatic: [],
+  aabbDynamic: [],
+
   _chSpreadCurrent: 0,
 
   camState: {
@@ -60,12 +61,18 @@ TBOX.Engine = {
   keys: {}, isTouch: false,
   ambientWind: null, ambientBirds: null,
 
+  /* ★ 抓取状态 */
+  grabbedProp: null,
+  grabDist: 0,
+
   _tmpHeadWorld: null,
   _tmpHeadQuat: null,
   _tmpEuler: null,
   _tmpLookAt: null,
   _tmpShadowQuat: null,
   _lastFilter: '',
+
+  _propMatCache: new Map(),
 
   init(){
     this.isTouch = TBOX.Utils.isTouch();
@@ -83,7 +90,6 @@ TBOX.Engine = {
     const Q = TBOX.DATA.QUALITY[finalQ] || TBOX.DATA.QUALITY.mid;
     this.Q = Q;
 
-    /* ★ 低端设备禁用后处理 */
     this.postProcessingAllowed = (perf !== 'low');
     if(TBOX.Save.get('tbox_perfMode', '0') === '1') this.postProcessingAllowed = false;
 
@@ -150,7 +156,6 @@ TBOX.Engine = {
 
     this._applyLighting(TBOX.Save.get('tbox_lighting', '0') === '1');
     this._applyLightIntensities();
-    this._applySunAngle();
     this._applyFogDensity();
     this._buildStairs();
     this._bindInput();
@@ -171,9 +176,59 @@ TBOX.Engine = {
     this._tmpShadowQuat = new THREE.Quaternion();
   },
 
-  /* ============================================================
-   * ★★★ 后处理初始化（修复 renderToScreen） ★★★
-   * ============================================================ */
+  addAABB(box){
+    this.aabbStatic.push(box);
+    return box;
+  },
+
+  addDynamicAABB(box){
+    this.aabbDynamic.push(box);
+    return box;
+  },
+
+  clearDynamicAABB(){
+    this.aabbDynamic.length = 0;
+  },
+
+  _resolveAABBHorizontal(p, box, radius){
+    const dx = p.x - box.x;
+    const dz = p.z - box.z;
+    const halfW = box.hw + radius;
+    const halfD = box.hd + radius;
+    if(Math.abs(dx) >= halfW || Math.abs(dz) >= halfD) return false;
+    if(p.y >= box.topY - 0.15) return false;
+    if(p.y + TBOX.DATA.PLAYER_HEIGHT <= box.bottomY) return false;
+    const overlapX = halfW - Math.abs(dx);
+    const overlapZ = halfD - Math.abs(dz);
+    if(overlapX < overlapZ) p.x += (dx > 0 ? overlapX : -overlapX);
+    else p.z += (dz > 0 ? overlapZ : -overlapZ);
+    return true;
+  },
+
+  _resolveAABBGround(p, box){
+    const dx = p.x - box.x;
+    const dz = p.z - box.z;
+    if(Math.abs(dx) >= box.hw || Math.abs(dz) >= box.hd) return -Infinity;
+    if(p.y >= box.topY - 0.15) return box.topY;
+    return -Infinity;
+  },
+
+  _getPropMat(colorHex){
+    const key = colorHex || '#ffffff';
+    let m = this._propMatCache.get(key);
+    if(!m){
+      m = new THREE.MeshStandardMaterial({
+        color: colorHex || '#ffffff',
+        emissive: 0x000000,
+        emissiveIntensity: 0,
+        roughness: 0.75,
+        metalness: 0.05
+      });
+      this._propMatCache.set(key, m);
+    }
+    return m;
+  },
+
   _initPostProcessing(){
     if(!this.postProcessingAllowed) return;
     if(typeof THREE.EffectComposer === 'undefined') return;
@@ -184,7 +239,6 @@ TBOX.Engine = {
       this.renderPass.renderToScreen = false;
       this.composer.addPass(this.renderPass);
 
-      /* 1. 泛光 */
       this.bloomPass = new THREE.UnrealBloomPass(
         new THREE.Vector2(w, h),
         TBOX.Save.getNum('tbox_bloomStrength', 50) / 100,
@@ -194,39 +248,17 @@ TBOX.Engine = {
       this.bloomPass.renderToScreen = false;
       this.composer.addPass(this.bloomPass);
 
-      /* 2. 运动模糊 */
       try {
         const MotionBlurShader = {
-          uniforms: {
-            tDiffuse: { value: null },
-            intensity: { value: 0.5 },
-            time: { value: 0 }
-          },
-          vertexShader: `
-            varying vec2 vUv;
-            void main(){
-              vUv = uv;
-              gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-            }
-          `,
+          uniforms: { tDiffuse: { value: null }, intensity: { value: 0.5 }, time: { value: 0 } },
+          vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
           fragmentShader: `
-            uniform sampler2D tDiffuse;
-            uniform float intensity;
-            uniform float time;
-            varying vec2 vUv;
+            uniform sampler2D tDiffuse; uniform float intensity; uniform float time; varying vec2 vUv;
             void main(){
-              vec4 sum = vec4(0.0);
-              float count = 0.0;
-              for(float i = 0.0; i < 8.0; i++){
-                float t = i / 8.0;
-                vec2 offset = vec2(0.0, t * intensity * 0.01);
-                sum += texture2D(tDiffuse, vUv + offset);
-                count += 1.0;
-              }
-              vec4 base = texture2D(tDiffuse, vUv);
-              gl_FragColor = mix(base, sum / count, 0.5);
-            }
-          `
+              vec4 sum=vec4(0.0); float count=0.0;
+              for(float i=0.0;i<8.0;i++){ float t=i/8.0; vec2 offset=vec2(0.0,t*intensity*0.01); sum+=texture2D(tDiffuse,vUv+offset); count+=1.0; }
+              vec4 base=texture2D(tDiffuse,vUv); gl_FragColor=mix(base,sum/count,0.5);
+            }`
         };
         const mbPass = new THREE.ShaderPass(MotionBlurShader);
         mbPass.enabled = TBOX.Save.get('tbox_motionBlur', '0') === '1';
@@ -235,36 +267,14 @@ TBOX.Engine = {
         this.composer.addPass(mbPass);
       } catch(e){ console.warn('[Engine] 运动模糊初始化失败', e); }
 
-      /* 3. 胶片颗粒 */
       try {
         const FilmGrainShader = {
-          uniforms: {
-            tDiffuse: { value: null },
-            time: { value: 0 },
-            intensity: { value: 0.15 }
-          },
-          vertexShader: `
-            varying vec2 vUv;
-            void main(){
-              vUv = uv;
-              gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-            }
-          `,
+          uniforms: { tDiffuse: { value: null }, time: { value: 0 }, intensity: { value: 0.15 } },
+          vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
           fragmentShader: `
-            uniform sampler2D tDiffuse;
-            uniform float time;
-            uniform float intensity;
-            varying vec2 vUv;
-            float rand(vec2 co){
-              return fract(sin(dot(co.xy, vec2(12.9898, 78.233))) * 43758.5453);
-            }
-            void main(){
-              vec4 color = texture2D(tDiffuse, vUv);
-              float grain = rand(vUv + time) - 0.5;
-              color.rgb += grain * intensity;
-              gl_FragColor = color;
-            }
-          `
+            uniform sampler2D tDiffuse; uniform float time; uniform float intensity; varying vec2 vUv;
+            float rand(vec2 co){ return fract(sin(dot(co.xy,vec2(12.9898,78.233)))*43758.5453); }
+            void main(){ vec4 color=texture2D(tDiffuse,vUv); float grain=rand(vUv+time)-0.5; color.rgb+=grain*intensity; gl_FragColor=color; }`
         };
         const fgPass = new THREE.ShaderPass(FilmGrainShader);
         fgPass.enabled = TBOX.Save.get('tbox_filmGrain', '0') === '1';
@@ -273,37 +283,20 @@ TBOX.Engine = {
         this.composer.addPass(fgPass);
       } catch(e){ console.warn('[Engine] 胶片颗粒初始化失败', e); }
 
-      /* 4. 色彩校正 */
       try {
         const ColorGradeShader = {
-          uniforms: {
-            tDiffuse: { value: null },
-            saturation: { value: 1.0 },
-            contrast: { value: 1.0 },
-            brightness: { value: 1.0 }
-          },
-          vertexShader: `
-            varying vec2 vUv;
-            void main(){
-              vUv = uv;
-              gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-            }
-          `,
+          uniforms: { tDiffuse: { value: null }, saturation: { value: 1.0 }, contrast: { value: 1.0 }, brightness: { value: 1.0 } },
+          vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
           fragmentShader: `
-            uniform sampler2D tDiffuse;
-            uniform float saturation;
-            uniform float contrast;
-            uniform float brightness;
-            varying vec2 vUv;
+            uniform sampler2D tDiffuse; uniform float saturation; uniform float contrast; uniform float brightness; varying vec2 vUv;
             void main(){
-              vec4 color = texture2D(tDiffuse, vUv);
-              float gray = dot(color.rgb, vec3(0.299, 0.587, 0.114));
-              color.rgb = mix(vec3(gray), color.rgb, saturation);
-              color.rgb = (color.rgb - 0.5) * contrast + 0.5;
-              color.rgb *= brightness;
-              gl_FragColor = color;
-            }
-          `
+              vec4 color=texture2D(tDiffuse,vUv);
+              float gray=dot(color.rgb,vec3(0.299,0.587,0.114));
+              color.rgb=mix(vec3(gray),color.rgb,saturation);
+              color.rgb=(color.rgb-0.5)*contrast+0.5;
+              color.rgb*=brightness;
+              gl_FragColor=color;
+            }`
         };
         const cgPass = new THREE.ShaderPass(ColorGradeShader);
         cgPass.enabled = TBOX.Save.get('tbox_colorGrade', '0') === '1';
@@ -315,7 +308,6 @@ TBOX.Engine = {
         this.composer.addPass(cgPass);
       } catch(e){ console.warn('[Engine] 色彩校正初始化失败', e); }
 
-      /* 5. FXAA */
       if(typeof THREE.ShaderPass !== 'undefined' && THREE.FXAAShader){
         const fxaaShader = THREE.FXAAShader;
         const fxaaPass = new THREE.ShaderPass(fxaaShader);
@@ -329,9 +321,7 @@ TBOX.Engine = {
         this.composer.addPass(fxaaPass);
       }
 
-      /* ★★★ 关键修复：最后一个启用的 pass 必须 renderToScreen = true ★★★ */
       this._updateRenderToScreen();
-
       this.postProcessingEnabled = true;
     } catch(e){
       console.warn('[Engine] 后处理初始化失败', e);
@@ -339,17 +329,12 @@ TBOX.Engine = {
     }
   },
 
-  /* 更新哪个 pass 是最后渲染到屏幕的 */
   _updateRenderToScreen(){
     if(!this.composer) return;
     var passes = this.composer.passes;
     for(var i = 0; i < passes.length; i++) passes[i].renderToScreen = false;
-    /* 从后往前找第一个 enabled 的 */
     for(var j = passes.length - 1; j >= 0; j--){
-      if(passes[j].enabled){
-        passes[j].renderToScreen = true;
-        break;
-      }
+      if(passes[j].enabled){ passes[j].renderToScreen = true; break; }
     }
   },
 
@@ -363,40 +348,26 @@ TBOX.Engine = {
       this.colorGradePass.uniforms.contrast.value = TBOX.Save.getNum('tbox_colorContrast', 100) / 100;
       this.colorGradePass.uniforms.brightness.value = TBOX.Save.getNum('tbox_colorBrightness', 100) / 100;
     }
-    /* ★ 每次更新后重新计算 renderToScreen */
     this._updateRenderToScreen();
   },
 
-  /* ============================================================
-   * CSM 级联阴影
-   * ============================================================ */
   _initCSM(){
     if(typeof THREE.CSM === 'undefined'){ console.warn('[Engine] CSM 未加载'); return; }
     if(this.csm) return;
     try {
       const csm = new THREE.CSM({
-        maxFar: 200,
-        cascades: 3,
-        mode: 'practical',
-        parent: this.scene,
+        maxFar: 200, cascades: 3, mode: 'practical', parent: this.scene,
         shadowMapSize: 2048,
         lightDirection: new THREE.Vector3(0.5, 1, 0.3).normalize(),
-        camera: this.camera,
-        lightIntensity: 2.0,
-        lightNear: 1,
-        lightFar: 200,
-        lightMargin: 100
+        camera: this.camera, lightIntensity: 2.0, lightNear: 1, lightFar: 200, lightMargin: 100
       });
       csm.fade = true;
-
       if(this.sunLight){
         this.sunLight.castShadow = false;
         this.scene.remove(this.sunLight);
         this.scene.remove(this.sunLight.target);
       }
-
       if(this.ground) csm.setupMaterial(this.ground.material);
-
       this.csm = csm;
       this.csmEnabled = true;
       console.log('[Engine] CSM 已启用');
@@ -418,7 +389,6 @@ TBOX.Engine = {
       this.scene.add(this.sunLight.target);
     }
     this._applyLighting(TBOX.Save.get('tbox_lighting', '0') === '1');
-    this._applySunAngle();
     console.log('[Engine] CSM 已禁用');
   },
 
@@ -442,24 +412,12 @@ TBOX.Engine = {
 
   _applyLightIntensities(){
     const amb = TBOX.Save.getNum('tbox_ambientIntensity', 100) / 100;
-    const sun = TBOX.Save.getNum('tbox_sunIntensity', 100) / 100;
     const lightingOn = TBOX.Save.get('tbox_lighting', '0') === '1';
     if(this.hemiLight) this.hemiLight.intensity = (lightingOn ? 0.85 : 0.2) * amb;
-    if(this.sunLight) this.sunLight.intensity = (lightingOn ? 2.0 : 0.3) * sun;
+    if(this.sunLight) this.sunLight.intensity = lightingOn ? 2.0 : 0.3;
     if(this.csm && this.csm.lightIntensity !== undefined){
-      this.csm.lightIntensity = (lightingOn ? 2.0 : 0.3) * sun;
+      this.csm.lightIntensity = lightingOn ? 2.0 : 0.3;
     }
-  },
-
-  _applySunAngle(){
-    const angleDeg = TBOX.Save.getNum('tbox_sunAngle', 180);
-    const angleRad = angleDeg * Math.PI / 180;
-    const dist = 50;
-    const x = Math.sin(angleRad) * dist;
-    const z = Math.cos(angleRad) * dist;
-    const y = Math.max(10, Math.sin(angleRad) * 40 + 30);
-    if(this.sunLight) this.sunLight.position.set(x, y, z);
-    if(this.csm) this.csm.lightDirection.set(x, y, z).normalize();
   },
 
   _applyFogDensity(){
@@ -505,14 +463,14 @@ TBOX.Engine = {
     );
   },
 
-  _applyLighting(on){
-    this._applyLightIntensities();
-  },
+  _applyLighting(on){ this._applyLightIntensities(); },
 
   _buildStairs(){
     const S = TBOX.DATA.STAIRS;
     const mat = new THREE.MeshStandardMaterial({ color: TBOX.DATA.COLOR.stair, roughness: .85, metalness: .05 });
     const shadowOn = TBOX.Save.get('tbox_shadow', '0') === '1';
+    this.stairs.length = 0;
+    this.aabbStatic.length = 0;
     for(let i = 0; i < S.count; i++){
       const h = S.height * (i + 1);
       const geo = new THREE.BoxGeometry(S.width, h, S.depth);
@@ -521,11 +479,18 @@ TBOX.Engine = {
       mesh.castShadow = shadowOn;
       mesh.receiveShadow = shadowOn;
       this.scene.add(mesh);
-      this.stairs.push({
+      const stair = {
         mesh, x: S.baseX, z: S.baseZ + i * S.depth,
         topY: h, bottomY: 0,
         halfW: S.width / 2, halfD: S.depth / 2,
         index: i
+      };
+      this.stairs.push(stair);
+      this.addAABB({
+        x: stair.x, y: h / 2, z: stair.z,
+        hw: stair.halfW, hh: h / 2, hd: stair.halfD,
+        topY: stair.topY, bottomY: stair.bottomY,
+        tag: 'stair'
       });
     }
   },
@@ -608,6 +573,7 @@ TBOX.Engine = {
         if(this.sunLight) this.sunLight.castShadow = on;
         if(this.ground) this.ground.receiveShadow = on;
         this.stairs.forEach(s => { s.mesh.castShadow = on; s.mesh.receiveShadow = on; });
+        this.props.forEach(p => { if(p.mesh){ p.mesh.castShadow = on; p.mesh.receiveShadow = on; } });
         if(this.character) this.character.root.traverse(o => { if(o.isMesh){ o.castShadow = on; o.receiveShadow = on; } });
         if(this.dummy && this.dummy.group) this.dummy.group.traverse(o => { if(o.isMesh){ o.castShadow = on; o.receiveShadow = on; } });
         break;
@@ -624,12 +590,8 @@ TBOX.Engine = {
         break;
       }
       case 'tbox_ambientIntensity':
-      case 'tbox_sunIntensity':
       case 'tbox_lighting':
         this._applyLightIntensities();
-        break;
-      case 'tbox_sunAngle':
-        this._applySunAngle();
         break;
       case 'tbox_toneMapping':
       case 'tbox_exposure':
@@ -712,7 +674,7 @@ TBOX.Engine = {
         'tbox_lighting', 'tbox_shadow', 'tbox_shadowQ',
         'tbox_fog', 'tbox_bloom', 'tbox_vignette', 'tbox_speedlines',
         'tbox_hdr', 'tbox_shadowType', 'tbox_shadowDist',
-        'tbox_ambientIntensity', 'tbox_sunIntensity', 'tbox_sunAngle',
+        'tbox_ambientIntensity',
         'tbox_toneMapping', 'tbox_exposure', 'tbox_fxaa',
         'tbox_shadowSoft', 'tbox_fogDensity', 'tbox_bloomStrength',
         'tbox_csmEnabled', 'tbox_fov',
@@ -726,16 +688,13 @@ TBOX.Engine = {
           if(v !== null && v !== undefined) TBOX.Engine._applySetting(k, v);
         } catch(e){}
       });
-
       if(this.scene){
         if(this.hdrTexture){ this.hdrTexture.dispose(); this.hdrTexture = null; }
         this.scene.background = new THREE.Color(TBOX.DATA.COLOR.sky);
         this.scene.environment = null;
         this.hdrEnabled = false;
       }
-
       this._refreshRenderer();
-
       console.log('[Engine] 已重新应用所有设置');
     } catch(e){ console.warn('[Engine] _applyAllSettings error:', e); }
   },
@@ -753,39 +712,42 @@ TBOX.Engine = {
   },
 
   resolvePlayerCollision(p){
+    const radius = TBOX.DATA.PLAYER_RADIUS;
+
     if(this.dummy && this.dummy.alive && this.dummy.group){
       const dx = p.x - this.dummy.group.position.x;
       const dz = p.z - this.dummy.group.position.z;
       const dist = Math.hypot(dx, dz);
-      const PUSH = TBOX.DATA.PLAYER_RADIUS + this.dummy.radius;
+      const PUSH = radius + this.dummy.radius;
       if(dist < PUSH && dist > 0.0001){
         p.x += (dx / dist) * (PUSH - dist);
         p.z += (dz / dist) * (PUSH - dist);
       }
     }
+
     if(TBOX.Corpse && TBOX.Corpse.list){
       for(const c of TBOX.Corpse.list){
         const dx = p.x - c.x, dz = p.z - c.z;
         const dist = Math.hypot(dx, dz);
-        const R = 0.6 + TBOX.DATA.PLAYER_RADIUS;
+        const R = 0.6 + radius;
         if(dist < R && dist > 0.0001){
           p.x += (dx / dist) * (R - dist);
           p.z += (dz / dist) * (R - dist);
         }
       }
     }
-    if(!p.climbing && !p.climbHanging){
-      for(const s of this.stairs){
-        const dx = p.x - s.x, dz = p.z - s.z;
-        const halfW = s.halfW + TBOX.DATA.PLAYER_RADIUS;
-        const halfD = s.halfD + TBOX.DATA.PLAYER_RADIUS;
-        if(p.y >= s.topY - 0.15) continue;
-        if(Math.abs(dx) < halfW && Math.abs(dz) < halfD){
-          const overlapX = halfW - Math.abs(dx);
-          const overlapZ = halfD - Math.abs(dz);
-          if(overlapX < overlapZ) p.x += (dx > 0 ? overlapX : -overlapX);
-          else p.z += (dz > 0 ? overlapZ : -overlapZ);
+
+    if(TBOX.DATA.AABB.enable){
+      const maxIter = TBOX.DATA.AABB.maxPushIter || 4;
+      for(let iter = 0; iter < maxIter; iter++){
+        let pushed = false;
+        for(let i = 0; i < this.aabbStatic.length; i++){
+          if(this._resolveAABBHorizontal(p, this.aabbStatic[i], radius)) pushed = true;
         }
+        for(let i = 0; i < this.aabbDynamic.length; i++){
+          if(this._resolveAABBHorizontal(p, this.aabbDynamic[i], radius)) pushed = true;
+        }
+        if(!pushed) break;
       }
     }
   },
@@ -793,12 +755,23 @@ TBOX.Engine = {
   resolvePlayerGround(p){
     let groundY = 0;
     let onStair = false;
-    for(const s of this.stairs){
-      const dx = p.x - s.x, dz = p.z - s.z;
-      if(Math.abs(dx) < s.halfW && Math.abs(dz) < s.halfD){
-        if(s.topY <= p.y + 0.45 && s.topY > groundY){
-          groundY = s.topY;
-          onStair = true;
+    if(TBOX.DATA.AABB.enable){
+      for(let i = 0; i < this.aabbStatic.length; i++){
+        const g = this._resolveAABBGround(p, this.aabbStatic[i]);
+        if(g > groundY){ groundY = g; onStair = true; }
+      }
+      for(let i = 0; i < this.aabbDynamic.length; i++){
+        const g = this._resolveAABBGround(p, this.aabbDynamic[i]);
+        if(g > groundY){ groundY = g; onStair = true; }
+      }
+    } else {
+      for(const s of this.stairs){
+        const dx = p.x - s.x, dz = p.z - s.z;
+        if(Math.abs(dx) < s.halfW && Math.abs(dz) < s.halfD){
+          if(s.topY <= p.y + 0.45 && s.topY > groundY){
+            groundY = s.topY;
+            onStair = true;
+          }
         }
       }
     }
@@ -1019,7 +992,6 @@ TBOX.Engine = {
 
   updateCamera(p, character, dt, rawDt){
     const D = TBOX.DATA;
-
     const headWorld = this._tmpHeadWorld;
     const headQuat = this._tmpHeadQuat;
     if(character && character.head){
@@ -1029,7 +1001,6 @@ TBOX.Engine = {
       headWorld.set(p.x, p.y + D.EYE_H, p.z);
       headQuat.identity();
     }
-
     let shX = 0, shY = 0;
     if(this.camState.shakeTime > 0){
       this.camState.shakeTime -= rawDt;
@@ -1038,7 +1009,6 @@ TBOX.Engine = {
       shY = (Math.random() - 0.5) * this.camState.shakeMag * k * 6;
       if(this.camState.shakeTime <= 0) this.camState.shakeMag = 0;
     }
-
     const swayEnabled = TBOX.Save.get('tbox_viewSway', '1') === '1';
     let swayX = 0, swayY = 0;
     if(swayEnabled && !p.dead){
@@ -1057,7 +1027,6 @@ TBOX.Engine = {
       swayY += Math.sin(breathPhase) * V.breathAmp * breathIntensity;
       swayX += Math.cos(breathPhase * 0.7) * V.breathAmp * 0.4 * breathIntensity;
     }
-
     const runShakeEnabled = TBOX.Save.get('tbox_runShake', '1') === '1';
     let runShakeX = 0, runShakeY = 0;
     if(runShakeEnabled && !p.dead){
@@ -1074,16 +1043,12 @@ TBOX.Engine = {
         runShakeY = Math.abs(Math.cos(phase)) * amp * 0.7 * ampMul;
       }
     }
-
     const cy = Math.cos(this.camState.yaw), sy = Math.sin(this.camState.yaw);
     const fwdX = -sy, fwdZ = -cy;
-
     const targetTrans = this.camState.mode === 'tps' ? 1 : 0;
     this.camState.transition = TBOX.Utils.lerp(this.camState.transition, targetTrans, Math.min(1, dt / D.TPS_TRANSITION));
-
     const inspectCamY = p.inspecting ? (p.inspectCamY || 0) : 0;
     const camFwd = D.CAM_FWD_OFFSET;
-
     if(p.dead && this.camState.mode === 'fps'){
       const targetX = headWorld.x + shX;
       const targetY = Math.max(0.30, headWorld.y + shY);
@@ -1092,19 +1057,16 @@ TBOX.Engine = {
       this.camera.position.x = TBOX.Utils.damp(this.camera.position.x, targetX, LAMBDA_POS, dt);
       this.camera.position.y = TBOX.Utils.damp(this.camera.position.y, targetY, LAMBDA_POS, dt);
       this.camera.position.z = TBOX.Utils.damp(this.camera.position.z, targetZ, LAMBDA_POS, dt);
-
       this._tmpShadowQuat.copy(headQuat);
       this._tmpEuler.setFromQuaternion(this._tmpShadowQuat, 'YXZ');
       this._tmpEuler.z += this.deathFx.dizzyRoll;
       this._tmpEuler.x += shX * 0.05;
       this._tmpEuler.y += shY * 0.05;
       this._tmpShadowQuat.setFromEuler(this._tmpEuler);
-
       const t = Math.min(1, dt * 10);
       this.camera.quaternion.slerp(this._tmpShadowQuat, t);
       return;
     }
-
     if(p.dead && this.camState.mode === 'tps'){
       const tpsDist = TBOX.Save.getNum('tbox_tpsDist', 45) / 10;
       const tpsH = TBOX.Save.getNum('tbox_tpsH', 16) / 10;
@@ -1121,7 +1083,6 @@ TBOX.Engine = {
       this.camera.lookAt(this._tmpLookAt);
       return;
     }
-
     if(this.camState.transition < 0.001){
       this.camera.position.set(
         headWorld.x + shX + fwdX * camFwd,
@@ -1147,9 +1108,7 @@ TBOX.Engine = {
         TBOX.Utils.lerp(fpsZ, tpsZ, t)
       );
     }
-
     if(this.camera.position.y < 0.30) this.camera.position.y = 0.30;
-
     const rollActive = p.dodging || p.knockedDown;
     if(!rollActive && Math.abs(this.camState.viewRoll) > 0.001){
       this.camState.viewRoll = TBOX.Utils.lerp(this.camState.viewRoll, 0, Math.min(1, dt * 10));
@@ -1158,21 +1117,16 @@ TBOX.Engine = {
       const MAX = 0.25;
       this.camState.viewRoll = TBOX.Utils.clamp(this.camState.viewRoll, -MAX, MAX);
     }
-
     const viewShakeX = (Math.random() - 0.5) * p.camKick * 0.5;
     const viewShakeY = (Math.random() - 0.5) * p.camKick * 0.5;
-
     const totalYaw = this.camState.yaw + viewShakeX + swayX + runShakeX;
     const totalPitch = this.camState.pitch + viewShakeY + swayY + runShakeY;
-
     this.camera.rotation.set(totalPitch, totalYaw, this.camState.viewRoll, 'YXZ');
-
     if(character && character.head && character.head.material){
       const hm = character.head.material;
       if(Array.isArray(hm)) hm.forEach(function(m){ m.opacity = TBOX.Engine.camState.transition * 0.85; });
       else hm.opacity = this.camState.transition * 0.85;
     }
-
     const baseFov = TBOX.Save.getNum('tbox_fov', 120);
     const attackFov = (p.attackTimer > 0 && ['leftKick','rightKick','knee','push'].includes(p.attackType)) ? 4 : 0;
     p.fovKick = TBOX.Utils.lerp(p.fovKick, 0, Math.min(1, rawDt * 12));
@@ -1187,16 +1141,10 @@ TBOX.Engine = {
     if(!TBOX.UI || !TBOX.UI.setCrosshairSpread) return;
     var p = TBOX.Player;
     if(!p) return;
-
     var target = 0;
-    if(p.speedFactor > 0.1){
-      target += Math.min(0.5, p.speedFactor * 0.5);
-    }
-    if(p.attackTimer > 0){
-      target += 0.7;
-    }
+    if(p.speedFactor > 0.1) target += Math.min(0.5, p.speedFactor * 0.5);
+    if(p.attackTimer > 0) target += 0.7;
     if(!p.onGround) target += 0.4;
-
     var lambda = 10;
     this._chSpreadCurrent = TBOX.Utils.damp(this._chSpreadCurrent, target, lambda, dt);
     TBOX.UI.setCrosshairSpread(this._chSpreadCurrent);
@@ -1208,6 +1156,268 @@ TBOX.Engine = {
     TBOX.Events.emit(TBOX.EVENTS.CAM_SWITCH, this.camState.mode);
   },
 
+  /* ============================================================
+   * 物理系统
+   * ============================================================ */
+  updatePhysics(dt){
+    const P = TBOX.DATA.PHYSICS;
+    if(!P.enable) return;
+    const props = this.props;
+    const grab = this.grabbedProp;
+
+    for(let i = 0; i < props.length; i++){
+      const obj = props[i];
+      if(!obj.mesh) continue;
+      if(obj === grab) continue;
+
+      const phy = obj.phy;
+      if(!phy || phy.sleeping) continue;
+
+      /* 重力 */
+      phy.vy += P.gravity * dt;
+
+      /* 摩擦 */
+      const friction = phy.onGround ? P.friction : P.airFriction;
+      const fr = Math.max(0, 1 - friction * dt);
+      phy.vx *= fr;
+      phy.vz *= fr;
+
+      /* 位置 */
+      obj.mesh.position.x += phy.vx * dt;
+      obj.mesh.position.y += phy.vy * dt;
+      obj.mesh.position.z += phy.vz * dt;
+
+      /* 地面 / 台阶 */
+      if(P.collideStairs) this._resolvePropGround(obj, dt);
+
+      /* 物体间碰撞 */
+      if(P.propCollision) this._resolvePropVsProps(obj, i);
+
+      /* 玩家推 */
+      if(P.playerPush) this._resolvePropVsPlayer(obj, dt);
+
+      /* AABB 同步 */
+      obj.box.x = obj.mesh.position.x;
+      obj.box.y = obj.mesh.position.y;
+      obj.box.z = obj.mesh.position.z;
+      obj.box.topY = obj.mesh.position.y + obj.size.y / 2;
+      obj.box.bottomY = obj.mesh.position.y - obj.size.y / 2;
+
+      /* 睡眠判定 */
+      const speed = Math.hypot(phy.vx, phy.vy, phy.vz);
+      if(speed < P.sleepSpeed && phy.onGround){
+        phy.sleepTimer += dt;
+        if(phy.sleepTimer > P.sleepTime){
+          phy.sleeping = true;
+          phy.vx = 0; phy.vy = 0; phy.vz = 0;
+        }
+      } else {
+        phy.sleepTimer = 0;
+      }
+    }
+
+    /* 超过最大数量，删除最早的 */
+    while(this.props.length > P.maxProps){
+      this.deleteProp(this.props[0]);
+    }
+  },
+
+  _resolvePropGround(obj, dt){
+    const P = TBOX.DATA.PHYSICS;
+    const pos = obj.mesh.position;
+    const halfH = obj.size.y / 2;
+
+    let groundY = 0;
+    /* 台阶 */
+    for(let i = 0; i < this.aabbStatic.length; i++){
+      const box = this.aabbStatic[i];
+      if(box.tag === 'prop') continue;
+      const dx = pos.x - box.x;
+      const dz = pos.z - box.z;
+      if(Math.abs(dx) < box.hw + obj.size.x / 2 && Math.abs(dz) < box.hd + obj.size.z / 2){
+        if(box.topY > groundY && pos.y - halfH < box.topY) groundY = box.topY;
+      }
+    }
+
+    /* 地面 */
+    if(pos.y - halfH < groundY){
+      pos.y = groundY + halfH;
+      if(obj.phy.vy < 0){
+        obj.phy.vy = -obj.phy.vy * P.restitution;
+        if(Math.abs(obj.phy.vy) < 0.5) obj.phy.vy = 0;
+      }
+      obj.phy.onGround = true;
+    } else {
+      obj.phy.onGround = false;
+    }
+  },
+
+  _resolvePropVsProps(obj, myIdx){
+    const P = TBOX.DATA.PHYSICS;
+    const pos = obj.mesh.position;
+    for(let j = 0; j < this.props.length; j++){
+      if(j === myIdx) continue;
+      const other = this.props[j];
+      if(!other.mesh) continue;
+      const op = other.mesh.position;
+      const dx = pos.x - op.x;
+      const dz = pos.z - op.z;
+      const dy = pos.y - op.y;
+      const rx = (obj.size.x + other.size.x) / 2;
+      const rz = (obj.size.z + other.size.z) / 2;
+      const ry = (obj.size.y + other.size.y) / 2;
+      if(Math.abs(dx) < rx && Math.abs(dz) < rz && Math.abs(dy) < ry){
+        /* 水平推出 */
+        const overlapX = rx - Math.abs(dx);
+        const overlapZ = rz - Math.abs(dz);
+        if(overlapX < overlapZ){
+          const sign = dx > 0 ? 1 : -1;
+          pos.x += sign * overlapX * 0.5;
+          other.mesh.position.x -= sign * overlapX * 0.5;
+          const v = obj.phy.vx;
+          obj.phy.vx = other.phy.vx * 0.5;
+          other.phy.vx = v * 0.5;
+        } else {
+          const sign = dz > 0 ? 1 : -1;
+          pos.z += sign * overlapZ * 0.5;
+          other.mesh.position.z -= sign * overlapZ * 0.5;
+          const v = obj.phy.vz;
+          obj.phy.vz = other.phy.vz * 0.5;
+          other.phy.vz = v * 0.5;
+        }
+        /* 垂直 */
+        if(Math.abs(dy) > 0.01){
+          const overlapY = ry - Math.abs(dy);
+          const sign = dy > 0 ? 1 : -1;
+          pos.y += sign * overlapY * 0.5;
+          other.mesh.position.y -= sign * overlapY * 0.5;
+        }
+        obj.phy.sleeping = false;
+        other.phy.sleeping = false;
+      }
+    }
+  },
+
+  _resolvePropVsPlayer(obj, dt){
+    const p = TBOX.Player;
+    if(!p) return;
+    const pos = obj.mesh.position;
+    const dx = pos.x - p.x;
+    const dz = pos.z - p.z;
+    const dist = Math.hypot(dx, dz);
+    const rad = TBOX.DATA.PLAYER_RADIUS + Math.max(obj.size.x, obj.size.z) / 2;
+    if(dist < rad && dist > 0.0001){
+      const nx = dx / dist;
+      const nz = dz / dist;
+      /* 推出 */
+      const overlap = rad - dist;
+      pos.x += nx * overlap;
+      pos.z += nz * overlap;
+      /* 给速度（玩家推） */
+      const P = TBOX.DATA.PHYSICS;
+      const pushForce = P.playerPushForce * (p.speedFactor > 0.1 ? 1.5 : 0.5);
+      obj.phy.vx += nx * pushForce * dt * 10;
+      obj.phy.vz += nz * pushForce * dt * 10;
+      obj.phy.sleeping = false;
+      /* AABB 同步 */
+      obj.box.x = pos.x;
+      obj.box.z = pos.z;
+    }
+  },
+
+  /* ============================================================
+   * 抓取系统
+   * ============================================================ */
+  grabProp(){
+    const G = TBOX.DATA.GRAB;
+    if(!G.enable) return false;
+    if(this.grabbedProp) return false;
+    const cam = this.camera;
+    if(!cam) return false;
+
+    /* 从相机位置沿视线方向射线 */
+    const origin = new THREE.Vector3();
+    cam.getWorldPosition(origin);
+    const dir = new THREE.Vector3();
+    cam.getWorldDirection(dir);
+
+    let best = null;
+    let bestT = G.range;
+    for(let i = 0; i < this.props.length; i++){
+      const obj = this.props[i];
+      if(!obj.mesh) continue;
+      const toObj = new THREE.Vector3().subVectors(obj.mesh.position, origin);
+      const t = toObj.dot(dir);
+      if(t < 0 || t > G.range) continue;
+      const closest = new THREE.Vector3().copy(origin).add(dir.clone().multiplyScalar(t));
+      const d = closest.distanceTo(obj.mesh.position);
+      const r = Math.max(obj.size.x, obj.size.y, obj.size.z) / 2;
+      if(d < r && t < bestT){
+        bestT = t;
+        best = obj;
+      }
+    }
+
+    if(!best) return false;
+    this.grabbedProp = best;
+    best.phy.sleeping = false;
+    /* 计算抓取距离：物体到相机 */
+    this.grabDist = best.mesh.position.distanceTo(origin);
+    return true;
+  },
+
+  releaseProp(){
+    if(!this.grabbedProp) return false;
+    this.grabbedProp.phy.sleeping = false;
+    this.grabbedProp = null;
+    this.grabDist = 0;
+    return true;
+  },
+
+  throwProp(){
+    const G = TBOX.DATA.GRAB;
+    if(!this.grabbedProp) return false;
+    const obj = this.grabbedProp;
+    const cam = this.camera;
+    const dir = new THREE.Vector3();
+    cam.getWorldDirection(dir);
+    obj.phy.vx = dir.x * G.throwSpeed;
+    obj.phy.vy = dir.y * G.throwSpeed + 2;
+    obj.phy.vz = dir.z * G.throwSpeed;
+    obj.phy.sleeping = false;
+    this.grabbedProp = null;
+    this.grabDist = 0;
+    return true;
+  },
+
+  updateGrab(dt){
+    const G = TBOX.DATA.GRAB;
+    if(!G.enable) return;
+    const obj = this.grabbedProp;
+    if(!obj || !obj.mesh) return;
+    const cam = this.camera;
+    if(!cam) return;
+    const origin = new THREE.Vector3();
+    cam.getWorldPosition(origin);
+    const dir = new THREE.Vector3();
+    cam.getWorldDirection(dir);
+    const targetPos = new THREE.Vector3().copy(origin).add(dir.clone().multiplyScalar(G.holdDistance));
+    /* 平滑跟随 */
+    const lam = TBOX.DATA.PHYSICS.grabFollowLambda;
+    const k = 1 - Math.exp(-lam * dt);
+    obj.mesh.position.lerp(targetPos, k);
+    obj.phy.vx = 0; obj.phy.vy = 0; obj.phy.vz = 0;
+    obj.phy.sleeping = false;
+    obj.box.x = obj.mesh.position.x;
+    obj.box.y = obj.mesh.position.y;
+    obj.box.z = obj.mesh.position.z;
+    obj.box.topY = obj.mesh.position.y + obj.size.y / 2;
+    obj.box.bottomY = obj.mesh.position.y - obj.size.y / 2;
+  },
+
+  /* ============================================================
+   * 启动 / 循环
+   * ============================================================ */
   start(){
     this.running = true; this.paused = false;
     this.lastTime = performance.now();
@@ -1232,25 +1442,19 @@ TBOX.Engine = {
     requestAnimationFrame((t) => this.loop(t));
     const rawDt = Math.min((now - this.lastTime) / 1000, 0.05);
     this.lastTime = now;
-    if(!isFinite(rawDt) || rawDt <= 0){
-      this._render();
-      return;
-    }
+    if(!isFinite(rawDt) || rawDt <= 0){ this._render(); return; }
     const fpsLimit = TBOX.Save.getNum('tbox_fpsLimit', 60);
     if(fpsLimit > 0 && fpsLimit < 240){
       const minFrameTime = 1000 / fpsLimit;
       if(now - (this._lastFrameTime || 0) < minFrameTime) return;
       this._lastFrameTime = now;
     }
-    let timeScale = TBOX.Save.getNum('tbox_timeScale', 100) / 100;
+    let timeScale = 1.0;
     if(TBOX.Save.get('tbox_slowMo', '1') === '1' && this.player && !this.player.dead){
       timeScale *= this.hurtFx.slowMoCurrent;
     }
     const dt = rawDt * timeScale;
-    if(this.paused){
-      this._render();
-      return;
-    }
+    if(this.paused){ this._render(); return; }
     this.fpsAcc += rawDt; this.fpsFrames++;
     if(this.fpsAcc >= 0.5){
       this.fpsValue = Math.round(this.fpsFrames / this.fpsAcc);
@@ -1270,14 +1474,17 @@ TBOX.Engine = {
     this.updateHurtFx(dt, rawDt);
     this.updateDeathFx(dt, rawDt);
     if(this.player && this.character) this.updateCamera(this.player, this.character, dt, rawDt);
+
+    /* ★ 物理 / 抓取 */
+    this.updatePhysics(dt);
+    this.updateGrab(dt);
+
     if(this.onUpdateFragments) this.onUpdateFragments(rawDt);
     this.updateCrosshairSpread(dt);
     TBOX.UI.updateCompass(this.camState.yaw);
     TBOX.UI.updateHurtVignette(this.player);
     TBOX.UI.updateHpHud(this.player);
-    if(this.csm && this.csmEnabled){
-      this.csm.update();
-    }
+    if(this.csm && this.csmEnabled) this.csm.update();
     const shadowOn = TBOX.Save.get('tbox_shadow', '0') === '1';
     if(shadowOn && !this.csmEnabled){
       this.shadowTick = (this.shadowTick + 1) % this.Q.shadowTick;
@@ -1303,11 +1510,681 @@ TBOX.Engine = {
         this.motionBlurPass.uniforms.intensity.value = 0.2 + sp * 0.8;
       }
     }
-
     if(this.postProcessingEnabled && this.composer){
       this.composer.render();
     } else {
       this.renderer.render(this.scene, this.camera);
     }
+  },
+
+  /* ============================================================
+   * 90 个独立几何体
+   * ============================================================ */
+  _geoDispatch(id, s){
+    switch(id){
+      case 'cube':            return this._geo_cube(s);
+      case 'cuboid':          return this._geo_cuboid(s);
+      case 'tetrahedron':     return this._geo_tetrahedron(s);
+      case 'octahedron':      return this._geo_octahedron(s);
+      case 'dodecahedron':    return this._geo_dodecahedron(s);
+      case 'icosahedron':     return this._geo_icosahedron(s);
+      case 'sphere':          return this._geo_sphere(s);
+      case 'hemisphere':      return this._geo_hemisphere(s);
+      case 'quarter-sphere':  return this._geo_quarter_sphere(s);
+      case 'capsule':         return this._geo_capsule(s);
+      case 'prism3':          return this._geo_prism(s, 3);
+      case 'prism4':          return this._geo_prism(s, 4);
+      case 'prism5':          return this._geo_prism(s, 5);
+      case 'prism6':          return this._geo_prism(s, 6);
+      case 'prism8':          return this._geo_prism(s, 8);
+      case 'prism12':         return this._geo_prism(s, 12);
+      case 'prism16':         return this._geo_prism(s, 16);
+      case 'pyramid3':        return this._geo_pyramid(s, 3);
+      case 'pyramid4':        return this._geo_pyramid(s, 4);
+      case 'pyramid5':        return this._geo_pyramid(s, 5);
+      case 'pyramid6':        return this._geo_pyramid(s, 6);
+      case 'pyramid8':        return this._geo_pyramid(s, 8);
+      case 'pyramid12':       return this._geo_pyramid(s, 12);
+      case 'pyramid16':       return this._geo_pyramid(s, 16);
+      case 'cylinder':        return this._geo_cylinder(s);
+      case 'cylinder-hollow': return this._geo_cylinder_hollow(s);
+      case 'cone':            return this._geo_cone(s);
+      case 'cone-truncated':  return this._geo_cone_truncated(s);
+      case 'disc':            return this._geo_disc(s, 0.08);
+      case 'disc-thick':      return this._geo_disc(s, 0.35);
+      case 'disc-hollow':     return this._geo_disc_hollow(s);
+      case 'torus':           return this._geo_torus(s, 0.20);
+      case 'torus-thick':     return this._geo_torus(s, 0.35);
+      case 'torus-half':      return this._geo_torus_half(s);
+      case 'wedge':           return this._geo_wedge(s);
+      case 'wedge-curved':    return this._geo_wedge_curved(s);
+      case 'ramp':            return this._geo_ramp(s);
+      case 'ramp-curved':     return this._geo_ramp_curved(s);
+      case 'step':            return this._geo_step(s);
+      case 'stair':           return this._geo_stair(s);
+      case 'stair-spiral':    return this._geo_stair_spiral(s);
+      case 'arch':            return this._geo_arch(s, false);
+      case 'arch-half':       return this._geo_arch(s, true);
+      case 'cross':           return this._geo_cross(s);
+      case 'star3':           return this._geo_star(s, 3);
+      case 'star4':           return this._geo_star(s, 4);
+      case 'star5':           return this._geo_star(s, 5);
+      case 'star6':           return this._geo_star(s, 6);
+      case 'star8':           return this._geo_star(s, 8);
+      case 'ring':            return this._geo_ring(s);
+      case 'ring-square':     return this._geo_ring_square(s);
+      case 'L-shape':         return this._geo_L(s);
+      case 'T-shape':         return this._geo_T(s);
+      case 'U-shape':         return this._geo_U(s);
+      case 'H-shape':         return this._geo_H(s);
+      case 'I-shape':         return this._geo_I(s);
+      case 'plus':            return this._geo_plus(s);
+      case 'minus':           return this._geo_minus(s);
+      case 'slash':           return this._geo_slash(s);
+      case 'backslash':       return this._geo_backslash(s);
+      case 'plate-square':    return this._geo_plate(s, 1.0, 1.0);
+      case 'plate-rect':      return this._geo_plate(s, 2.0, 1.0);
+      case 'plate-tri':       return this._geo_plate_tri(s);
+      case 'plate-hex':       return this._geo_plate_poly(s, 6);
+      case 'plate-oct':       return this._geo_plate_poly(s, 8);
+      case 'plate-circle':    return this._geo_plate_circle(s);
+      case 'plate-ring':      return this._geo_plate_ring(s);
+      case 'plate-star':      return this._geo_plate_star(s);
+      case 'rod':             return this._geo_rod(s, 0);
+      case 'rod-square':      return this._geo_rod(s, 4);
+      case 'rod-hex':         return this._geo_rod(s, 6);
+      case 'tube':            return this._geo_tube(s, 0);
+      case 'tube-square':     return this._geo_tube(s, 4);
+      case 'tube-hex':        return this._geo_tube(s, 6);
+      case 'frame':           return this._geo_frame(s, 0);
+      case 'frame-square':    return this._geo_frame(s, 4);
+      case 'frame-circle':    return this._geo_frame(s, 12);
+      case 'gear':            return this._geo_gear(s, 12, 0.2);
+      case 'gear-thick':      return this._geo_gear(s, 16, 0.35);
+      case 'wheel':           return this._geo_wheel(s, false);
+      case 'wheel-spoke':     return this._geo_wheel(s, true);
+      case 'bar':             return this._geo_bar(s);
+      case 'bar-curved':      return this._geo_bar_curved(s);
+      case 'beam':            return this._geo_beam(s);
+      case 'beam-curved':     return this._geo_beam_curved(s);
+      case 'panel':           return this._geo_panel(s);
+      case 'panel-curved':    return this._geo_panel_curved(s);
+      case 'bracket':         return this._geo_bracket(s, 0);
+      case 'bracket-L':       return this._geo_bracket(s, 1);
+      case 'bracket-T':       return this._geo_bracket(s, 2);
+      default:                return new THREE.BoxGeometry(s, s, s);
+    }
+  },
+
+  _geo_cube(s){ return new THREE.BoxGeometry(s, s, s); },
+  _geo_cuboid(s){ return new THREE.BoxGeometry(s * 1.6, s * 0.8, s); },
+  _geo_tetrahedron(s){ return new THREE.TetrahedronGeometry(s * 0.8, 0); },
+  _geo_octahedron(s){ return new THREE.OctahedronGeometry(s * 0.8, 0); },
+  _geo_dodecahedron(s){ return new THREE.DodecahedronGeometry(s * 0.75, 0); },
+  _geo_icosahedron(s){ return new THREE.IcosahedronGeometry(s * 0.8, 0); },
+  _geo_sphere(s){ return new THREE.SphereGeometry(s * 0.5, 16, 12); },
+  _geo_hemisphere(s){ return new THREE.SphereGeometry(s * 0.5, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2); },
+  _geo_quarter_sphere(s){ return new THREE.SphereGeometry(s * 0.5, 16, 12, 0, Math.PI / 2, 0, Math.PI / 2); },
+  _geo_capsule(s){ return new THREE.CapsuleGeometry(s * 0.35, s * 0.6, 6, 12); },
+
+  _geo_prism(s, n){ return new THREE.CylinderGeometry(s * 0.5, s * 0.5, s, n); },
+  _geo_pyramid(s, n){ return new THREE.ConeGeometry(s * 0.5, s, n); },
+
+  _geo_cylinder(s){ return new THREE.CylinderGeometry(s * 0.5, s * 0.5, s, 24); },
+  _geo_cylinder_hollow(s){ return new THREE.CylinderGeometry(s * 0.5, s * 0.5, s, 24, 1, true); },
+  _geo_cone(s){ return new THREE.ConeGeometry(s * 0.5, s, 24); },
+  _geo_cone_truncated(s){ return new THREE.CylinderGeometry(s * 0.3, s * 0.5, s, 24); },
+
+  _geo_disc(s, h){ return new THREE.CylinderGeometry(s * 0.7, s * 0.7, s * h, 32); },
+  _geo_disc_hollow(s){ return new THREE.CylinderGeometry(s * 0.7, s * 0.7, s * 0.15, 32, 1, true); },
+  _geo_torus(s, tube){ return new THREE.TorusGeometry(s * 0.5, s * tube, 12, 32); },
+  _geo_torus_half(s){ return new THREE.TorusGeometry(s * 0.5, s * 0.2, 12, 32, Math.PI); },
+
+  _geo_wedge(s){
+    const v = new Float32Array([
+      0, 0, 0,  s, 0, 0,  s, 0, s,
+      0, 0, 0,  s, 0, s,  0, 0, s,
+      0, 0, 0,  0, 0, s,  0, s, s,
+      0, 0, 0,  0, s, s,  0, s, 0,
+      0, 0, 0,  0, s, 0,  s, 0, 0,
+      s, 0, 0,  0, s, 0,  s, 0, s,
+      0, 0, s,  s, 0, s,  0, s, s
+    ]);
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(v, 3));
+    g.computeVertexNormals();
+    return g;
+  },
+
+  _geo_wedge_curved(s){
+    const v = [];
+    const seg = 10;
+    for(let i = 0; i < seg; i++){
+      const t0 = i / seg;
+      const t1 = (i + 1) / seg;
+      const x0 = t0 * s;
+      const x1 = t1 * s;
+      const y0 = Math.sin(t0 * Math.PI / 2) * s * 0.5;
+      const y1 = Math.sin(t1 * Math.PI / 2) * s * 0.5;
+      v.push(x0, 0, 0, x1, 0, 0, x1, y1, 0);
+      v.push(x0, 0, 0, x1, y1, 0, x0, y0, 0);
+      v.push(x0, 0, 0, x1, 0, 0, x1, 0, s);
+      v.push(x0, 0, 0, x1, 0, s, x0, 0, s);
+      v.push(x0, 0, s, x1, 0, s, x1, y1, s);
+      v.push(x0, 0, s, x1, y1, s, x0, y0, s);
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(v), 3));
+    g.computeVertexNormals();
+    return g;
+  },
+
+  _geo_ramp(s){
+    const v = new Float32Array([
+      0, 0, 0,  s, 0, 0,  s, s, 0,
+      0, 0, 0,  s, s, 0,  0, 0, 0,
+      0, 0, 0,  0, 0, s,  s, 0, s,
+      0, 0, 0,  s, 0, s,  s, 0, 0,
+      s, 0, 0,  s, 0, s,  s, s, s,
+      s, 0, 0,  s, s, s,  s, s, 0,
+      0, 0, s,  0, 0, 0,  0, s, 0,
+      0, 0, s,  0, s, 0,  0, s, s
+    ]);
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(v, 3));
+    g.computeVertexNormals();
+    return g;
+  },
+
+  _geo_ramp_curved(s){
+    const v = [];
+    const seg = 10;
+    for(let i = 0; i < seg; i++){
+      const t0 = i / seg;
+      const t1 = (i + 1) / seg;
+      const x0 = t0 * s;
+      const x1 = t1 * s;
+      const y0 = Math.sin(t0 * Math.PI / 2) * s;
+      const y1 = Math.sin(t1 * Math.PI / 2) * s;
+      v.push(x0, y0, 0, x1, y1, 0, x1, 0, 0);
+      v.push(x0, y0, 0, x1, 0, 0, x0, 0, 0);
+      v.push(x0, 0, 0, x1, 0, 0, x1, 0, s);
+      v.push(x0, 0, 0, x1, 0, s, x0, 0, s);
+      v.push(x0, 0, s, x1, 0, s, x1, y1, s);
+      v.push(x0, 0, s, x1, y1, s, x0, y0, s);
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(v), 3));
+    g.computeVertexNormals();
+    return g;
+  },
+
+  _geo_step(s){
+    const v = new Float32Array([
+      0,0,0,  s,0,0,  s,s,0,
+      0,0,0,  s,s,0,  0,s,0,
+      0,0,s,  s,0,s,  s,0,0,
+      0,0,s,  s,0,0,  0,0,0,
+      0,s,0,  s,s,0,  s,s/2,s,
+      0,s,0,  s,s/2,s, 0,s/2,s,
+      0,s/2,s, s,s/2,s, s,s,s,
+      0,s/2,s, s,s,s, 0,s,s,
+      0,0,s,  0,s/2,s, 0,s,s,
+      s,0,s,  s,s,s,  s,s/2,s,
+      s,0,s,  s,s/2,s, s,0,0
+    ]);
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(v, 3));
+    g.computeVertexNormals();
+    return g;
+  },
+
+  _geo_stair(s){
+    const v = [];
+    const steps = 5;
+    const stepH = s / steps;
+    const stepD = s / steps;
+    for(let i = 0; i < steps; i++){
+      const y = stepH * (i + 1);
+      const z = stepD * i;
+      v.push(0, y, z, s, y, z, s, y, z + stepD);
+      v.push(0, y, z, s, y, z + stepD, 0, y, z + stepD);
+      v.push(0, 0, z + stepD, s, 0, z + stepD, s, y, z + stepD);
+      v.push(0, 0, z + stepD, s, y, z + stepD, 0, y, z + stepD);
+      v.push(0, y, z + stepD, 0, y, z, 0, 0, z);
+      v.push(s, y, z + stepD, s, y, z, s, 0, z);
+      v.push(0, 0, z, s, 0, z, s, 0, z + stepD);
+      v.push(0, 0, z, s, 0, z + stepD, 0, 0, z + stepD);
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(v), 3));
+    g.computeVertexNormals();
+    return g;
+  },
+
+  _geo_stair_spiral(s){
+    const pts = [];
+    for(let i = 0; i <= 16; i++){
+      const t = i / 16;
+      const a = t * Math.PI * 2;
+      pts.push(new THREE.Vector3(Math.cos(a) * s * 0.4, t * s, Math.sin(a) * s * 0.4));
+    }
+    const curve = new THREE.CatmullRomCurve3(pts);
+    return new THREE.TubeGeometry(curve, 32, s * 0.1, 8, false);
+  },
+
+  _geo_arch(s, half){
+    return new THREE.TorusGeometry(s * 0.5, s * 0.15, 10, 24, half ? Math.PI / 2 : Math.PI);
+  },
+
+  _geo_cross(s){
+    const g1 = new THREE.BoxGeometry(s * 0.35, s, s * 0.35);
+    const g2 = new THREE.BoxGeometry(s, s * 0.35, s * 0.35);
+    return this._mergeGeos([g1, g2], [{ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0 }]);
+  },
+
+  _geo_star(s, n){
+    const shape = new THREE.Shape();
+    for(let i = 0; i < n * 2; i++){
+      const a = -Math.PI / 2 + i * Math.PI / n;
+      const r = (i % 2 === 0) ? s * 0.5 : s * 0.2;
+      const x = Math.cos(a) * r;
+      const y = Math.sin(a) * r;
+      if(i === 0) shape.moveTo(x, y); else shape.lineTo(x, y);
+    }
+    shape.closePath();
+    return new THREE.ExtrudeGeometry(shape, { depth: s * 0.2, bevelEnabled: false });
+  },
+
+  _geo_ring(s){ return new THREE.TorusGeometry(s * 0.5, s * 0.15, 12, 32); },
+
+  _geo_ring_square(s){
+    const shape = new THREE.Shape();
+    const o = s * 0.5;
+    shape.moveTo(-o, -o);
+    shape.lineTo(o, -o);
+    shape.lineTo(o, o);
+    shape.lineTo(-o, o);
+    shape.closePath();
+    const hole = new THREE.Path();
+    const hi = s * 0.25;
+    hole.moveTo(-hi, -hi);
+    hole.lineTo(-hi, hi);
+    hole.lineTo(hi, hi);
+    hole.lineTo(hi, -hi);
+    hole.closePath();
+    shape.holes.push(hole);
+    return new THREE.ExtrudeGeometry(shape, { depth: s * 0.15, bevelEnabled: false });
+  },
+
+  _geo_L(s){
+    const shape = new THREE.Shape();
+    shape.moveTo(0, 0);
+    shape.lineTo(s * 0.4, 0);
+    shape.lineTo(s * 0.4, s * 0.6);
+    shape.lineTo(s, s * 0.6);
+    shape.lineTo(s, s);
+    shape.lineTo(0, s);
+    shape.closePath();
+    return new THREE.ExtrudeGeometry(shape, { depth: s * 0.3, bevelEnabled: false });
+  },
+
+  _geo_T(s){
+    const g1 = new THREE.BoxGeometry(s, s * 0.35, s * 0.3);
+    const g2 = new THREE.BoxGeometry(s * 0.35, s * 0.65, s * 0.3);
+    return this._mergeGeos([g1, g2], [{ x: 0, y: s * 0.325, z: 0 }, { x: 0, y: -s * 0.175, z: 0 }]);
+  },
+
+  _geo_U(s){
+    const g1 = new THREE.BoxGeometry(s, s * 0.3, s * 0.3);
+    const g2 = new THREE.BoxGeometry(s * 0.3, s * 0.7, s * 0.3);
+    const g3 = new THREE.BoxGeometry(s * 0.3, s * 0.7, s * 0.3);
+    return this._mergeGeos([g1, g2, g3], [
+      { x: 0, y: -s * 0.35, z: 0 },
+      { x: -s * 0.35, y: s * 0.15, z: 0 },
+      { x: s * 0.35, y: s * 0.15, z: 0 }
+    ]);
+  },
+
+  _geo_H(s){
+    const g1 = new THREE.BoxGeometry(s * 0.3, s, s * 0.3);
+    const g2 = new THREE.BoxGeometry(s * 0.3, s, s * 0.3);
+    const g3 = new THREE.BoxGeometry(s * 0.4, s * 0.3, s * 0.3);
+    return this._mergeGeos([g1, g2, g3], [
+      { x: -s * 0.35, y: 0, z: 0 },
+      { x: s * 0.35, y: 0, z: 0 },
+      { x: 0, y: 0, z: 0 }
+    ]);
+  },
+
+  _geo_I(s){
+    const g1 = new THREE.BoxGeometry(s, s * 0.25, s * 0.3);
+    const g2 = new THREE.BoxGeometry(s * 0.35, s * 0.5, s * 0.3);
+    const g3 = new THREE.BoxGeometry(s, s * 0.25, s * 0.3);
+    return this._mergeGeos([g1, g2, g3], [
+      { x: 0, y: s * 0.375, z: 0 },
+      { x: 0, y: 0, z: 0 },
+      { x: 0, y: -s * 0.375, z: 0 }
+    ]);
+  },
+
+  _geo_plus(s){
+    const g1 = new THREE.BoxGeometry(s * 0.35, s, s * 0.3);
+    const g2 = new THREE.BoxGeometry(s, s * 0.35, s * 0.3);
+    return this._mergeGeos([g1, g2], [{ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0 }]);
+  },
+
+  _geo_minus(s){ return new THREE.BoxGeometry(s, s * 0.35, s * 0.3); },
+
+  _geo_slash(s){
+    const g = new THREE.BoxGeometry(s, s * 0.2, s * 0.2);
+    g.rotateZ(Math.PI / 4);
+    return g;
+  },
+
+  _geo_backslash(s){
+    const g = new THREE.BoxGeometry(s, s * 0.2, s * 0.2);
+    g.rotateZ(-Math.PI / 4);
+    return g;
+  },
+
+  _geo_plate(s, mulW, mulH){ return new THREE.BoxGeometry(s * mulW, s * 0.1, s * mulH); },
+
+  _geo_plate_tri(s){
+    const shape = new THREE.Shape();
+    shape.moveTo(-s * 0.5, -s * 0.5);
+    shape.lineTo(s * 0.5, -s * 0.5);
+    shape.lineTo(0, s * 0.5);
+    shape.closePath();
+    return new THREE.ExtrudeGeometry(shape, { depth: s * 0.1, bevelEnabled: false });
+  },
+
+  _geo_plate_poly(s, n){
+    const shape = new THREE.Shape();
+    for(let i = 0; i < n; i++){
+      const a = i * 2 * Math.PI / n;
+      const x = Math.cos(a) * s * 0.5;
+      const y = Math.sin(a) * s * 0.5;
+      if(i === 0) shape.moveTo(x, y); else shape.lineTo(x, y);
+    }
+    shape.closePath();
+    return new THREE.ExtrudeGeometry(shape, { depth: s * 0.1, bevelEnabled: false });
+  },
+
+  _geo_plate_circle(s){ return new THREE.CylinderGeometry(s * 0.5, s * 0.5, s * 0.1, 32); },
+
+  _geo_plate_ring(s){
+    const shape = new THREE.Shape();
+    shape.absarc(0, 0, s * 0.5, 0, Math.PI * 2, false);
+    const hole = new THREE.Path();
+    hole.absarc(0, 0, s * 0.25, 0, Math.PI * 2, true);
+    shape.holes.push(hole);
+    return new THREE.ExtrudeGeometry(shape, { depth: s * 0.1, bevelEnabled: false });
+  },
+
+  _geo_plate_star(s){
+    const shape = new THREE.Shape();
+    for(let i = 0; i < 10; i++){
+      const a = -Math.PI / 2 + i * Math.PI / 5;
+      const r = (i % 2 === 0) ? s * 0.5 : s * 0.2;
+      const x = Math.cos(a) * r;
+      const y = Math.sin(a) * r;
+      if(i === 0) shape.moveTo(x, y); else shape.lineTo(x, y);
+    }
+    shape.closePath();
+    return new THREE.ExtrudeGeometry(shape, { depth: s * 0.1, bevelEnabled: false });
+  },
+
+  _geo_rod(s, sides){
+    if(sides === 0) return new THREE.CylinderGeometry(s * 0.15, s * 0.15, s, 12);
+    return new THREE.CylinderGeometry(s * 0.15, s * 0.15, s, sides);
+  },
+
+  _geo_tube(s, sides){
+    if(sides === 0) return new THREE.CylinderGeometry(s * 0.2, s * 0.2, s, 16, 1, true);
+    return new THREE.CylinderGeometry(s * 0.2, s * 0.2, s, sides, 1, true);
+  },
+
+  _geo_frame(s, sides){
+    if(sides === 0){
+      const g1 = new THREE.BoxGeometry(s, s * 0.1, s * 0.1);
+      const g2 = new THREE.BoxGeometry(s, s * 0.1, s * 0.1);
+      const g3 = new THREE.BoxGeometry(s * 0.1, s * 0.8, s * 0.1);
+      const g4 = new THREE.BoxGeometry(s * 0.1, s * 0.8, s * 0.1);
+      return this._mergeGeos([g1, g2, g3, g4], [
+        { x: 0, y: s * 0.45, z: 0 },
+        { x: 0, y: -s * 0.45, z: 0 },
+        { x: -s * 0.45, y: 0, z: 0 },
+        { x: s * 0.45, y: 0, z: 0 }
+      ]);
+    }
+    return new THREE.TorusGeometry(s * 0.5, s * 0.08, 8, 24);
+  },
+
+  _geo_gear(s, teeth, tube){
+    const shape = new THREE.Shape();
+    for(let i = 0; i < teeth * 2; i++){
+      const a = -Math.PI / 2 + i * Math.PI / teeth;
+      const r = (i % 2 === 0) ? s * 0.5 : s * (0.5 - tube);
+      const x = Math.cos(a) * r;
+      const y = Math.sin(a) * r;
+      if(i === 0) shape.moveTo(x, y); else shape.lineTo(x, y);
+    }
+    shape.closePath();
+    const hole = new THREE.Path();
+    hole.absarc(0, 0, s * 0.15, 0, Math.PI * 2, true);
+    shape.holes.push(hole);
+    return new THREE.ExtrudeGeometry(shape, { depth: s * 0.25, bevelEnabled: false });
+  },
+
+  _geo_wheel(s, spoke){
+    const g1 = new THREE.CylinderGeometry(s * 0.5, s * 0.5, s * 0.2, 24);
+    if(!spoke) return g1;
+    const g2 = new THREE.BoxGeometry(s * 0.8, s * 0.05, s * 0.05);
+    const g3 = new THREE.BoxGeometry(s * 0.05, s * 0.8, s * 0.05);
+    return this._mergeGeos([g1, g2, g3], [
+      { x: 0, y: 0, z: 0 },
+      { x: 0, y: 0, z: s * 0.1 },
+      { x: 0, y: 0, z: s * 0.1 }
+    ]);
+  },
+
+  _geo_bar(s){ return new THREE.BoxGeometry(s, s * 0.2, s * 0.2); },
+
+  _geo_bar_curved(s){
+    const pts = [];
+    for(let i = 0; i <= 12; i++){
+      const t = i / 12;
+      pts.push(new THREE.Vector3(t * s - s * 0.5, Math.sin(t * Math.PI) * s * 0.25, 0));
+    }
+    const curve = new THREE.CatmullRomCurve3(pts);
+    return new THREE.TubeGeometry(curve, 16, s * 0.1, 8, false);
+  },
+
+  _geo_beam(s){ return new THREE.BoxGeometry(s, s * 0.25, s * 0.25); },
+
+  _geo_beam_curved(s){
+    const pts = [];
+    for(let i = 0; i <= 12; i++){
+      const t = i / 12;
+      pts.push(new THREE.Vector3(t * s - s * 0.5, Math.sin(t * Math.PI) * s * 0.3, 0));
+    }
+    const curve = new THREE.CatmullRomCurve3(pts);
+    return new THREE.TubeGeometry(curve, 16, s * 0.15, 8, false);
+  },
+
+  _geo_panel(s){ return new THREE.BoxGeometry(s * 0.6, s, s * 0.1); },
+
+  _geo_panel_curved(s){
+    const shape = new THREE.Shape();
+    shape.moveTo(-s * 0.3, -s * 0.5);
+    shape.quadraticCurveTo(0, s * 0.5, s * 0.3, -s * 0.5);
+    shape.lineTo(s * 0.3, -s * 0.5);
+    shape.closePath();
+    return new THREE.ExtrudeGeometry(shape, { depth: s * 0.1, bevelEnabled: false });
+  },
+
+  _geo_bracket(s, type){
+    if(type === 0){
+      const g1 = new THREE.BoxGeometry(s * 0.3, s * 0.3, s * 0.3);
+      const g2 = new THREE.BoxGeometry(s * 0.7, s * 0.2, s * 0.2);
+      return this._mergeGeos([g1, g2], [
+        { x: 0, y: s * 0.2, z: 0 },
+        { x: 0, y: -s * 0.15, z: 0 }
+      ]);
+    }
+    if(type === 1){
+      const g1 = new THREE.BoxGeometry(s * 0.3, s * 0.8, s * 0.3);
+      const g2 = new THREE.BoxGeometry(s * 0.7, s * 0.3, s * 0.3);
+      return this._mergeGeos([g1, g2], [
+        { x: -s * 0.2, y: 0, z: 0 },
+        { x: s * 0.2, y: -s * 0.25, z: 0 }
+      ]);
+    }
+    const g1 = new THREE.BoxGeometry(s, s * 0.3, s * 0.3);
+    const g2 = new THREE.BoxGeometry(s * 0.3, s * 0.7, s * 0.3);
+    return this._mergeGeos([g1, g2], [
+      { x: 0, y: s * 0.35, z: 0 },
+      { x: 0, y: -s * 0.15, z: 0 }
+    ]);
+  },
+
+  _mergeGeos(geos, offsets){
+    const positions = [];
+    const normals = [];
+    for(let i = 0; i < geos.length; i++){
+      const g = geos[i];
+      const pos = g.attributes.position;
+      const nor = g.attributes.normal;
+      const ox = offsets[i] ? offsets[i].x : 0;
+      const oy = offsets[i] ? offsets[i].y : 0;
+      const oz = offsets[i] ? offsets[i].z : 0;
+      if(g.index){
+        const idx = g.index.array;
+        for(let k = 0; k < idx.length; k++){
+          const j = idx[k];
+          positions.push(pos.getX(j) + ox, pos.getY(j) + oy, pos.getZ(j) + oz);
+          if(nor) normals.push(nor.getX(j), nor.getY(j), nor.getZ(j));
+        }
+      } else {
+        for(let j = 0; j < pos.count; j++){
+          positions.push(pos.getX(j) + ox, pos.getY(j) + oy, pos.getZ(j) + oz);
+          if(nor) normals.push(nor.getX(j), nor.getY(j), nor.getZ(j));
+        }
+      }
+      g.dispose();
+    }
+    const merged = new THREE.BufferGeometry();
+    merged.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    if(normals.length === positions.length) merged.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+    else merged.computeVertexNormals();
+    return merged;
+  },
+
+  /* ============================================================
+   * 生成 / 删除
+   * ============================================================ */
+  spawnProp(id, options){
+    if(!this.scene) return null;
+    options = options || {};
+
+    const shapeId = options.shapeId || 'cube';
+    const sizeScale = options.sizeScale || 1.0;
+    const colorHex = options.colorHex || '#cccccc';
+
+    const geo = this._geoDispatch(shapeId, sizeScale);
+    const mat = this._getPropMat(colorHex);
+    const mesh = new THREE.Mesh(geo, mat);
+
+    const shadowOn = TBOX.Save.get('tbox_shadow', '0') === '1';
+    mesh.castShadow = shadowOn;
+    mesh.receiveShadow = shadowOn;
+
+    const bbox = new THREE.Box3().setFromObject(mesh);
+    const size = new THREE.Vector3();
+    bbox.getSize(size);
+
+    let px = 0, pz = -3;
+    if(TBOX.Player){
+      const yaw = this.camState.yaw;
+      const pitch = this.camState.pitch;
+      const dirX = -Math.sin(yaw) * Math.cos(pitch);
+      const dirY = Math.sin(pitch);
+      const dirZ = -Math.cos(yaw) * Math.cos(pitch);
+      const originX = TBOX.Player.x;
+      const originY = TBOX.Player.y + TBOX.DATA.EYE_H;
+      const originZ = TBOX.Player.z;
+      let t = 0;
+      if(dirY < -0.01){
+        t = (0 - originY) / dirY;
+        if(t < 0.5 || t > 20) t = 4;
+      } else {
+        t = 4;
+      }
+      px = originX + dirX * t;
+      pz = originZ + dirZ * t;
+    }
+
+    const py = size.y / 2;
+
+    mesh.position.set(px, py, pz);
+    mesh.rotation.y = this.camState.yaw;
+
+    this.scene.add(mesh);
+
+    const box = {
+      x: px, y: py, z: pz,
+      hw: Math.max(0.05, size.x / 2),
+      hh: Math.max(0.05, size.y / 2),
+      hd: Math.max(0.05, size.z / 2),
+      topY: py + size.y / 2,
+      bottomY: py - size.y / 2,
+      tag: 'prop'
+    };
+    this.addAABB(box);
+
+    const obj = {
+      id: id || ('prop_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8)),
+      mesh: mesh,
+      box: box,
+      shapeId: shapeId,
+      sizeScale: sizeScale,
+      colorHex: colorHex,
+      label: options.label || '',
+      size: size.clone(),
+      /* ★ 物理状态 */
+      phy: {
+        vx: 0, vy: 0, vz: 0,
+        onGround: false,
+        sleeping: false,
+        sleepTimer: 0
+      }
+    };
+    this.props.push(obj);
+    return obj;
+  },
+
+  deleteProp(obj){
+    if(!obj) return false;
+    const idx = this.props.indexOf(obj);
+    if(idx >= 0) this.props.splice(idx, 1);
+    if(this.grabbedProp === obj) this.grabbedProp = null;
+    if(obj.mesh){
+      this.scene.remove(obj.mesh);
+      if(obj.mesh.geometry) obj.mesh.geometry.dispose();
+    }
+    if(obj.box){
+      const bi = this.aabbStatic.indexOf(obj.box);
+      if(bi >= 0) this.aabbStatic.splice(bi, 1);
+    }
+    return true;
+  },
+
+  clearProps(){
+    for(let i = this.props.length - 1; i >= 0; i--){
+      this.deleteProp(this.props[i]);
+    }
+    this.props.length = 0;
+    this.grabbedProp = null;
   }
 };

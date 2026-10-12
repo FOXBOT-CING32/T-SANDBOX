@@ -26,8 +26,8 @@
 <script src="version.js"></script>
 
 <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="spawnmenu.css">
 <style>
-  /* 全局去黑框 */
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;
     -webkit-touch-callout:none;-webkit-user-drag:none;}
 
@@ -58,13 +58,11 @@
     -webkit-text-size-adjust:100%;}
   #app{position:fixed;inset:0;overflow:hidden;}
 
-  /* 准星 */
   #crosshair{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);
     pointer-events:none;z-index:5;transition:transform .08s;}
   #crosshair.hit line, #crosshair.hit circle{stroke:#4fff7a;fill:#4fff7a;}
   #crosshair.kill line, #crosshair.kill circle{stroke:#ff3b5c;fill:#ff3b5c;}
 
-  /* 命中标记 */
   #hitmarker{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%) scale(.6);
     pointer-events:none;z-index:6;opacity:0;}
   #hitmarker.show{animation:hm .22s ease-out forwards;}
@@ -74,7 +72,6 @@
     100%{opacity:0;transform:translate(-50%,-50%) scale(1.35);}
   }
 
-  /* 罗盘 */
   #compass{
     position:fixed;
     left:50%;top:10px;
@@ -175,7 +172,6 @@
     transition:top .2s, bottom .2s;
   }
 
-  /* 帧率 */
   #fps{position:fixed;left:14px;top:12px;color:#fff;font-size:11px;
     letter-spacing:1.5px;pointer-events:none;z-index:5;
     text-shadow:0 1px 4px rgba(0,0,0,.9);font-variant-numeric:tabular-nums;
@@ -381,6 +377,18 @@
     background:linear-gradient(180deg, rgba(200,215,225,.85), rgba(160,180,195,.9));
     color:#0b0e14;border-color:#e8eef3;}
   .key .sub{font-size:5px;font-weight:600;opacity:.55;display:block;margin-top:1px;}
+  .key.circle{border-radius:50%;}
+  .key.square{border-radius:6px;}
+
+  #touchUI.edit-mode .key{
+    outline:2px dashed #4fd1ff;
+    pointer-events:auto;
+    cursor:move;
+  }
+  #touchUI.edit-mode .key.selected{
+    box-shadow:0 0 16px rgba(79,209,255,.9);
+    border-color:#4fd1ff;
+  }
 
   #btnJab       {left: 22%; bottom: 2%;  width: 6.5%; height: 12%; border-radius: 50%;}
   #btnHook      {left: 22%; bottom: 16%; width: 6.5%; height: 12%; border-radius: 50%;}
@@ -403,6 +411,16 @@
   #btnSprint    {right: 10%; bottom: 14%; width: 5.5%; height: 10%; border-radius: 6px;}
   #btnBlock     {right: 10%; bottom: 26%; width: 5.5%; height: 10%; border-radius: 6px;}
   #btnClimb     {right: 10%; bottom: 38%; width: 5.5%; height: 10%; border-radius: 6px;}
+
+  #btnMenu{
+    right: 2%;
+    top: 2%;
+    width: 8%;
+    height: 7%;
+    border-radius: 6px;
+    font-size: 12px;
+    letter-spacing: 1px;
+  }
 
   #editTopBar{
     position:fixed;left:0;right:0;top:0;height:52px;
@@ -618,12 +636,14 @@
 
 <div id="playerName">PLAYER</div>
 
+<!-- ★ PC 提示：E 抓取，X 推人 -->
 <div id="pcHud">
   <b>WASD</b> 移动 · <b>SHIFT</b> 冲刺 · <b>CTRL</b> 膝撞<br>
   <b>SPACE</b> 跳 · <b>SHIFT+SPACE</b> 大跳 · <b>N</b> 攀爬<br>
   <b>LMB</b> 左直 · <b>RMB</b> 右直 · <b>V</b> 左勾 · <b>B</b> 右勾<br>
   <b>M</b> 锤拳 · <b>,</b> 掌击 · <b>G</b> 左肘 · <b>H</b> 右肘<br>
-  <b>Q</b> 左正踢 · <b>E</b> 推人 · <b>R</b> 右正踢 · <b>F</b> 格挡<br>
+  <b>K</b> 左正踢 · <b>X</b> 推人 · <b>R</b> 右正踢 · <b>F</b> 格挡<br>
+  <b>E</b> 抓取 · <b>左键</b> 抛出 · <b>Q</b> 菜单<br>
   <b>双击A/D</b> 闪避 · <b>双击S</b> 后闪<br>
   <b>I</b> 检视 · <b>T</b> 视角 · <b>ESC</b> 返回菜单
 </div>
@@ -689,32 +709,36 @@
   <span>菜单</span>
 </div>
 
-<div id="touchUI">
+<!-- ★ 手机端：E 改成 X 推人 -->
+<div id="touchUI" class="winlator-style">
   <div id="lookZone"></div>
   <div id="joyZone"></div>
 
-  <div class="key" id="btnJab">LMB</div>
-  <div class="key" id="btnHook">V</div>
-  <div class="key" id="btnElbowL">G</div>
-  <div class="key" id="btnHammerL">M</div>
+  <div class="key circle" id="btnJab">LMB<span class="sub">左直</span></div>
+  <div class="key circle" id="btnHook">V<span class="sub">左勾</span></div>
+  <div class="key circle" id="btnElbowL">G<span class="sub">左肘</span></div>
+  <div class="key circle" id="btnHammerL">M<span class="sub">锤拳</span></div>
 
-  <div class="key" id="btnCross">RMB</div>
-  <div class="key" id="btnHookR">B</div>
-  <div class="key" id="btnElbowR">H</div>
-  <div class="key" id="btnPalmR">,</div>
+  <div class="key circle" id="btnCross">RMB<span class="sub">右直</span></div>
+  <div class="key circle" id="btnHookR">B<span class="sub">右勾</span></div>
+  <div class="key circle" id="btnElbowR">H<span class="sub">右肘</span></div>
+  <div class="key circle" id="btnPalmR">,<span class="sub">掌击</span></div>
 
-  <div class="key" id="btnLeftKick">Q</div>
-  <div class="key" id="btnRightKick">R</div>
-  <div class="key" id="btnBackSpin">E</div>
-  <div class="key" id="btnKnee">CTRL</div>
+  <div class="key square" id="btnLeftKick">K<span class="sub">左踢</span></div>
+  <div class="key square" id="btnRightKick">R<span class="sub">右踢</span></div>
+  <!-- ★ 推人按钮标签改成 X -->
+  <div class="key square" id="btnBackSpin">X<span class="sub">推人</span></div>
+  <div class="key square" id="btnKnee">CTRL<span class="sub">膝撞</span></div>
 
-  <div class="key" id="btnView">T</div>
-  <div class="key" id="btnInspect">I</div>
+  <div class="key square" id="btnView">T<span class="sub">视角</span></div>
+  <div class="key square" id="btnInspect">I<span class="sub">检视</span></div>
 
-  <div class="key" id="btnJump">␣</div>
-  <div class="key" id="btnSprint">⇧</div>
-  <div class="key" id="btnBlock">F</div>
-  <div class="key" id="btnClimb">N</div>
+  <div class="key square" id="btnJump">␣<span class="sub">跳</span></div>
+  <div class="key square" id="btnSprint">⇧<span class="sub">冲刺</span></div>
+  <div class="key square" id="btnBlock">F<span class="sub">格挡</span></div>
+  <div class="key square" id="btnClimb">N<span class="sub">攀爬</span></div>
+
+  <div class="key" id="btnMenu">MENU</div>
 </div>
 
 <div id="editTopBar">
@@ -728,7 +752,7 @@
   <div class="eb danger" id="editReset">重置</div>
 </div>
 
-<div id="editHint">拖动按钮调整位置</div>
+<div id="editHint">拖动按钮调整位置 · 完成后生效</div>
 
 <div id="backOverlay">
   <div id="backHeader">
@@ -755,6 +779,65 @@
 <div id="deathScreen"></div>
 <div id="toast"></div>
 <div id="loading"><div>加载中…</div><div class="err" id="loadErr"></div></div>
+
+<!-- ============================================================
+ * 生成菜单（内嵌 spawnmenu.html）
+ * ============================================================ -->
+<div id="spawnmenu-root">
+  <div class="sm-top">
+    <div class="sm-title">T-Sandbox</div>
+    <input class="sm-search" id="smSearch" placeholder="搜索生成物…" autocomplete="off">
+    <div class="sm-top-right">
+      <div class="sm-clock" id="smClock">00:00</div>
+      <button class="sm-close" id="smClose" title="关闭">×</button>
+    </div>
+  </div>
+
+  <div class="sm-tabs" id="smTabs">
+    <div class="sm-tab active" data-tab="spawn">生成物</div>
+    <div class="sm-tab" data-tab="weapons">武器</div>
+    <div class="sm-tab" data-tab="npcs">NPC</div>
+    <div class="sm-tab" data-tab="entities">实体</div>
+    <div class="sm-tab" data-tab="vehicles">载具</div>
+    <div class="sm-tab" data-tab="post">后处理</div>
+    <div class="sm-tab" data-tab="browse">浏览</div>
+    <div class="sm-tab" data-tab="dupes">复制</div>
+    <div class="sm-tab" data-tab="saves">存档</div>
+  </div>
+
+  <div class="sm-main">
+    <div class="sm-left" id="smTree"></div>
+    <div class="sm-right">
+      <div class="sm-crumb" id="smCrumb">生成物 / …</div>
+      <div class="sm-grid-area" id="smGridArea">
+        <div class="sm-grid-phantom" id="smGridPhantom">
+          <div class="sm-grid-view" id="smGridView"></div>
+        </div>
+      </div>
+      <div class="sm-empty" id="smEmpty" style="display:none;">暂无内容</div>
+    </div>
+    <div class="sm-side" id="smSide">
+      <div class="sm-stabs">
+        <div class="sm-rtab active" data-r="tools">工具</div>
+        <div class="sm-rtab" data-r="props">属性</div>
+      </div>
+      <div class="sm-sbody" id="smTools">
+        <div class="sm-rcat">暂无</div>
+        <div class="sm-ritem">暂无可用工具</div>
+      </div>
+      <div class="sm-sbody" id="smProps" style="display:none;">
+        <div class="sm-rcat">暂无</div>
+        <div class="sm-ritem">暂无选中生成物</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sm-bot">
+    T-Sandbox · <span id="smCount">0</span> 生成物
+  </div>
+</div>
+
+<div id="spawnmenu-ctx"></div>
 
 <script type="importmap">
 {
@@ -802,7 +885,8 @@ const scripts = [
   'charBuilder.js',
   'action.js',
   'ai.js',
-  'main.js'
+  'main.js',
+  'spawnmenu.js'
 ];
 
 (async function loadAll(){
@@ -843,6 +927,22 @@ document.addEventListener('DOMContentLoaded', function(){
       if(window.TBOX && window.TBOX.Engine) window.TBOX.Engine.resume();
     });
   }
+
+  window.addEventListener('message', function(e){
+    if(!e.data) return;
+    if(e.data.type === 'tbox-char-saved'){
+      try {
+        var cfg = (window.TBOX && TBOX.Save && TBOX.Save.getChar) ? TBOX.Save.getChar() : null;
+        var nm = (cfg && cfg.name) ? cfg.name : (e.data.name || 'Player');
+        if(window.TBOX && TBOX.DATA && TBOX.DATA.CHAR){
+          TBOX.DATA.CHAR.name = nm;
+        }
+        try { localStorage.setItem('tbox_charName', nm); } catch(err){}
+        var pnEl = document.getElementById('playerName');
+        if(pnEl) pnEl.textContent = String(nm).toUpperCase();
+      } catch(err){}
+    }
+  });
 });
 </script>
 </body>

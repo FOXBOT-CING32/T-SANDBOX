@@ -1,6 +1,6 @@
 /* ============================================================
  * action.js · 动作系统
- * V3.0.0 · 第三批：删敌人，只保留主角 + dummy
+ * V1.0.0 · 攀爬防穿墙 + 主角 + dummy
  * ============================================================ */
 window.TBOX = window.TBOX || {};
 
@@ -99,13 +99,18 @@ TBOX.Action = {
     const dummyPos = new THREE.Vector3(0, 0, -6);
     g.position.copy(dummyPos);
     TBOX.Engine.scene.add(g);
-    const dummy = { group: g, hp: TBOX.DATA.TARGET_HP, alive: true, respawnAt: 0, spawnAnim: 0, pos: dummyPos, radius: 0.6 };
+    const dummy = {
+      group: g, hp: TBOX.DATA.TARGET_HP, alive: true, respawnAt: 0, spawnAnim: 0,
+      pos: dummyPos, radius: 0.6,
+      /* ★ 踢飞状态 */
+      flying: false, flyVX: 0, flyVY: 0, flyVZ: 0,
+      flyTimer: 0, flyDistance: 0, flyMaxDist: 3.0,
+      dying: false, dyingTimer: 0
+    };
     this.dummy = dummy;
     TBOX.Engine.dummy = dummy;
     return dummy;
   },
-
-  /* ★★★ buildEnemy 已删除 ★★★ */
 
   createCorpse(){
     if(!this.character) return;
@@ -159,7 +164,18 @@ TBOX.Action = {
   hitCorpse(corpse, dir, dmg){ corpse.vx += dir.x * dmg * 0.5; corpse.vz += dir.z * dmg * 0.5; corpse.vy += 2.0; },
 
   rebuildDummy(){ if(this.dummy && this.dummy.group) TBOX.Engine.scene.remove(this.dummy.group); this.buildDummy(); },
-  destroyDummy(){ const d = this.dummy; if(!d || !d.alive) return; d.alive = false; d.hp = 0; d.respawnAt = performance.now() + 3000; d.spawnAnim = 0; if(d.group) d.group.visible = false; },
+  destroyDummy(){
+    const d = this.dummy;
+    if(!d || !d.alive) return;
+    d.alive = false; d.hp = 0;
+    d.respawnAt = performance.now() + 3000;
+    d.spawnAnim = 0;
+    if(d.group) d.group.visible = false;
+    /* 清理踢飞状态 */
+    d.flying = false; d.dying = false;
+    d.flyVX = 0; d.flyVY = 0; d.flyVZ = 0;
+    d.flyTimer = 0; d.flyDistance = 0;
+  },
 
   getAttackPose(type, p){
     const U = TBOX.Utils;
@@ -413,9 +429,7 @@ TBOX.Action = {
         shinLX = 1.8 * 0.6; shinRX = 1.8 * 0.6;
       } else {
         const q = U.easeInOutCubic(cp);
-        p.x = U.lerp(p.climbStartX, p.climbEndX, q);
-        p.z = U.lerp(p.climbStartZ, p.climbEndZ, q);
-        p.y = U.lerp(p.climbStartY, p.climbEndY, q);
+        /* ★ 位置由 main.js 分段插值控制，这里只做姿态 */
         const armPhase = cp * Math.PI * 2;
         const lUp = Math.sin(armPhase);
         const rUp = Math.sin(armPhase + Math.PI);
@@ -424,10 +438,7 @@ TBOX.Action = {
         armLY = 0.25; armRY = -0.25;
         legLX = -1.2 + 0.4 * rUp; legRX = -1.2 + 0.4 * lUp;
         shinLX = 1.8 - 0.3 * rUp; shinRX = 1.8 - 0.3 * lUp;
-        if(p.climbTimer >= D.CLIMB_DUR){
-          p.climbing = false; p.climbTimer = 0;
-          p.onGround = true; p.vy = 0; p.y = p.climbEndY;
-        }
+        /* ★ 完成检测交给 main.js，这里不再重复 */
       }
     }
 
@@ -566,6 +577,5 @@ TBOX.Action = {
     ch.root.position.set(p.x, finalY, p.z);
   },
 
-  /* ★★★ updateEnemyPose 已删除，保留空函数兼容 ★★★ */
   updateEnemyPose(dt, now){ /* no-op */ }
 };

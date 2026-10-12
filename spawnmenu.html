@@ -1,0 +1,80 @@
+<!-- ============================================================
+ * spawnmenu.html · 生成菜单结构
+ * V1.0.0 · T-Sandbox + 全中文 + GMod 风格
+ * ============================================================ -->
+<div id="spawnmenu-root">
+
+  <!-- 顶部 -->
+  <div class="sm-top">
+    <div class="sm-title">T-Sandbox</div>
+    <input class="sm-search" id="smSearch" placeholder="搜索生成物…" autocomplete="off">
+    <div class="sm-top-right">
+      <div class="sm-clock" id="smClock">00:00</div>
+      <button class="sm-close" id="smClose" title="关闭">×</button>
+    </div>
+  </div>
+
+  <!-- 标签栏 -->
+  <div class="sm-tabs" id="smTabs">
+    <div class="sm-tab active" data-tab="spawn">生成物</div>
+    <div class="sm-tab" data-tab="weapons">武器</div>
+    <div class="sm-tab" data-tab="npcs">NPC</div>
+    <div class="sm-tab" data-tab="entities">实体</div>
+    <div class="sm-tab" data-tab="vehicles">载具</div>
+    <div class="sm-tab" data-tab="post">后处理</div>
+    <div class="sm-tab" data-tab="browse">浏览</div>
+    <div class="sm-tab" data-tab="dupes">复制</div>
+    <div class="sm-tab" data-tab="saves">存档</div>
+  </div>
+
+  <!-- 主区域 -->
+  <div class="sm-main">
+
+    <!-- 左侧分类树 -->
+    <div class="sm-left" id="smTree"></div>
+
+    <!-- 中间内容区 -->
+    <div class="sm-right">
+      <div class="sm-crumb" id="smCrumb">生成物 / …</div>
+
+      <!-- 生成物：虚拟滚动 -->
+      <div class="sm-grid-area" id="smGridArea">
+        <div class="sm-grid-phantom" id="smGridPhantom">
+          <div class="sm-grid-view" id="smGridView"></div>
+        </div>
+      </div>
+
+      <!-- 其他分类：暂无内容 -->
+      <div class="sm-empty" id="smEmpty" style="display:none;">暂无内容</div>
+    </div>
+
+    <!-- 右侧工具/属性 -->
+    <div class="sm-side" id="smSide">
+      <div class="sm-stabs">
+        <div class="sm-rtab active" data-r="tools">工具</div>
+        <div class="sm-rtab" data-r="props">属性</div>
+      </div>
+      <div class="sm-sbody" id="smTools">
+        <div class="sm-rcat">暂无</div>
+        <div class="sm-ritem">暂无可用工具</div>
+      </div>
+      <div class="sm-sbody" id="smProps" style="display:none;">
+        <div class="sm-rcat">暂无</div>
+        <div class="sm-ritem">暂无选中生成物</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- 底部状态栏 -->
+  <div class="sm-bot">
+    T-Sandbox · <span id="smCount">0</span> 生成物
+  </div>
+
+</div>
+
+<!-- 右键菜单 -->
+<div id="spawnmenu-ctx"></div>
+
+<!-- 手机端菜单按钮（挂到 touchUI 里） -->
+<div class="key" id="btnMenu">MENU</div>
