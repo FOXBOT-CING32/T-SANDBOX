@@ -1,6 +1,6 @@
 /* ============================================================
  * ai.js · 碎片 + dummy + 命中系统
- * V1.0.0 · 冲刺踢×6 + 踢飞 + 部位判定
+ * V2.0.0 · 攻击推动物体（分轻重）+ 踢飞 + 部位判定
  * ============================================================ */
 window.TBOX = window.TBOX || {};
 
@@ -77,14 +77,10 @@ TBOX.AI = {
     }
   },
 
-  /* ============================================================
-   * ★ dummy 更新（含踢飞）
-   * ============================================================ */
   updateDummy(now, rawDt){
     const d = TBOX.Action.dummy;
     if(!d || !d.group) return;
 
-    /* 重生 */
     if(!d.alive && d.respawnAt && now >= d.respawnAt){
       d.group.visible = true;
       d.group.position.copy(d.pos);
@@ -97,14 +93,12 @@ TBOX.AI = {
       d.flyTimer = 0; d.flyDistance = 0;
     }
 
-    /* 出生动画 */
     if(d.alive && d.spawnAnim > 0){
       d.spawnAnim = Math.max(0, d.spawnAnim - rawDt * 3.5);
       const s = 1 - d.spawnAnim;
       d.group.scale.set(1, Math.max(0.02, s), 1);
     }
 
-    /* ★ 踢飞中 */
     if(d.alive && d.flying){
       const KF = TBOX.DATA.KICK_FLY;
       d.flyTimer += rawDt;
@@ -118,11 +112,9 @@ TBOX.AI = {
       d.group.position.z += dz;
       d.group.position.y += d.flyVY * rawDt;
 
-      /* 水平摩擦 */
       d.flyVX *= (1 - rawDt * KF.friction);
       d.flyVZ *= (1 - rawDt * KF.friction);
 
-      /* 地面检测 */
       const gy = TBOX.Engine.resolvePlayerGround({
         x: d.group.position.x,
         y: d.group.position.y,
@@ -135,24 +127,20 @@ TBOX.AI = {
         d.flyVZ *= 0.3;
       }
 
-      /* 翻滚姿态 */
       d.group.rotation.x += rawDt * 6;
       d.group.rotation.z += rawDt * 4;
 
-      /* 到达最大距离或落地停稳，停止飞行 */
       const reachedMax = d.flyDistance >= KF.maxDistance;
       const slowEnough = Math.hypot(d.flyVX, d.flyVZ) < 0.5 && d.flyVY === 0;
       if(reachedMax || slowEnough){
         d.flying = false;
         d.flyVX = 0; d.flyVZ = 0; d.flyVY = 0;
-        /* 落地后躺下 */
         d.group.rotation.x = Math.PI / 2;
         d.dying = true;
         d.dyingTimer = 0.6;
       }
     }
 
-    /* ★ 踢飞后躺地自然死亡 */
     if(d.alive && d.dying){
       d.dyingTimer -= rawDt;
       if(d.dyingTimer <= 0){
@@ -167,6 +155,9 @@ TBOX.AI = {
     const cam = TBOX.Engine.camera;
     if(!p || !cam) return;
 
+    /* ★ 攻击推动所有附近的 prop */
+    this._pushProps(p, cam);
+
     if(p.attackType === 'push'){
       this._resolvePush(p, cam);
       return;
@@ -174,6 +165,42 @@ TBOX.AI = {
 
     if(dummy && dummy.alive && dummy.group){
       this._tryHit(dummy, cam, p);
+    }
+  },
+
+  /* ★ 攻击推动 prop：分轻重 */
+  _pushProps(p, cam){
+    const AP = TBOX.DATA.ATTACK_PUSH;
+    if(!AP.enable) return;
+    const props = TBOX.Engine.props;
+    if(!props || !props.length) return;
+
+    const yaw = TBOX.Engine.camState.yaw;
+    const fwdX = -Math.sin(yaw);
+    const fwdZ = -Math.cos(yaw);
+
+    const type = p.attackType;
+    const isKick = ['leftKick','rightKick','sprintKick','knee'].includes(type);
+    const isPush = type === 'push';
+    const mul = isPush ? 1.5 : (isKick ? 1.0 : 0.5);
+
+    for(const obj of props){
+      if(!obj.mesh) continue;
+      const dx = obj.mesh.position.x - p.x;
+      const dz = obj.mesh.position.z - p.z;
+      const dist = Math.hypot(dx, dz);
+      if(dist > AP.range) continue;
+      const nx = dx / (dist || 1);
+      const nz = dz / (dist || 1);
+      const dot = fwdX * nx + fwdZ * nz;
+      if(dot < 0.3) continue;
+
+      const force = AP.force * mul;
+      obj.phy.vx += nx * force;
+      obj.phy.vz += nz * force;
+      obj.phy.vy += AP.upForce * mul;
+      obj.phy.sleeping = false;
+      obj.phy.sleepTimer = 0;
     }
   },
 
@@ -200,7 +227,6 @@ TBOX.AI = {
         if(dot > PD.dotThreshold){
           TBOX.UI.showHitMarker();
           TBOX.Audio.playHit();
-          /* 推人也给个击退 */
           if(!d.flying){
             d.flyVX = nx * force * 0.5;
             d.flyVZ = nz * force * 0.5;
@@ -216,7 +242,6 @@ TBOX.AI = {
     return false;
   },
 
-  /* ★ 部位判定：根据击中高度判断 arm / head / body / leg */
   _getHitPart(target, hitY){
     const HP = TBOX.DATA.HIT_PART;
     const baseY = target.group.position.y;
@@ -253,7 +278,6 @@ TBOX.AI = {
     const type = p.attackType;
     let dmg = TBOX.DATA.ATK_DMG[type] || 1;
 
-    /* ★ 冲刺踢 ×6 */
     const isKick = (type === 'leftKick' || type === 'rightKick' || type === 'sprintKick');
     const isSprintKick = p.sprintKick && isKick;
     if(isSprintKick){
@@ -265,11 +289,9 @@ TBOX.AI = {
 
     const hitPos = new THREE.Vector3(target.group.position.x, 1.1, target.group.position.z);
 
-    /* ★ 部位判定（击中高度取相机瞄准点高度） */
     const hitY = 1.1;
     const part = this._getHitPart(target, hitY);
 
-    /* ★ 踢飞判定：只有冲刺踢 + 躯干 + 伤害够高 才飞 */
     let shouldFly = false;
     if(isSprintKick && TBOX.DATA.KICK_FLY.enable){
       if(part === 'body' && dmg >= TBOX.DATA.KICK_FLY.minDmgForFly){
@@ -289,7 +311,6 @@ TBOX.AI = {
       target.flyMaxDist = TBOX.DATA.KICK_FLY.maxDistance;
     }
 
-    /* 伤害显示 */
     if(TBOX.Save.get('tbox_showDmgNumber', '1') === '1'){
       TBOX.UI.spawnDamageNumber(hitPos, dmg, cam, kill);
     }
@@ -310,7 +331,6 @@ TBOX.AI = {
     p.combo += 1;
     p.comboTimer = 1.5;
 
-    /* ★ 踢飞后不立即销毁，交给 updateDummy 处理 */
     if(kill && !target.flying){
       TBOX.Action.destroyDummy();
     }

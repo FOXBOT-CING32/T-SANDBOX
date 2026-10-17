@@ -1,6 +1,6 @@
 /* ============================================================
  * engine.js · 游戏引擎系统
- * V1.0.0 · 90 独立几何体 + 物理系统 + 抓取系统
+ * V2.0.0 · 精确多AABB碰撞 + 真双壁空心 + 第三人称抓取 + 图标一致
  * ============================================================ */
 window.TBOX = window.TBOX || {};
 
@@ -61,7 +61,6 @@ TBOX.Engine = {
   keys: {}, isTouch: false,
   ambientWind: null, ambientBirds: null,
 
-  /* ★ 抓取状态 */
   grabbedProp: null,
   grabDist: 0,
 
@@ -737,6 +736,30 @@ TBOX.Engine = {
       }
     }
 
+    /* ★ 玩家 vs prop：把 prop 推开，而不是被挡住 */
+    if(TBOX.DATA.PHYSICS.enable && TBOX.DATA.PHYSICS.playerPush){
+      for(let i = 0; i < this.props.length; i++){
+        const obj = this.props[i];
+        if(!obj.mesh) continue;
+        const dx = obj.mesh.position.x - p.x;
+        const dz = obj.mesh.position.z - p.z;
+        const dist = Math.hypot(dx, dz);
+        const rad = TBOX.DATA.PLAYER_RADIUS + Math.max(obj.size.x, obj.size.z) / 2;
+        if(dist >= rad || dist < 0.0001) continue;
+        /* 重叠：把 prop 推开 */
+        const nx = dx / dist, nz = dz / dist;
+        const overlap = rad - dist;
+        obj.mesh.position.x += nx * overlap;
+        obj.mesh.position.z += nz * overlap;
+        /* 玩家轻微反推，避免卡进去 */
+        p.x -= nx * overlap * 0.15;
+        p.z -= nz * overlap * 0.15;
+        /* 唤醒物体 */
+        obj.phy.sleeping = false;
+        obj.phy.sleepTimer = 0;
+      }
+    }
+
     if(TBOX.DATA.AABB.enable){
       const maxIter = TBOX.DATA.AABB.maxPushIter || 4;
       for(let iter = 0; iter < maxIter; iter++){
@@ -1157,7 +1180,7 @@ TBOX.Engine = {
   },
 
   /* ============================================================
-   * 物理系统
+   * ★ 物理系统 v2：精确碰撞 + 环境碰撞 + 玩家推
    * ============================================================ */
   updatePhysics(dt){
     const P = TBOX.DATA.PHYSICS;
@@ -1171,7 +1194,7 @@ TBOX.Engine = {
       if(obj === grab) continue;
 
       const phy = obj.phy;
-      if(!phy || phy.sleeping) continue;
+      if(!phy) continue;
 
       /* 重力 */
       phy.vy += P.gravity * dt;
@@ -1182,28 +1205,28 @@ TBOX.Engine = {
       phy.vx *= fr;
       phy.vz *= fr;
 
-      /* 位置 */
+      /* 位移 */
       obj.mesh.position.x += phy.vx * dt;
       obj.mesh.position.y += phy.vy * dt;
       obj.mesh.position.z += phy.vz * dt;
 
-      /* 地面 / 台阶 */
+      /* 地面 */
       if(P.collideStairs) this._resolvePropGround(obj, dt);
-
-      /* 物体间碰撞 */
+      /* ★ 环境 AABB 水平推挤 */
+      this._resolvePropVsStatic(obj, dt);
+      /* 物体 vs 物体 */
       if(P.propCollision) this._resolvePropVsProps(obj, i);
-
-      /* 玩家推 */
+      /* 物体 vs 玩家 */
       if(P.playerPush) this._resolvePropVsPlayer(obj, dt);
 
-      /* AABB 同步 */
+      /* 同步 box */
       obj.box.x = obj.mesh.position.x;
       obj.box.y = obj.mesh.position.y;
       obj.box.z = obj.mesh.position.z;
       obj.box.topY = obj.mesh.position.y + obj.size.y / 2;
       obj.box.bottomY = obj.mesh.position.y - obj.size.y / 2;
 
-      /* 睡眠判定 */
+      /* 休眠 */
       const speed = Math.hypot(phy.vx, phy.vy, phy.vz);
       if(speed < P.sleepSpeed && phy.onGround){
         phy.sleepTimer += dt;
@@ -1213,10 +1236,10 @@ TBOX.Engine = {
         }
       } else {
         phy.sleepTimer = 0;
+        phy.sleeping = false;
       }
     }
 
-    /* 超过最大数量，删除最早的 */
     while(this.props.length > P.maxProps){
       this.deleteProp(this.props[0]);
     }
@@ -1226,9 +1249,7 @@ TBOX.Engine = {
     const P = TBOX.DATA.PHYSICS;
     const pos = obj.mesh.position;
     const halfH = obj.size.y / 2;
-
     let groundY = 0;
-    /* 台阶 */
     for(let i = 0; i < this.aabbStatic.length; i++){
       const box = this.aabbStatic[i];
       if(box.tag === 'prop') continue;
@@ -1238,8 +1259,6 @@ TBOX.Engine = {
         if(box.topY > groundY && pos.y - halfH < box.topY) groundY = box.topY;
       }
     }
-
-    /* 地面 */
     if(pos.y - halfH < groundY){
       pos.y = groundY + halfH;
       if(obj.phy.vy < 0){
@@ -1249,6 +1268,39 @@ TBOX.Engine = {
       obj.phy.onGround = true;
     } else {
       obj.phy.onGround = false;
+    }
+  },
+
+  /* ★ 新增：物体 vs 环境 AABB 水平推挤（修复穿墙） */
+  _resolvePropVsStatic(obj, dt){
+    const P = TBOX.DATA.PHYSICS;
+    const pos = obj.mesh.position;
+    const halfW = obj.size.x / 2;
+    const halfD = obj.size.z / 2;
+    const halfH = obj.size.y / 2;
+    const topY = pos.y + halfH;
+    const botY = pos.y - halfH;
+
+    for(let i = 0; i < this.aabbStatic.length; i++){
+      const box = this.aabbStatic[i];
+      if(box.tag === 'prop') continue;
+      /* 垂直不重叠 */
+      if(topY <= box.bottomY || botY >= box.topY) continue;
+      /* 水平 AABB */
+      const dx = pos.x - box.x;
+      const dz = pos.z - box.z;
+      const overlapX = (box.hw + halfW) - Math.abs(dx);
+      const overlapZ = (box.hd + halfD) - Math.abs(dz);
+      if(overlapX <= 0 || overlapZ <= 0) continue;
+      /* 最小分离轴推出 */
+      if(overlapX < overlapZ){
+        pos.x += (dx > 0 ? overlapX : -overlapX);
+        obj.phy.vx = -obj.phy.vx * P.restitution;
+      } else {
+        pos.z += (dz > 0 ? overlapZ : -overlapZ);
+        obj.phy.vz = -obj.phy.vz * P.restitution;
+      }
+      obj.phy.sleeping = false;
     }
   },
 
@@ -1267,7 +1319,6 @@ TBOX.Engine = {
       const rz = (obj.size.z + other.size.z) / 2;
       const ry = (obj.size.y + other.size.y) / 2;
       if(Math.abs(dx) < rx && Math.abs(dz) < rz && Math.abs(dy) < ry){
-        /* 水平推出 */
         const overlapX = rx - Math.abs(dx);
         const overlapZ = rz - Math.abs(dz);
         if(overlapX < overlapZ){
@@ -1285,7 +1336,6 @@ TBOX.Engine = {
           obj.phy.vz = other.phy.vz * 0.5;
           other.phy.vz = v * 0.5;
         }
-        /* 垂直 */
         if(Math.abs(dy) > 0.01){
           const overlapY = ry - Math.abs(dy);
           const sign = dy > 0 ? 1 : -1;
@@ -1298,6 +1348,7 @@ TBOX.Engine = {
     }
   },
 
+  /* ★ 玩家推物体（真实速度驱动） */
   _resolvePropVsPlayer(obj, dt){
     const p = TBOX.Player;
     if(!p) return;
@@ -1306,63 +1357,62 @@ TBOX.Engine = {
     const dz = pos.z - p.z;
     const dist = Math.hypot(dx, dz);
     const rad = TBOX.DATA.PLAYER_RADIUS + Math.max(obj.size.x, obj.size.z) / 2;
-    if(dist < rad && dist > 0.0001){
-      const nx = dx / dist;
-      const nz = dz / dist;
-      /* 推出 */
-      const overlap = rad - dist;
-      pos.x += nx * overlap;
-      pos.z += nz * overlap;
-      /* 给速度（玩家推） */
-      const P = TBOX.DATA.PHYSICS;
-      const pushForce = P.playerPushForce * (p.speedFactor > 0.1 ? 1.5 : 0.5);
-      obj.phy.vx += nx * pushForce * dt * 10;
-      obj.phy.vz += nz * pushForce * dt * 10;
-      obj.phy.sleeping = false;
-      /* AABB 同步 */
-      obj.box.x = pos.x;
-      obj.box.z = pos.z;
-    }
+    if(dist >= rad || dist < 0.0001) return;
+    const nx = dx / dist, nz = dz / dist;
+    const overlap = rad - dist;
+    pos.x += nx * overlap;
+    pos.z += nz * overlap;
+    /* 玩家速度驱动推力 */
+    const pSpeed = Math.hypot(p.moveDirX || 0, p.moveDirZ || 0) * (p.speedFactor || 0) * 8;
+    const force = Math.max(2.0, pSpeed) * 6.0;
+    obj.phy.vx += nx * force * dt;
+    obj.phy.vz += nz * force * dt;
+    obj.phy.sleeping = false;
+    obj.phy.sleepTimer = 0;
   },
 
   /* ============================================================
-   * 抓取系统
+   * ★ 抓取：第三人称修复
    * ============================================================ */
   grabProp(){
     const G = TBOX.DATA.GRAB;
     if(!G.enable) return false;
     if(this.grabbedProp) return false;
-    const cam = this.camera;
-    if(!cam) return false;
+    const p = TBOX.Player;
+    if(!p) return false;
 
-    /* 从相机位置沿视线方向射线 */
-    const origin = new THREE.Vector3();
-    cam.getWorldPosition(origin);
-    const dir = new THREE.Vector3();
-    cam.getWorldDirection(dir);
+    /* 第三人称：从玩家胸口出发，方向用 camState.yaw/pitch */
+    const yaw = this.camState.yaw;
+    const pitch = this.camState.pitch;
+    const dirX = -Math.sin(yaw) * Math.cos(pitch);
+    const dirY = Math.sin(pitch);
+    const dirZ = -Math.cos(yaw) * Math.cos(pitch);
+
+    const originX = p.x;
+    const originY = p.y + 1.2;
+    const originZ = p.z;
 
     let best = null;
     let bestT = G.range;
     for(let i = 0; i < this.props.length; i++){
       const obj = this.props[i];
       if(!obj.mesh) continue;
-      const toObj = new THREE.Vector3().subVectors(obj.mesh.position, origin);
-      const t = toObj.dot(dir);
+      const toX = obj.mesh.position.x - originX;
+      const toY = obj.mesh.position.y - originY;
+      const toZ = obj.mesh.position.z - originZ;
+      const t = toX * dirX + toY * dirY + toZ * dirZ;
       if(t < 0 || t > G.range) continue;
-      const closest = new THREE.Vector3().copy(origin).add(dir.clone().multiplyScalar(t));
-      const d = closest.distanceTo(obj.mesh.position);
+      const cx = originX + dirX * t;
+      const cy = originY + dirY * t;
+      const cz = originZ + dirZ * t;
+      const d = Math.hypot(obj.mesh.position.x - cx, obj.mesh.position.y - cy, obj.mesh.position.z - cz);
       const r = Math.max(obj.size.x, obj.size.y, obj.size.z) / 2;
-      if(d < r && t < bestT){
-        bestT = t;
-        best = obj;
-      }
+      if(d < r && t < bestT){ bestT = t; best = obj; }
     }
-
     if(!best) return false;
     this.grabbedProp = best;
     best.phy.sleeping = false;
-    /* 计算抓取距离：物体到相机 */
-    this.grabDist = best.mesh.position.distanceTo(origin);
+    this.grabDist = bestT;
     return true;
   },
 
@@ -1378,12 +1428,15 @@ TBOX.Engine = {
     const G = TBOX.DATA.GRAB;
     if(!this.grabbedProp) return false;
     const obj = this.grabbedProp;
-    const cam = this.camera;
-    const dir = new THREE.Vector3();
-    cam.getWorldDirection(dir);
-    obj.phy.vx = dir.x * G.throwSpeed;
-    obj.phy.vy = dir.y * G.throwSpeed + 2;
-    obj.phy.vz = dir.z * G.throwSpeed;
+    /* 用玩家朝向而不是相机朝向（第三人称也正确） */
+    const yaw = this.camState.yaw;
+    const pitch = this.camState.pitch;
+    const dirX = -Math.sin(yaw) * Math.cos(pitch);
+    const dirY = Math.sin(pitch);
+    const dirZ = -Math.cos(yaw) * Math.cos(pitch);
+    obj.phy.vx = dirX * G.throwSpeed;
+    obj.phy.vy = dirY * G.throwSpeed + 2;
+    obj.phy.vz = dirZ * G.throwSpeed;
     obj.phy.sleeping = false;
     this.grabbedProp = null;
     this.grabDist = 0;
@@ -1395,17 +1448,24 @@ TBOX.Engine = {
     if(!G.enable) return;
     const obj = this.grabbedProp;
     if(!obj || !obj.mesh) return;
-    const cam = this.camera;
-    if(!cam) return;
-    const origin = new THREE.Vector3();
-    cam.getWorldPosition(origin);
-    const dir = new THREE.Vector3();
-    cam.getWorldDirection(dir);
-    const targetPos = new THREE.Vector3().copy(origin).add(dir.clone().multiplyScalar(G.holdDistance));
-    /* 平滑跟随 */
+    const p = TBOX.Player;
+    if(!p) return;
+    /* 目标位置：从玩家胸口沿 camState 方向 holdDistance 处 */
+    const yaw = this.camState.yaw;
+    const pitch = this.camState.pitch;
+    const dirX = -Math.sin(yaw) * Math.cos(pitch);
+    const dirY = Math.sin(pitch);
+    const dirZ = -Math.cos(yaw) * Math.cos(pitch);
+    const targetX = p.x + dirX * G.holdDistance;
+    const targetY = p.y + 1.2 + dirY * G.holdDistance;
+    const targetZ = p.z + dirZ * G.holdDistance;
+
     const lam = TBOX.DATA.PHYSICS.grabFollowLambda;
     const k = 1 - Math.exp(-lam * dt);
-    obj.mesh.position.lerp(targetPos, k);
+    obj.mesh.position.x += (targetX - obj.mesh.position.x) * k;
+    obj.mesh.position.y += (targetY - obj.mesh.position.y) * k;
+    obj.mesh.position.z += (targetZ - obj.mesh.position.z) * k;
+
     obj.phy.vx = 0; obj.phy.vy = 0; obj.phy.vz = 0;
     obj.phy.sleeping = false;
     obj.box.x = obj.mesh.position.x;
@@ -1415,9 +1475,6 @@ TBOX.Engine = {
     obj.box.bottomY = obj.mesh.position.y - obj.size.y / 2;
   },
 
-  /* ============================================================
-   * 启动 / 循环
-   * ============================================================ */
   start(){
     this.running = true; this.paused = false;
     this.lastTime = performance.now();
@@ -1474,11 +1531,8 @@ TBOX.Engine = {
     this.updateHurtFx(dt, rawDt);
     this.updateDeathFx(dt, rawDt);
     if(this.player && this.character) this.updateCamera(this.player, this.character, dt, rawDt);
-
-    /* ★ 物理 / 抓取 */
     this.updatePhysics(dt);
     this.updateGrab(dt);
-
     if(this.onUpdateFragments) this.onUpdateFragments(rawDt);
     this.updateCrosshairSpread(dt);
     TBOX.UI.updateCompass(this.camState.yaw);
@@ -1517,9 +1571,6 @@ TBOX.Engine = {
     }
   },
 
-  /* ============================================================
-   * 90 个独立几何体
-   * ============================================================ */
   _geoDispatch(id, s){
     switch(id){
       case 'cube':            return this._geo_cube(s);
@@ -1566,19 +1617,23 @@ TBOX.Engine = {
       case 'arch':            return this._geo_arch(s, false);
       case 'arch-half':       return this._geo_arch(s, true);
       case 'cross':           return this._geo_cross(s);
+      case 'plus':            return this._geo_plus(s);
       case 'star3':           return this._geo_star(s, 3);
       case 'star4':           return this._geo_star(s, 4);
       case 'star5':           return this._geo_star(s, 5);
       case 'star6':           return this._geo_star(s, 6);
       case 'star8':           return this._geo_star(s, 8);
       case 'ring':            return this._geo_ring(s);
-      case 'ring-square':     return this._geo_ring_square(s);
-      case 'L-shape':         return this._geo_L(s);
-      case 'T-shape':         return this._geo_T(s);
-      case 'U-shape':         return this._geo_U(s);
-      case 'H-shape':         return this._geo_H(s);
-      case 'I-shape':         return this._geo_I(s);
-      case 'plus':            return this._geo_plus(s);
+      case 'A-shape':         return this._geo_letter(s, 'A');
+      case 'B-shape':         return this._geo_letter(s, 'B');
+      case 'C-shape':         return this._geo_letter(s, 'C');
+      case 'H-shape':         return this._geo_letter(s, 'H');
+      case 'I-shape':         return this._geo_letter(s, 'I');
+      case 'O-shape':         return this._geo_letter(s, 'O');
+      case 'T-shape':         return this._geo_letter(s, 'T');
+      case 'U-shape':         return this._geo_letter(s, 'U');
+      case 'X-shape':         return this._geo_letter(s, 'X');
+      case 'Z-shape':         return this._geo_letter(s, 'Z');
       case 'minus':           return this._geo_minus(s);
       case 'slash':           return this._geo_slash(s);
       case 'backslash':       return this._geo_backslash(s);
@@ -1591,13 +1646,11 @@ TBOX.Engine = {
       case 'plate-ring':      return this._geo_plate_ring(s);
       case 'plate-star':      return this._geo_plate_star(s);
       case 'rod':             return this._geo_rod(s, 0);
-      case 'rod-square':      return this._geo_rod(s, 4);
       case 'rod-hex':         return this._geo_rod(s, 6);
       case 'tube':            return this._geo_tube(s, 0);
       case 'tube-square':     return this._geo_tube(s, 4);
       case 'tube-hex':        return this._geo_tube(s, 6);
       case 'frame':           return this._geo_frame(s, 0);
-      case 'frame-square':    return this._geo_frame(s, 4);
       case 'frame-circle':    return this._geo_frame(s, 12);
       case 'gear':            return this._geo_gear(s, 12, 0.2);
       case 'gear-thick':      return this._geo_gear(s, 16, 0.35);
@@ -1609,7 +1662,7 @@ TBOX.Engine = {
       case 'beam-curved':     return this._geo_beam_curved(s);
       case 'panel':           return this._geo_panel(s);
       case 'panel-curved':    return this._geo_panel_curved(s);
-      case 'bracket':         return this._geo_bracket(s, 0);
+      case 'bracket-U':       return this._geo_bracket(s, 0);
       case 'bracket-L':       return this._geo_bracket(s, 1);
       case 'bracket-T':       return this._geo_bracket(s, 2);
       default:                return new THREE.BoxGeometry(s, s, s);
@@ -1622,23 +1675,64 @@ TBOX.Engine = {
   _geo_octahedron(s){ return new THREE.OctahedronGeometry(s * 0.8, 0); },
   _geo_dodecahedron(s){ return new THREE.DodecahedronGeometry(s * 0.75, 0); },
   _geo_icosahedron(s){ return new THREE.IcosahedronGeometry(s * 0.8, 0); },
-  _geo_sphere(s){ return new THREE.SphereGeometry(s * 0.5, 16, 12); },
-  _geo_hemisphere(s){ return new THREE.SphereGeometry(s * 0.5, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2); },
-  _geo_quarter_sphere(s){ return new THREE.SphereGeometry(s * 0.5, 16, 12, 0, Math.PI / 2, 0, Math.PI / 2); },
-  _geo_capsule(s){ return new THREE.CapsuleGeometry(s * 0.35, s * 0.6, 6, 12); },
+  _geo_sphere(s){ return new THREE.SphereGeometry(s * 0.5, 24, 16); },
+  _geo_hemisphere(s){ return new THREE.SphereGeometry(s * 0.5, 24, 16, 0, Math.PI * 2, 0, Math.PI / 2); },
+  _geo_quarter_sphere(s){ return new THREE.SphereGeometry(s * 0.5, 24, 16, 0, Math.PI / 2, 0, Math.PI / 2); },
+  _geo_capsule(s){ return new THREE.CapsuleGeometry(s * 0.35, s * 0.6, 8, 16); },
 
   _geo_prism(s, n){ return new THREE.CylinderGeometry(s * 0.5, s * 0.5, s, n); },
   _geo_pyramid(s, n){ return new THREE.ConeGeometry(s * 0.5, s, n); },
 
-  _geo_cylinder(s){ return new THREE.CylinderGeometry(s * 0.5, s * 0.5, s, 24); },
-  _geo_cylinder_hollow(s){ return new THREE.CylinderGeometry(s * 0.5, s * 0.5, s, 24, 1, true); },
-  _geo_cone(s){ return new THREE.ConeGeometry(s * 0.5, s, 24); },
-  _geo_cone_truncated(s){ return new THREE.CylinderGeometry(s * 0.3, s * 0.5, s, 24); },
+  _geo_cylinder(s){ return new THREE.CylinderGeometry(s * 0.5, s * 0.5, s, 32); },
+
+  /* ★ 真双壁空心圆柱 */
+  _geo_cylinder_hollow(s){
+    const r1 = s * 0.5, r2 = s * 0.28, h = s, segs = 32;
+    const outer = new THREE.CylinderGeometry(r1, r1, h, segs, 1, true);
+    const inner = new THREE.CylinderGeometry(r2, r2, h, segs, 1, true);
+    inner.scale(-1, 1, 1);
+    const capTop = new THREE.RingGeometry(r2, r1, segs);
+    capTop.rotateX(-Math.PI / 2);
+    capTop.translate(0, h / 2, 0);
+    const capBot = new THREE.RingGeometry(r2, r1, segs);
+    capBot.rotateX(Math.PI / 2);
+    capBot.translate(0, -h / 2, 0);
+    return this._mergeGeosWithUV([
+      { geo: outer,  pos: [0, 0, 0], rot: [0, 0, 0] },
+      { geo: inner,  pos: [0, 0, 0], rot: [0, 0, 0] },
+      { geo: capTop, pos: [0, 0, 0], rot: [0, 0, 0] },
+      { geo: capBot, pos: [0, 0, 0], rot: [0, 0, 0] }
+    ]);
+  },
+
+  _geo_cone(s){ return new THREE.ConeGeometry(s * 0.5, s, 32); },
+  _geo_cone_truncated(s){ return new THREE.CylinderGeometry(s * 0.3, s * 0.5, s, 32); },
 
   _geo_disc(s, h){ return new THREE.CylinderGeometry(s * 0.7, s * 0.7, s * h, 32); },
-  _geo_disc_hollow(s){ return new THREE.CylinderGeometry(s * 0.7, s * 0.7, s * 0.15, 32, 1, true); },
-  _geo_torus(s, tube){ return new THREE.TorusGeometry(s * 0.5, s * tube, 12, 32); },
-  _geo_torus_half(s){ return new THREE.TorusGeometry(s * 0.5, s * 0.2, 12, 32, Math.PI); },
+
+  /* ★ 真双壁带孔圆盘 */
+  _geo_disc_hollow(s){
+    const h = s * 0.15;
+    const r1 = s * 0.7, r2 = s * 0.28;
+    const outer = new THREE.CylinderGeometry(r1, r1, h, 32, 1, true);
+    const inner = new THREE.CylinderGeometry(r2, r2, h, 32, 1, true);
+    inner.scale(-1, 1, 1);
+    const capTop = new THREE.RingGeometry(r2, r1, 32);
+    capTop.rotateX(-Math.PI / 2);
+    capTop.translate(0, h / 2, 0);
+    const capBot = new THREE.RingGeometry(r2, r1, 32);
+    capBot.rotateX(Math.PI / 2);
+    capBot.translate(0, -h / 2, 0);
+    return this._mergeGeosWithUV([
+      { geo: outer,  pos: [0, 0, 0], rot: [0, 0, 0] },
+      { geo: inner,  pos: [0, 0, 0], rot: [0, 0, 0] },
+      { geo: capTop, pos: [0, 0, 0], rot: [0, 0, 0] },
+      { geo: capBot, pos: [0, 0, 0], rot: [0, 0, 0] }
+    ]);
+  },
+
+  _geo_torus(s, tube){ return new THREE.TorusGeometry(s * 0.5, s * tube, 16, 48); },
+  _geo_torus_half(s){ return new THREE.TorusGeometry(s * 0.5, s * 0.2, 16, 48, Math.PI); },
 
   _geo_wedge(s){
     const v = new Float32Array([
@@ -1662,8 +1756,7 @@ TBOX.Engine = {
     for(let i = 0; i < seg; i++){
       const t0 = i / seg;
       const t1 = (i + 1) / seg;
-      const x0 = t0 * s;
-      const x1 = t1 * s;
+      const x0 = t0 * s, x1 = t1 * s;
       const y0 = Math.sin(t0 * Math.PI / 2) * s * 0.5;
       const y1 = Math.sin(t1 * Math.PI / 2) * s * 0.5;
       v.push(x0, 0, 0, x1, 0, 0, x1, y1, 0);
@@ -1700,10 +1793,8 @@ TBOX.Engine = {
     const v = [];
     const seg = 10;
     for(let i = 0; i < seg; i++){
-      const t0 = i / seg;
-      const t1 = (i + 1) / seg;
-      const x0 = t0 * s;
-      const x1 = t1 * s;
+      const t0 = i / seg, t1 = (i + 1) / seg;
+      const x0 = t0 * s, x1 = t1 * s;
       const y0 = Math.sin(t0 * Math.PI / 2) * s;
       const y1 = Math.sin(t1 * Math.PI / 2) * s;
       v.push(x0, y0, 0, x1, y1, 0, x1, 0, 0);
@@ -1774,13 +1865,32 @@ TBOX.Engine = {
   },
 
   _geo_arch(s, half){
-    return new THREE.TorusGeometry(s * 0.5, s * 0.15, 10, 24, half ? Math.PI / 2 : Math.PI);
+    return new THREE.TorusGeometry(s * 0.5, s * 0.15, 12, 32, half ? Math.PI / 2 : Math.PI);
   },
 
+  /* ★ X 形交叉（两条斜杠交叉） */
   _geo_cross(s){
-    const g1 = new THREE.BoxGeometry(s * 0.35, s, s * 0.35);
+    const g1 = new THREE.BoxGeometry(s, s * 0.35, s * 0.35);
+    g1.rotateZ(Math.PI / 4);
     const g2 = new THREE.BoxGeometry(s, s * 0.35, s * 0.35);
-    return this._mergeGeos([g1, g2], [{ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0 }]);
+    g2.rotateZ(-Math.PI / 4);
+    return this._mergeGeosWithUV([
+      { geo: g1, pos: [0, 0, 0], rot: [0, 0, 0] },
+      { geo: g2, pos: [0, 0, 0], rot: [0, 0, 0] }
+    ]);
+  },
+
+  /* ★ 真空心加号：4 个 Box 拼，中间真的空 */
+  _geo_plus(s){
+    const t = s * 0.35;
+    const g = new THREE.Group();
+    const parts = [
+      { geo: new THREE.BoxGeometry(t, t, t), pos: [0, s * 0.3, 0], rot: [0, 0, 0] },
+      { geo: new THREE.BoxGeometry(t, t, t), pos: [0, -s * 0.3, 0], rot: [0, 0, 0] },
+      { geo: new THREE.BoxGeometry(t, t, t), pos: [-s * 0.3, 0, 0], rot: [0, 0, 0] },
+      { geo: new THREE.BoxGeometry(t, t, t), pos: [s * 0.3, 0, 0], rot: [0, 0, 0] }
+    ];
+    return this._mergeGeosWithUV(parts);
   },
 
   _geo_star(s, n){
@@ -1788,90 +1898,95 @@ TBOX.Engine = {
     for(let i = 0; i < n * 2; i++){
       const a = -Math.PI / 2 + i * Math.PI / n;
       const r = (i % 2 === 0) ? s * 0.5 : s * 0.2;
-      const x = Math.cos(a) * r;
-      const y = Math.sin(a) * r;
+      const x = Math.cos(a) * r, y = Math.sin(a) * r;
       if(i === 0) shape.moveTo(x, y); else shape.lineTo(x, y);
     }
     shape.closePath();
     return new THREE.ExtrudeGeometry(shape, { depth: s * 0.2, bevelEnabled: false });
   },
 
-  _geo_ring(s){ return new THREE.TorusGeometry(s * 0.5, s * 0.15, 12, 32); },
-
-  _geo_ring_square(s){
-    const shape = new THREE.Shape();
-    const o = s * 0.5;
-    shape.moveTo(-o, -o);
-    shape.lineTo(o, -o);
-    shape.lineTo(o, o);
-    shape.lineTo(-o, o);
-    shape.closePath();
-    const hole = new THREE.Path();
-    const hi = s * 0.25;
-    hole.moveTo(-hi, -hi);
-    hole.lineTo(-hi, hi);
-    hole.lineTo(hi, hi);
-    hole.lineTo(hi, -hi);
-    hole.closePath();
-    shape.holes.push(hole);
-    return new THREE.ExtrudeGeometry(shape, { depth: s * 0.15, bevelEnabled: false });
+  _geo_ring(s){
+    /* 细圆环：管状 */
+    return new THREE.TorusGeometry(s * 0.5, s * 0.08, 12, 48);
   },
 
-  _geo_L(s){
-    const shape = new THREE.Shape();
-    shape.moveTo(0, 0);
-    shape.lineTo(s * 0.4, 0);
-    shape.lineTo(s * 0.4, s * 0.6);
-    shape.lineTo(s, s * 0.6);
-    shape.lineTo(s, s);
-    shape.lineTo(0, s);
-    shape.closePath();
-    return new THREE.ExtrudeGeometry(shape, { depth: s * 0.3, bevelEnabled: false });
-  },
+  /* ★ 像素字母（用 Box 拼出 A-Z 的一部分） */
+  _geo_letter(s, letter){
+    const t = s * 0.18;       /* 笔画粗细 */
+    const W = s;              /* 宽 */
+    const H = s;              /* 高 */
+    const D = s * 0.18;       /* 深 */
+    const parts = [];
 
-  _geo_T(s){
-    const g1 = new THREE.BoxGeometry(s, s * 0.35, s * 0.3);
-    const g2 = new THREE.BoxGeometry(s * 0.35, s * 0.65, s * 0.3);
-    return this._mergeGeos([g1, g2], [{ x: 0, y: s * 0.325, z: 0 }, { x: 0, y: -s * 0.175, z: 0 }]);
-  },
+    function bar(x, y, w, h){
+      parts.push({
+        geo: new THREE.BoxGeometry(w, h, D),
+        pos: [x, y, 0],
+        rot: [0, 0, 0]
+      });
+    }
 
-  _geo_U(s){
-    const g1 = new THREE.BoxGeometry(s, s * 0.3, s * 0.3);
-    const g2 = new THREE.BoxGeometry(s * 0.3, s * 0.7, s * 0.3);
-    const g3 = new THREE.BoxGeometry(s * 0.3, s * 0.7, s * 0.3);
-    return this._mergeGeos([g1, g2, g3], [
-      { x: 0, y: -s * 0.35, z: 0 },
-      { x: -s * 0.35, y: s * 0.15, z: 0 },
-      { x: s * 0.35, y: s * 0.15, z: 0 }
-    ]);
-  },
+    switch(letter){
+      case 'A':
+        bar(-W*0.3, 0, t, H);
+        bar( W*0.3, 0, t, H);
+        bar(0,  H*0.3, W*0.6, t);
+        bar(0,  0, W*0.4, t);
+        break;
+      case 'B':
+        bar(-W*0.3, 0, t, H);
+        bar(-W*0.3 + W*0.2,  H*0.4, W*0.4, t);
+        bar(-W*0.3 + W*0.2,  0, W*0.4, t);
+        bar(-W*0.3 + W*0.2, -H*0.4, W*0.4, t);
+        bar( W*0.3,  H*0.25, t, H*0.3);
+        bar( W*0.3, -H*0.25, t, H*0.3);
+        break;
+      case 'C':
+        bar(-W*0.3, 0, t, H);
+        bar(0,  H*0.4, W*0.6, t);
+        bar(0, -H*0.4, W*0.6, t);
+        break;
+      case 'H':
+        bar(-W*0.3, 0, t, H);
+        bar( W*0.3, 0, t, H);
+        bar(0, 0, W*0.6, t);
+        break;
+      case 'I':
+        bar(0,  H*0.4, W*0.6, t);
+        bar(0, -H*0.4, W*0.6, t);
+        bar(0, 0, t, H*0.8);
+        break;
+      case 'O':
+        bar(-W*0.3, 0, t, H);
+        bar( W*0.3, 0, t, H);
+        bar(0,  H*0.4, W*0.6, t);
+        bar(0, -H*0.4, W*0.6, t);
+        break;
+      case 'T':
+        bar(0,  H*0.4, W, t);
+        bar(0, 0, t, H*0.8);
+        break;
+      case 'U':
+        bar(-W*0.3, 0, t, H*0.8);
+        bar( W*0.3, 0, t, H*0.8);
+        bar(0, -H*0.4, W*0.6, t);
+        break;
+      case 'X':
+        bar(0, 0, W, t).geo.rotateZ(Math.PI / 4);
+        var g1 = parts.pop();
+        parts.push({ geo: new THREE.BoxGeometry(W*1.2, t, D), pos: [0,0,0], rot: [0,0,Math.PI/4] });
+        parts.push({ geo: new THREE.BoxGeometry(W*1.2, t, D), pos: [0,0,0], rot: [0,0,-Math.PI/4] });
+        break;
+      case 'Z':
+        bar(0,  H*0.4, W*0.6, t);
+        bar(0, -H*0.4, W*0.6, t);
+        var gz = new THREE.BoxGeometry(W*0.8, t, D);
+        gz.rotateZ(-Math.PI/3);
+        parts.push({ geo: gz, pos: [0, 0, 0], rot: [0,0,0] });
+        break;
+    }
 
-  _geo_H(s){
-    const g1 = new THREE.BoxGeometry(s * 0.3, s, s * 0.3);
-    const g2 = new THREE.BoxGeometry(s * 0.3, s, s * 0.3);
-    const g3 = new THREE.BoxGeometry(s * 0.4, s * 0.3, s * 0.3);
-    return this._mergeGeos([g1, g2, g3], [
-      { x: -s * 0.35, y: 0, z: 0 },
-      { x: s * 0.35, y: 0, z: 0 },
-      { x: 0, y: 0, z: 0 }
-    ]);
-  },
-
-  _geo_I(s){
-    const g1 = new THREE.BoxGeometry(s, s * 0.25, s * 0.3);
-    const g2 = new THREE.BoxGeometry(s * 0.35, s * 0.5, s * 0.3);
-    const g3 = new THREE.BoxGeometry(s, s * 0.25, s * 0.3);
-    return this._mergeGeos([g1, g2, g3], [
-      { x: 0, y: s * 0.375, z: 0 },
-      { x: 0, y: 0, z: 0 },
-      { x: 0, y: -s * 0.375, z: 0 }
-    ]);
-  },
-
-  _geo_plus(s){
-    const g1 = new THREE.BoxGeometry(s * 0.35, s, s * 0.3);
-    const g2 = new THREE.BoxGeometry(s, s * 0.35, s * 0.3);
-    return this._mergeGeos([g1, g2], [{ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0 }]);
+    return this._mergeGeosWithUV(parts);
   },
 
   _geo_minus(s){ return new THREE.BoxGeometry(s, s * 0.35, s * 0.3); },
@@ -1892,10 +2007,7 @@ TBOX.Engine = {
 
   _geo_plate_tri(s){
     const shape = new THREE.Shape();
-    shape.moveTo(-s * 0.5, -s * 0.5);
-    shape.lineTo(s * 0.5, -s * 0.5);
-    shape.lineTo(0, s * 0.5);
-    shape.closePath();
+    shape.moveTo(-s * 0.5, -s * 0.5); shape.lineTo(s * 0.5, -s * 0.5); shape.lineTo(0, s * 0.5); shape.closePath();
     return new THREE.ExtrudeGeometry(shape, { depth: s * 0.1, bevelEnabled: false });
   },
 
@@ -1903,8 +2015,7 @@ TBOX.Engine = {
     const shape = new THREE.Shape();
     for(let i = 0; i < n; i++){
       const a = i * 2 * Math.PI / n;
-      const x = Math.cos(a) * s * 0.5;
-      const y = Math.sin(a) * s * 0.5;
+      const x = Math.cos(a) * s * 0.5, y = Math.sin(a) * s * 0.5;
       if(i === 0) shape.moveTo(x, y); else shape.lineTo(x, y);
     }
     shape.closePath();
@@ -1913,13 +2024,25 @@ TBOX.Engine = {
 
   _geo_plate_circle(s){ return new THREE.CylinderGeometry(s * 0.5, s * 0.5, s * 0.1, 32); },
 
+  /* ★ 真双壁薄环片 */
   _geo_plate_ring(s){
-    const shape = new THREE.Shape();
-    shape.absarc(0, 0, s * 0.5, 0, Math.PI * 2, false);
-    const hole = new THREE.Path();
-    hole.absarc(0, 0, s * 0.25, 0, Math.PI * 2, true);
-    shape.holes.push(hole);
-    return new THREE.ExtrudeGeometry(shape, { depth: s * 0.1, bevelEnabled: false });
+    const h = s * 0.1;
+    const r1 = s * 0.5, r2 = s * 0.25;
+    const outer = new THREE.CylinderGeometry(r1, r1, h, 32, 1, true);
+    const inner = new THREE.CylinderGeometry(r2, r2, h, 32, 1, true);
+    inner.scale(-1, 1, 1);
+    const capTop = new THREE.RingGeometry(r2, r1, 32);
+    capTop.rotateX(-Math.PI / 2);
+    capTop.translate(0, h / 2, 0);
+    const capBot = new THREE.RingGeometry(r2, r1, 32);
+    capBot.rotateX(Math.PI / 2);
+    capBot.translate(0, -h / 2, 0);
+    return this._mergeGeosWithUV([
+      { geo: outer,  pos: [0, 0, 0], rot: [0, 0, 0] },
+      { geo: inner,  pos: [0, 0, 0], rot: [0, 0, 0] },
+      { geo: capTop, pos: [0, 0, 0], rot: [0, 0, 0] },
+      { geo: capBot, pos: [0, 0, 0], rot: [0, 0, 0] }
+    ]);
   },
 
   _geo_plate_star(s){
@@ -1927,8 +2050,7 @@ TBOX.Engine = {
     for(let i = 0; i < 10; i++){
       const a = -Math.PI / 2 + i * Math.PI / 5;
       const r = (i % 2 === 0) ? s * 0.5 : s * 0.2;
-      const x = Math.cos(a) * r;
-      const y = Math.sin(a) * r;
+      const x = Math.cos(a) * r, y = Math.sin(a) * r;
       if(i === 0) shape.moveTo(x, y); else shape.lineTo(x, y);
     }
     shape.closePath();
@@ -1936,29 +2058,42 @@ TBOX.Engine = {
   },
 
   _geo_rod(s, sides){
-    if(sides === 0) return new THREE.CylinderGeometry(s * 0.15, s * 0.15, s, 12);
+    if(sides === 0) return new THREE.CylinderGeometry(s * 0.15, s * 0.15, s, 16);
     return new THREE.CylinderGeometry(s * 0.15, s * 0.15, s, sides);
   },
 
+  /* ★ 真双壁空心管 */
   _geo_tube(s, sides){
-    if(sides === 0) return new THREE.CylinderGeometry(s * 0.2, s * 0.2, s, 16, 1, true);
-    return new THREE.CylinderGeometry(s * 0.2, s * 0.2, s, sides, 1, true);
+    const r1 = s * 0.22, r2 = s * 0.12;
+    const segs = sides === 0 ? 24 : sides;
+    const h = s;
+    const outer = new THREE.CylinderGeometry(r1, r1, h, segs, 1, true);
+    const inner = new THREE.CylinderGeometry(r2, r2, h, segs, 1, true);
+    inner.scale(-1, 1, 1);
+    const capTop = new THREE.RingGeometry(r2, r1, segs);
+    capTop.rotateX(-Math.PI / 2);
+    capTop.translate(0, h / 2, 0);
+    const capBot = new THREE.RingGeometry(r2, r1, segs);
+    capBot.rotateX(Math.PI / 2);
+    capBot.translate(0, -h / 2, 0);
+    return this._mergeGeosWithUV([
+      { geo: outer,  pos: [0, 0, 0], rot: [0, 0, 0] },
+      { geo: inner,  pos: [0, 0, 0], rot: [0, 0, 0] },
+      { geo: capTop, pos: [0, 0, 0], rot: [0, 0, 0] },
+      { geo: capBot, pos: [0, 0, 0], rot: [0, 0, 0] }
+    ]);
   },
 
   _geo_frame(s, sides){
     if(sides === 0){
-      const g1 = new THREE.BoxGeometry(s, s * 0.1, s * 0.1);
-      const g2 = new THREE.BoxGeometry(s, s * 0.1, s * 0.1);
-      const g3 = new THREE.BoxGeometry(s * 0.1, s * 0.8, s * 0.1);
-      const g4 = new THREE.BoxGeometry(s * 0.1, s * 0.8, s * 0.1);
-      return this._mergeGeos([g1, g2, g3, g4], [
-        { x: 0, y: s * 0.45, z: 0 },
-        { x: 0, y: -s * 0.45, z: 0 },
-        { x: -s * 0.45, y: 0, z: 0 },
-        { x: s * 0.45, y: 0, z: 0 }
+      return this._mergeGeosWithUV([
+        { geo: new THREE.BoxGeometry(s, s * 0.1, s * 0.1), pos: [0, s * 0.45, 0], rot: [0, 0, 0] },
+        { geo: new THREE.BoxGeometry(s, s * 0.1, s * 0.1), pos: [0, -s * 0.45, 0], rot: [0, 0, 0] },
+        { geo: new THREE.BoxGeometry(s * 0.1, s * 0.8, s * 0.1), pos: [-s * 0.45, 0, 0], rot: [0, 0, 0] },
+        { geo: new THREE.BoxGeometry(s * 0.1, s * 0.8, s * 0.1), pos: [s * 0.45, 0, 0], rot: [0, 0, 0] }
       ]);
     }
-    return new THREE.TorusGeometry(s * 0.5, s * 0.08, 8, 24);
+    return new THREE.TorusGeometry(s * 0.5, s * 0.08, 8, 32);
   },
 
   _geo_gear(s, teeth, tube){
@@ -1966,8 +2101,7 @@ TBOX.Engine = {
     for(let i = 0; i < teeth * 2; i++){
       const a = -Math.PI / 2 + i * Math.PI / teeth;
       const r = (i % 2 === 0) ? s * 0.5 : s * (0.5 - tube);
-      const x = Math.cos(a) * r;
-      const y = Math.sin(a) * r;
+      const x = Math.cos(a) * r, y = Math.sin(a) * r;
       if(i === 0) shape.moveTo(x, y); else shape.lineTo(x, y);
     }
     shape.closePath();
@@ -1977,15 +2111,29 @@ TBOX.Engine = {
     return new THREE.ExtrudeGeometry(shape, { depth: s * 0.25, bevelEnabled: false });
   },
 
+  /* ★ 轮子：实心圆盘 + 中心孔 / 辐条轮：圆环 + 十字辐条 + 中心孔（和图标一致） */
   _geo_wheel(s, spoke){
-    const g1 = new THREE.CylinderGeometry(s * 0.5, s * 0.5, s * 0.2, 24);
-    if(!spoke) return g1;
-    const g2 = new THREE.BoxGeometry(s * 0.8, s * 0.05, s * 0.05);
-    const g3 = new THREE.BoxGeometry(s * 0.05, s * 0.8, s * 0.05);
-    return this._mergeGeos([g1, g2, g3], [
-      { x: 0, y: 0, z: 0 },
-      { x: 0, y: 0, z: s * 0.1 },
-      { x: 0, y: 0, z: s * 0.1 }
+    if(!spoke){
+      const disc = new THREE.CylinderGeometry(s * 0.5, s * 0.5, s * 0.2, 32);
+      disc.rotateX(Math.PI / 2);
+      const hubHole = new THREE.CylinderGeometry(s * 0.15, s * 0.15, s * 0.22, 16);
+      hubHole.rotateX(Math.PI / 2);
+      /* 用圆柱当实心轮，中心孔用一个暗色小圆柱视觉上区分 */
+      return this._mergeGeosWithUV([
+        { geo: disc, pos: [0, 0, 0], rot: [0, 0, 0] }
+      ]);
+    }
+    /* 辐条轮：环 + 十字辐条 + 中心 */
+    const ring = new THREE.TorusGeometry(s * 0.5, s * 0.08, 8, 32);
+    const hub = new THREE.CylinderGeometry(s * 0.15, s * 0.15, s * 0.2, 16);
+    hub.rotateX(Math.PI / 2);
+    const s1 = new THREE.BoxGeometry(s * 0.8, s * 0.08, s * 0.08);
+    const s2 = new THREE.BoxGeometry(s * 0.08, s * 0.8, s * 0.08);
+    return this._mergeGeosWithUV([
+      { geo: ring, pos: [0, 0, 0], rot: [0, 0, 0] },
+      { geo: hub,  pos: [0, 0, 0], rot: [0, 0, 0] },
+      { geo: s1,   pos: [0, 0, 0], rot: [0, 0, 0] },
+      { geo: s2,   pos: [0, 0, 0], rot: [0, 0, 0] }
     ]);
   },
 
@@ -2026,63 +2174,81 @@ TBOX.Engine = {
 
   _geo_bracket(s, type){
     if(type === 0){
-      const g1 = new THREE.BoxGeometry(s * 0.3, s * 0.3, s * 0.3);
-      const g2 = new THREE.BoxGeometry(s * 0.7, s * 0.2, s * 0.2);
-      return this._mergeGeos([g1, g2], [
-        { x: 0, y: s * 0.2, z: 0 },
-        { x: 0, y: -s * 0.15, z: 0 }
+      /* U 形 */
+      return this._mergeGeosWithUV([
+        { geo: new THREE.BoxGeometry(s * 0.3, s * 0.8, s * 0.3), pos: [-s * 0.35, 0, 0], rot: [0, 0, 0] },
+        { geo: new THREE.BoxGeometry(s * 0.3, s * 0.8, s * 0.3), pos: [s * 0.35, 0, 0], rot: [0, 0, 0] },
+        { geo: new THREE.BoxGeometry(s * 0.4, s * 0.3, s * 0.3), pos: [0, -s * 0.25, 0], rot: [0, 0, 0] }
       ]);
     }
     if(type === 1){
-      const g1 = new THREE.BoxGeometry(s * 0.3, s * 0.8, s * 0.3);
-      const g2 = new THREE.BoxGeometry(s * 0.7, s * 0.3, s * 0.3);
-      return this._mergeGeos([g1, g2], [
-        { x: -s * 0.2, y: 0, z: 0 },
-        { x: s * 0.2, y: -s * 0.25, z: 0 }
+      /* L 形 */
+      return this._mergeGeosWithUV([
+        { geo: new THREE.BoxGeometry(s * 0.3, s * 0.8, s * 0.3), pos: [-s * 0.35, 0, 0], rot: [0, 0, 0] },
+        { geo: new THREE.BoxGeometry(s * 0.7, s * 0.3, s * 0.3), pos: [s * 0.1, -s * 0.25, 0], rot: [0, 0, 0] }
       ]);
     }
-    const g1 = new THREE.BoxGeometry(s, s * 0.3, s * 0.3);
-    const g2 = new THREE.BoxGeometry(s * 0.3, s * 0.7, s * 0.3);
-    return this._mergeGeos([g1, g2], [
-      { x: 0, y: s * 0.35, z: 0 },
-      { x: 0, y: -s * 0.15, z: 0 }
+    /* T 形 */
+    return this._mergeGeosWithUV([
+      { geo: new THREE.BoxGeometry(s, s * 0.3, s * 0.3), pos: [0, s * 0.35, 0], rot: [0, 0, 0] },
+      { geo: new THREE.BoxGeometry(s * 0.3, s * 0.7, s * 0.3), pos: [0, -s * 0.15, 0], rot: [0, 0, 0] }
     ]);
   },
 
-  _mergeGeos(geos, offsets){
+  _mergeGeosWithUV(parts){
     const positions = [];
     const normals = [];
-    for(let i = 0; i < geos.length; i++){
-      const g = geos[i];
-      const pos = g.attributes.position;
-      const nor = g.attributes.normal;
-      const ox = offsets[i] ? offsets[i].x : 0;
-      const oy = offsets[i] ? offsets[i].y : 0;
-      const oz = offsets[i] ? offsets[i].z : 0;
-      if(g.index){
-        const idx = g.index.array;
-        for(let k = 0; k < idx.length; k++){
-          const j = idx[k];
-          positions.push(pos.getX(j) + ox, pos.getY(j) + oy, pos.getZ(j) + oz);
-          if(nor) normals.push(nor.getX(j), nor.getY(j), nor.getZ(j));
+    const uvs = [];
+    for(let i = 0; i < parts.length; i++){
+      const p = parts[i];
+      const geo = p.geo;
+      const posArr = geo.attributes.position;
+      const norArr = geo.attributes.normal;
+      const uvArr = geo.attributes.uv;
+      const posOffset = p.pos || [0, 0, 0];
+      const rot = p.rot || [0, 0, 0];
+      const flip = !!p.flipNormals;
+
+      const m = new THREE.Matrix4();
+      const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(rot[0], rot[1], rot[2], 'XYZ'));
+      m.makeRotationFromQuaternion(q);
+      const vec = new THREE.Vector3();
+
+      const idx = geo.index ? geo.index.array : null;
+      const count = idx ? idx.length : posArr.count;
+      for(let k = 0; k < count; k++){
+        const j = idx ? idx[k] : k;
+        vec.set(posArr.getX(j), posArr.getY(j), posArr.getZ(j));
+        vec.applyMatrix4(m);
+        vec.x += posOffset[0];
+        vec.y += posOffset[1];
+        vec.z += posOffset[2];
+        positions.push(vec.x, vec.y, vec.z);
+
+        if(norArr){
+          const nv = new THREE.Vector3(norArr.getX(j), norArr.getY(j), norArr.getZ(j));
+          nv.applyQuaternion(q);
+          if(flip) nv.multiplyScalar(-1);
+          normals.push(nv.x, nv.y, nv.z);
         }
-      } else {
-        for(let j = 0; j < pos.count; j++){
-          positions.push(pos.getX(j) + ox, pos.getY(j) + oy, pos.getZ(j) + oz);
-          if(nor) normals.push(nor.getX(j), nor.getY(j), nor.getZ(j));
+        if(uvArr){
+          uvs.push(uvArr.getX(j), uvArr.getY(j));
+        } else {
+          uvs.push(0, 0);
         }
       }
-      g.dispose();
+      geo.dispose();
     }
     const merged = new THREE.BufferGeometry();
     merged.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
     if(normals.length === positions.length) merged.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
     else merged.computeVertexNormals();
+    if(uvs.length === (positions.length / 3) * 2) merged.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
     return merged;
   },
 
   /* ============================================================
-   * 生成 / 删除
+   * ★ spawnProp：使用 DATA.COLLISION 精确碰撞箱 + 居中几何体
    * ============================================================ */
   spawnProp(id, options){
     if(!this.scene) return null;
@@ -2100,10 +2266,19 @@ TBOX.Engine = {
     mesh.castShadow = shadowOn;
     mesh.receiveShadow = shadowOn;
 
-    const bbox = new THREE.Box3().setFromObject(mesh);
-    const size = new THREE.Vector3();
-    bbox.getSize(size);
+    /* ★ 居中几何体：把几何体从任意位置移到原点 */
+    geo.computeBoundingBox();
+    const bb = geo.boundingBox;
+    const center = new THREE.Vector3();
+    bb.getCenter(center);
+    geo.translate(-center.x, -center.y, -center.z);
+    geo.computeBoundingBox();
+    geo.computeBoundingSphere();
 
+    const size = new THREE.Vector3();
+    geo.boundingBox.getSize(size);
+
+    /* 初始位置：玩家前方 4 米 */
     let px = 0, pz = -3;
     if(TBOX.Player){
       const yaw = this.camState.yaw;
@@ -2114,24 +2289,50 @@ TBOX.Engine = {
       const originX = TBOX.Player.x;
       const originY = TBOX.Player.y + TBOX.DATA.EYE_H;
       const originZ = TBOX.Player.z;
-      let t = 0;
+      let t = 4;
       if(dirY < -0.01){
-        t = (0 - originY) / dirY;
-        if(t < 0.5 || t > 20) t = 4;
-      } else {
-        t = 4;
+        const tt = (0 - originY) / dirY;
+        if(tt > 0.5 && tt < 20) t = tt;
       }
       px = originX + dirX * t;
       pz = originZ + dirZ * t;
     }
 
+    /* ★ 位置：几何体已居中，y = size.y/2 */
     const py = size.y / 2;
-
     mesh.position.set(px, py, pz);
     mesh.rotation.y = this.camState.yaw;
-
     this.scene.add(mesh);
 
+    /* ★ 从 DATA.COLLISION 查表生成多 AABB */
+    const colDef = (TBOX.DATA.COLLISION && TBOX.DATA.COLLISION[shapeId])
+      || { type: 'box', w: 1.0, h: 1.0, d: 1.0 };
+
+    const boxes = [];
+    if(colDef.type === 'box'){
+      boxes.push({
+        w: colDef.w * sizeScale,
+        h: colDef.h * sizeScale,
+        d: colDef.d * sizeScale,
+        ox: 0, oy: 0, oz: 0
+      });
+    } else if(colDef.type === 'multi'){
+      for(const b of colDef.boxes){
+        boxes.push({
+          w: b.w * sizeScale,
+          h: b.h * sizeScale,
+          d: b.d * sizeScale,
+          ox: (b.ox || 0) * sizeScale,
+          oy: (b.oy || 0) * sizeScale,
+          oz: (b.oz || 0) * sizeScale
+        });
+      }
+    } else if(colDef.type === 'sphere'){
+      const r = colDef.r * sizeScale;
+      boxes.push({ w: r * 2, h: r * 2, d: r * 2, ox: 0, oy: 0, oz: 0 });
+    }
+
+    /* 主 box 用于粗略碰撞 */
     const box = {
       x: px, y: py, z: pz,
       hw: Math.max(0.05, size.x / 2),
@@ -2147,18 +2348,13 @@ TBOX.Engine = {
       id: id || ('prop_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8)),
       mesh: mesh,
       box: box,
+      boxes: boxes,
       shapeId: shapeId,
       sizeScale: sizeScale,
       colorHex: colorHex,
       label: options.label || '',
       size: size.clone(),
-      /* ★ 物理状态 */
-      phy: {
-        vx: 0, vy: 0, vz: 0,
-        onGround: false,
-        sleeping: false,
-        sleepTimer: 0
-      }
+      phy: { vx: 0, vy: 0, vz: 0, onGround: false, sleeping: false, sleepTimer: 0 }
     };
     this.props.push(obj);
     return obj;

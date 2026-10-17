@@ -1,6 +1,6 @@
 /* ============================================================
  * data.js · 数据系统
- * V1.0.0 · 纯中文 + 准星29种/击中29种 + AABB + 踢飞 + 物理
+ * V2.0.0 · 去重形状 + 精确多AABB碰撞 + 真双壁空心 + 攻击推物
  * ============================================================ */
 window.TBOX = window.TBOX || {};
 
@@ -92,38 +92,220 @@ TBOX.DATA = {
     legMaxY: 0.85
   },
 
-  /* ★ 物体物理配置 */
   PHYSICS: {
     enable: true,
-    gravity: -22,           /* 物体重力 */
-    friction: 4.0,          /* 地面摩擦（每秒衰减） */
-    airFriction: 0.5,       /* 空中摩擦 */
-    restitution: 0.15,      /* 弹性（0 = 不弹，1 = 完全弹） */
-    sleepSpeed: 0.05,       /* 小于这个速度就睡觉 */
-    sleepTime: 0.5,         /* 持续多久睡觉 */
-    maxProps: 300,          /* 最大物体数量（超过自动删最早的） */
-    /* 物体间碰撞 */
+    gravity: -22,
+    friction: 4.0,
+    airFriction: 0.5,
+    restitution: 0.15,
+    sleepSpeed: 0.05,
+    sleepTime: 0.5,
+    maxProps: 300,
     propCollision: true,
-    /* 物体撞台阶 */
     collideStairs: true,
-    /* 玩家推物体 */
     playerPush: true,
-    playerPushForce: 6.0,   /* 推力量 */
-    /* 物体跟随玩家（抓取） */
-    grabFollowLambda: 20    /* 跟随插值速度 */
+    playerPushForce: 6.0,
+    grabFollowLambda: 20
   },
 
-  /* ★ 抓取配置 */
   GRAB: {
     enable: true,
-    range: 3.0,             /* 射线检测距离 */
-    holdDistance: 1.5,      /* 物体离玩家手的距离 */
-    holdHeight: 1.3,        /* 物体在手上的高度（世界 Y） */
-    throwSpeed: 12.0,       /* 抛出初速度 */
-    grabKey: 'KeyE',        /* 抓取键 */
-    throwKey: 'Mouse0',     /* 抛出键（可选，左键） */
-    /* 抓取时，物体朝向玩家 */
+    range: 3.0,
+    holdDistance: 1.5,
+    holdHeight: 1.3,
+    throwSpeed: 12.0,
+    grabKey: 'KeyE',
+    throwKey: 'Mouse0',
     facePlayer: true
+  },
+
+  /* ★ 攻击推物体的配置 */
+  ATTACK_PUSH: {
+    enable: true,
+    force: 8.0,
+    upForce: 1.5,
+    range: 2.0
+  },
+
+  /* ★ 每个形状的精确碰撞箱定义
+   * type: 'box'   单一 AABB
+   *       'multi' 多个 AABB
+   *       'sphere' 球体（用半径）
+   * 参数：w/h/d 宽高深（相对 sizeScale）
+   *      ox/oy/oz 偏移（相对 sizeScale）
+   */
+  COLLISION: {
+    /* 多面体 */
+    'cube':             { type: 'box', w: 1.0, h: 1.0, d: 1.0 },
+    'cuboid':           { type: 'box', w: 1.6, h: 0.8, d: 1.0 },
+    'tetrahedron':      { type: 'sphere', r: 0.45 },
+    'octahedron':       { type: 'sphere', r: 0.45 },
+    'dodecahedron':     { type: 'sphere', r: 0.45 },
+    'icosahedron':      { type: 'sphere', r: 0.45 },
+    'sphere':           { type: 'sphere', r: 0.5 },
+    'hemisphere':       { type: 'sphere', r: 0.5, hy: 0.5, oy: -0.25 },
+    'quarter-sphere':   { type: 'sphere', r: 0.5, ox: -0.25, oy: -0.25 },
+    'capsule':          { type: 'box', w: 0.7, h: 1.0, d: 0.7 },
+
+    /* 棱柱 */
+    'prism3':           { type: 'box', w: 0.9, h: 1.0, d: 0.9 },
+    'prism4':           { type: 'box', w: 1.0, h: 1.0, d: 1.0 },
+    'prism5':           { type: 'box', w: 0.95, h: 1.0, d: 0.95 },
+    'prism6':           { type: 'box', w: 1.0, h: 1.0, d: 1.0 },
+    'prism8':           { type: 'box', w: 1.0, h: 1.0, d: 1.0 },
+    'prism12':          { type: 'box', w: 1.0, h: 1.0, d: 1.0 },
+    'prism16':          { type: 'box', w: 1.0, h: 1.0, d: 1.0 },
+
+    /* 棱锥 */
+    'pyramid3':         { type: 'box', w: 0.9, h: 1.0, d: 0.9 },
+    'pyramid4':         { type: 'box', w: 1.0, h: 1.0, d: 1.0 },
+    'pyramid5':         { type: 'box', w: 0.95, h: 1.0, d: 0.95 },
+    'pyramid6':         { type: 'box', w: 1.0, h: 1.0, d: 1.0 },
+    'pyramid8':         { type: 'box', w: 1.0, h: 1.0, d: 1.0 },
+    'pyramid12':        { type: 'box', w: 1.0, h: 1.0, d: 1.0 },
+    'pyramid16':        { type: 'box', w: 1.0, h: 1.0, d: 1.0 },
+
+    /* 圆柱 / 圆锥 / 圆盘 */
+    'cylinder':         { type: 'box', w: 1.0, h: 1.0, d: 1.0 },
+    'cylinder-hollow':  { type: 'multi', boxes: [
+                          { w: 1.0, h: 1.0, d: 0.15, ox: 0, oy: 0, oz: -0.5 },
+                          { w: 1.0, h: 1.0, d: 0.15, ox: 0, oy: 0, oz:  0.5 },
+                          { w: 0.15, h: 1.0, d: 0.8, ox: -0.5, oy: 0, oz: 0 },
+                          { w: 0.15, h: 1.0, d: 0.8, ox:  0.5, oy: 0, oz: 0 }
+                        ] },
+    'cone':             { type: 'box', w: 1.0, h: 1.0, d: 1.0 },
+    'cone-truncated':   { type: 'box', w: 1.0, h: 1.0, d: 1.0 },
+    'disc':             { type: 'box', w: 1.4, h: 0.08, d: 1.4 },
+    'disc-thick':       { type: 'box', w: 1.4, h: 0.35, d: 1.4 },
+    'disc-hollow':      { type: 'multi', boxes: [
+                          { w: 1.4, h: 0.15, d: 0.2, ox: 0, oy: 0, oz: -0.6 },
+                          { w: 1.4, h: 0.15, d: 0.2, ox: 0, oy: 0, oz:  0.6 },
+                          { w: 0.2, h: 0.15, d: 1.0, ox: -0.6, oy: 0, oz: 0 },
+                          { w: 0.2, h: 0.15, d: 1.0, ox:  0.6, oy: 0, oz: 0 }
+                        ] },
+    'torus':            { type: 'box', w: 1.0, h: 0.4, d: 1.0 },
+    'torus-thick':      { type: 'box', w: 1.0, h: 0.7, d: 1.0 },
+    'torus-half':       { type: 'box', w: 1.0, h: 0.4, d: 0.5 },
+
+    /* 楔形 / 斜坡 / 台阶 */
+    'wedge':            { type: 'box', w: 1.0, h: 0.5, d: 1.0 },
+    'wedge-curved':     { type: 'box', w: 1.0, h: 0.5, d: 1.0 },
+    'ramp':             { type: 'box', w: 1.0, h: 1.0, d: 1.0 },
+    'ramp-curved':      { type: 'box', w: 1.0, h: 1.0, d: 1.0 },
+    'step':             { type: 'box', w: 1.0, h: 1.0, d: 1.0 },
+    'stair':            { type: 'box', w: 1.0, h: 1.0, d: 1.0 },
+    'stair-spiral':     { type: 'box', w: 1.0, h: 1.0, d: 1.0 },
+    'arch':             { type: 'box', w: 1.0, h: 1.0, d: 0.4 },
+    'arch-half':        { type: 'box', w: 0.5, h: 1.0, d: 0.4 },
+
+    /* 特殊形状 */
+    'cross':            { type: 'multi', boxes: [
+                          { w: 1.0, h: 0.35, d: 0.35, ox: 0, oy: 0, oz: 0 },
+                          { w: 0.35, h: 1.0, d: 0.35, ox: 0, oy: 0, oz: 0 }
+                        ] },
+    'plus':             { type: 'multi', boxes: [
+                          { w: 0.35, h: 0.35, d: 0.35, ox: 0, oy: 0.3, oz: 0 },
+                          { w: 0.35, h: 0.35, d: 0.35, ox: 0, oy: -0.3, oz: 0 },
+                          { w: 0.35, h: 0.35, d: 0.35, ox: -0.3, oy: 0, oz: 0 },
+                          { w: 0.35, h: 0.35, d: 0.35, ox: 0.3, oy: 0, oz: 0 }
+                        ] },
+    'star3':            { type: 'sphere', r: 0.5 },
+    'star4':            { type: 'sphere', r: 0.5 },
+    'star5':            { type: 'sphere', r: 0.5 },
+    'star6':            { type: 'sphere', r: 0.5 },
+    'star8':            { type: 'sphere', r: 0.5 },
+    'ring':             { type: 'box', w: 1.0, h: 0.2, d: 1.0 },
+
+    /* 字母（像素风） */
+    'A-shape':          { type: 'box', w: 0.8, h: 1.0, d: 0.2 },
+    'B-shape':          { type: 'box', w: 0.8, h: 1.0, d: 0.2 },
+    'C-shape':          { type: 'box', w: 0.8, h: 1.0, d: 0.2 },
+    'H-shape':          { type: 'box', w: 0.8, h: 1.0, d: 0.2 },
+    'I-shape':          { type: 'box', w: 0.6, h: 1.0, d: 0.2 },
+    'O-shape':          { type: 'box', w: 0.8, h: 1.0, d: 0.2 },
+    'T-shape':          { type: 'box', w: 0.8, h: 1.0, d: 0.2 },
+    'U-shape':          { type: 'box', w: 0.8, h: 1.0, d: 0.2 },
+    'X-shape':          { type: 'box', w: 0.8, h: 1.0, d: 0.2 },
+    'Z-shape':          { type: 'box', w: 0.8, h: 1.0, d: 0.2 },
+
+    'minus':            { type: 'box', w: 1.0, h: 0.35, d: 0.3 },
+    'slash':            { type: 'box', w: 1.0, h: 0.2, d: 0.2 },
+    'backslash':        { type: 'box', w: 1.0, h: 0.2, d: 0.2 },
+
+    /* 薄片 / 面板 */
+    'plate-square':     { type: 'box', w: 1.0, h: 0.1, d: 1.0 },
+    'plate-rect':       { type: 'box', w: 2.0, h: 0.1, d: 1.0 },
+    'plate-tri':        { type: 'box', w: 1.0, h: 0.1, d: 1.0 },
+    'plate-hex':        { type: 'box', w: 1.0, h: 0.1, d: 1.0 },
+    'plate-oct':        { type: 'box', w: 1.0, h: 0.1, d: 1.0 },
+    'plate-circle':     { type: 'box', w: 1.0, h: 0.1, d: 1.0 },
+    'plate-ring':       { type: 'multi', boxes: [
+                          { w: 1.0, h: 0.1, d: 0.15, ox: 0, oy: 0, oz: -0.42 },
+                          { w: 1.0, h: 0.1, d: 0.15, ox: 0, oy: 0, oz:  0.42 },
+                          { w: 0.15, h: 0.1, d: 0.7, ox: -0.42, oy: 0, oz: 0 },
+                          { w: 0.15, h: 0.1, d: 0.7, ox:  0.42, oy: 0, oz: 0 }
+                        ] },
+    'plate-star':       { type: 'box', w: 1.0, h: 0.1, d: 1.0 },
+
+    /* 细杆 / 管 */
+    'rod':              { type: 'box', w: 0.3, h: 1.0, d: 0.3 },
+    'rod-hex':          { type: 'box', w: 0.3, h: 1.0, d: 0.3 },
+    'tube':             { type: 'multi', boxes: [
+                          { w: 0.44, h: 1.0, d: 0.15, ox: 0, oy: 0, oz: -0.15 },
+                          { w: 0.44, h: 1.0, d: 0.15, ox: 0, oy: 0, oz:  0.15 },
+                          { w: 0.15, h: 1.0, d: 0.14, ox: -0.15, oy: 0, oz: 0 },
+                          { w: 0.15, h: 1.0, d: 0.14, ox:  0.15, oy: 0, oz: 0 }
+                        ] },
+    'tube-square':      { type: 'multi', boxes: [
+                          { w: 0.44, h: 1.0, d: 0.15, ox: 0, oy: 0, oz: -0.15 },
+                          { w: 0.44, h: 1.0, d: 0.15, ox: 0, oy: 0, oz:  0.15 },
+                          { w: 0.15, h: 1.0, d: 0.14, ox: -0.15, oy: 0, oz: 0 },
+                          { w: 0.15, h: 1.0, d: 0.14, ox:  0.15, oy: 0, oz: 0 }
+                        ] },
+    'tube-hex':         { type: 'multi', boxes: [
+                          { w: 0.44, h: 1.0, d: 0.15, ox: 0, oy: 0, oz: -0.15 },
+                          { w: 0.44, h: 1.0, d: 0.15, ox: 0, oy: 0, oz:  0.15 },
+                          { w: 0.15, h: 1.0, d: 0.14, ox: -0.15, oy: 0, oz: 0 },
+                          { w: 0.15, h: 1.0, d: 0.14, ox:  0.15, oy: 0, oz: 0 }
+                        ] },
+    'frame':            { type: 'multi', boxes: [
+                          { w: 1.0, h: 0.1, d: 0.1, ox: 0, oy: 0.45, oz: 0 },
+                          { w: 1.0, h: 0.1, d: 0.1, ox: 0, oy: -0.45, oz: 0 },
+                          { w: 0.1, h: 0.8, d: 0.1, ox: -0.45, oy: 0, oz: 0 },
+                          { w: 0.1, h: 0.8, d: 0.1, ox: 0.45, oy: 0, oz: 0 }
+                        ] },
+    'frame-circle':     { type: 'box', w: 1.0, h: 1.0, d: 0.1 },
+
+    /* 复杂组合体 */
+    'gear':             { type: 'box', w: 1.0, h: 1.0, d: 0.25 },
+    'gear-thick':       { type: 'box', w: 1.0, h: 1.0, d: 0.35 },
+    'wheel':            { type: 'sphere', r: 0.5 },
+    'wheel-spoke':      { type: 'multi', boxes: [
+                          { w: 1.0, h: 0.2, d: 0.15, ox: 0, oy: 0.42, oz: 0 },
+                          { w: 1.0, h: 0.2, d: 0.15, ox: 0, oy: -0.42, oz: 0 },
+                          { w: 0.15, h: 0.2, d: 0.7, ox: -0.42, oy: 0, oz: 0 },
+                          { w: 0.15, h: 0.2, d: 0.7, ox:  0.42, oy: 0, oz: 0 }
+                        ] },
+    'bar':              { type: 'box', w: 1.0, h: 0.2, d: 0.2 },
+    'bar-curved':       { type: 'box', w: 1.0, h: 0.5, d: 0.2 },
+    'beam':             { type: 'box', w: 1.0, h: 0.25, d: 0.25 },
+    'beam-curved':      { type: 'box', w: 1.0, h: 0.6, d: 0.3 },
+    'panel':            { type: 'box', w: 0.6, h: 1.0, d: 0.1 },
+    'panel-curved':     { type: 'box', w: 0.6, h: 1.0, d: 0.1 },
+
+    'bracket-U':        { type: 'multi', boxes: [
+                          { w: 0.3, h: 0.8, d: 0.3, ox: -0.35, oy: 0, oz: 0 },
+                          { w: 0.3, h: 0.8, d: 0.3, ox:  0.35, oy: 0, oz: 0 },
+                          { w: 0.4, h: 0.3, d: 0.3, ox: 0, oy: -0.25, oz: 0 }
+                        ] },
+    'bracket-L':        { type: 'multi', boxes: [
+                          { w: 0.3, h: 0.8, d: 0.3, ox: -0.35, oy: 0, oz: 0 },
+                          { w: 0.7, h: 0.3, d: 0.3, ox: 0.1, oy: -0.25, oz: 0 }
+                        ] },
+    'bracket-T':        { type: 'multi', boxes: [
+                          { w: 1.0, h: 0.3, d: 0.3, ox: 0, oy: 0.35, oz: 0 },
+                          { w: 0.3, h: 0.7, d: 0.3, ox: 0, oy: -0.15, oz: 0 }
+                        ] }
   },
 
   PUSH: {
