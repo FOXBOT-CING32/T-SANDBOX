@@ -1,77 +1,36 @@
 /* ============================================================
  * engine.js · 游戏引擎系统
- * V2.0.0 · 精确多AABB碰撞 + 真双壁空心 + 第三人称抓取 + 图标一致
+ * V4.0.0 · 彻底重做几何体（防穿模）+ 重力拿取脱手
  * ============================================================ */
 window.TBOX = window.TBOX || {};
 
 TBOX.Engine = {
-  scene: null,
-  camera: null,
-  renderer: null,
-  controls: null,
-  sunLight: null,
-  hemiLight: null,
-  ground: null,
-  groundMat: null,
-  stairs: [],
-  props: [],
-  clock: 0,
-  running: false,
-  paused: false,
-  lastTime: 0,
-  shadowTick: 0,
-  fpsAcc: 0,
-  fpsFrames: 0,
-  fpsValue: 60,
-  Q: null,
-  hdrEnabled: false,
-  hdrTexture: null,
-  envTexture: null,
+  scene: null, camera: null, renderer: null, controls: null,
+  sunLight: null, hemiLight: null, ground: null, groundMat: null,
+  stairs: [], props: [], clock: 0, running: false, paused: false,
+  lastTime: 0, shadowTick: 0, fpsAcc: 0, fpsFrames: 0, fpsValue: 60,
+  Q: null, hdrEnabled: false, hdrTexture: null, envTexture: null,
 
-  composer: null,
-  bloomPass: null,
-  fxaaPass: null,
-  renderPass: null,
-  motionBlurPass: null,
-  filmGrainPass: null,
-  colorGradePass: null,
-  postProcessingEnabled: false,
-  postProcessingAllowed: true,
+  composer: null, bloomPass: null, fxaaPass: null, renderPass: null,
+  motionBlurPass: null, filmGrainPass: null, colorGradePass: null,
+  postProcessingEnabled: false, postProcessingAllowed: true,
 
-  csm: null,
-  csmEnabled: false,
-
-  aabbStatic: [],
-  aabbDynamic: [],
-
+  csm: null, csmEnabled: false, aabbStatic: [], aabbDynamic: [],
   _chSpreadCurrent: 0,
 
-  camState: {
-    yaw: 0, pitch: 0, mode: 'fps', transition: 0, viewRoll: 0, shakeTime: 0, shakeMag: 0
-  },
-
-  swayTime: 0, swayX: 0, swayY: 0,
-  runShakeX: 0, runShakeY: 0,
+  camState: { yaw: 0, pitch: 0, mode: 'fps', transition: 0, viewRoll: 0, shakeTime: 0, shakeMag: 0 },
+  swayTime: 0, swayX: 0, swayY: 0, runShakeX: 0, runShakeY: 0,
 
   vitals: { heart: 72, heartTarget: 72, lung: 16, lungTarget: 16, heartPhase: 0, lungPhase: 0, lastHeartbeat: 0, lastBreath: 0 },
   hurtFx: { blinkPhase: 0, blinkTimer: 0, hitFrameOn: false, hitFrameTimer: 0, slowMoCurrent: 1.0 },
   deathFx: { active: false, timer: 0, fadeLevel: 0, blinkLevel: 0, dizzyRoll: 0, dizzyTime: 0, camFollowHead: true },
 
   player: null, character: null, dummy: null,
-  keys: {}, isTouch: false,
-  ambientWind: null, ambientBirds: null,
+  keys: {}, isTouch: false, ambientWind: null, ambientBirds: null,
+  grabbedProp: null, grabDist: 0, grabState: 'none', grabTimer: 0,
 
-  grabbedProp: null,
-  grabDist: 0,
-
-  _tmpHeadWorld: null,
-  _tmpHeadQuat: null,
-  _tmpEuler: null,
-  _tmpLookAt: null,
-  _tmpShadowQuat: null,
-  _lastFilter: '',
-
-  _propMatCache: new Map(),
+  _tmpHeadWorld: null, _tmpHeadQuat: null, _tmpEuler: null, _tmpLookAt: null, _tmpShadowQuat: null,
+  _lastFilter: '', _propMatCache: new Map(),
 
   init(){
     this.isTouch = TBOX.Utils.isTouch();
@@ -97,6 +56,7 @@ TBOX.Engine = {
     this.renderer.setSize(innerWidth, innerHeight);
     const resScale = TBOX.Save.getNum('tbox_resScale', 100) / 100;
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, Q.pixelRatio * resScale));
+    
     this._applyToneMapping();
     const shadowOn = TBOX.Save.get('tbox_shadow', '0') === '1';
     this.renderer.shadowMap.enabled = shadowOn;
@@ -145,9 +105,7 @@ TBOX.Engine = {
         this.groundMat.map = tex;
         this.groundMat.color.set(0xffffff);
         this.groundMat.needsUpdate = true;
-      },
-      undefined,
-      () => { console.warn('[Engine] 草地贴图加载失败'); }
+      }
     );
 
     if(TBOX.Save.get('tbox_hdr', '0') === '1') this._loadHDR();
@@ -162,69 +120,133 @@ TBOX.Engine = {
 
     this._initPostProcessing();
 
-    if(TBOX.Save.get('tbox_csmEnabled', '0') === '1'){
-      setTimeout(() => this._initCSM(), 100);
-    }
+    if(TBOX.Save.get('tbox_csmEnabled', '0') === '1'){ setTimeout(() => this._initCSM(), 100); }
 
     addEventListener('resize', () => this._onResize());
 
-    this._tmpHeadWorld = new THREE.Vector3();
-    this._tmpHeadQuat = new THREE.Quaternion();
-    this._tmpEuler = new THREE.Euler();
-    this._tmpLookAt = new THREE.Vector3();
-    this._tmpShadowQuat = new THREE.Quaternion();
+    this._tmpHeadWorld = new THREE.Vector3(); this._tmpHeadQuat = new THREE.Quaternion();
+    this._tmpEuler = new THREE.Euler(); this._tmpLookAt = new THREE.Vector3(); this._tmpShadowQuat = new THREE.Quaternion();
   },
 
-  addAABB(box){
-    this.aabbStatic.push(box);
-    return box;
+  addAABB(box){ this.aabbStatic.push(box); return box; },
+  addDynamicAABB(box){ this.aabbDynamic.push(box); return box; },
+  clearDynamicAABB(){ this.aabbDynamic.length = 0; },
+
+  queryAABB(box, filter){
+    const out = []; const all = this.aabbStatic.concat(this.aabbDynamic);
+    for(let i = 0; i < all.length; i++){
+      const b = all[i]; if(filter && !filter(b)) continue; if(this._aabbOverlap(box, b)) out.push(b);
+    }
+    return out;
   },
 
-  addDynamicAABB(box){
-    this.aabbDynamic.push(box);
-    return box;
+  _aabbOverlap(a, b){
+    if(Math.abs(a.x - b.x) >= a.hw + b.hw) return false;
+    if(Math.abs(a.y - b.y) >= a.hh + b.hh) return false;
+    if(Math.abs(a.z - b.z) >= a.hd + b.hd) return false;
+    return true;
   },
 
-  clearDynamicAABB(){
-    this.aabbDynamic.length = 0;
+  sweepCapsule(from, to, radius, height){
+    const dx = to.x - from.x; const dz = to.z - from.z; const dist = Math.hypot(dx, dz);
+    const steps = Math.max(1, Math.ceil(dist / 0.1));
+    for(let i = 0; i <= steps; i++){
+      const t = i / steps;
+      const x = from.x + dx * t; const z = from.z + dz * t; const y = from.y + (to.y - from.y) * t;
+      const box = { x, y: y + height / 2, z, hw: radius, hh: height / 2, hd: radius };
+      const hits = this.queryAABB(box, (b) => b.tag !== 'prop');
+      if(hits.length > 0) return { hit: true, t, box: hits[0] };
+    }
+    return { hit: false };
   },
 
   _resolveAABBHorizontal(p, box, radius){
-    const dx = p.x - box.x;
-    const dz = p.z - box.z;
-    const halfW = box.hw + radius;
-    const halfD = box.hd + radius;
+    const dx = p.x - box.x; const dz = p.z - box.z;
+    const halfW = box.hw + radius; const halfD = box.hd + radius;
     if(Math.abs(dx) >= halfW || Math.abs(dz) >= halfD) return false;
     if(p.y >= box.topY - 0.15) return false;
     if(p.y + TBOX.DATA.PLAYER_HEIGHT <= box.bottomY) return false;
-    const overlapX = halfW - Math.abs(dx);
-    const overlapZ = halfD - Math.abs(dz);
+    const overlapX = halfW - Math.abs(dx); const overlapZ = halfD - Math.abs(dz);
     if(overlapX < overlapZ) p.x += (dx > 0 ? overlapX : -overlapX);
     else p.z += (dz > 0 ? overlapZ : -overlapZ);
     return true;
   },
 
   _resolveAABBGround(p, box){
-    const dx = p.x - box.x;
-    const dz = p.z - box.z;
+    const dx = p.x - box.x; const dz = p.z - box.z;
     if(Math.abs(dx) >= box.hw || Math.abs(dz) >= box.hd) return -Infinity;
     if(p.y >= box.topY - 0.15) return box.topY;
     return -Infinity;
   },
 
-  _getPropMat(colorHex){
-    const key = colorHex || '#ffffff';
-    let m = this._propMatCache.get(key);
-    if(!m){
-      m = new THREE.MeshStandardMaterial({
-        color: colorHex || '#ffffff',
-        emissive: 0x000000,
-        emissiveIntensity: 0,
-        roughness: 0.75,
-        metalness: 0.05
-      });
-      this._propMatCache.set(key, m);
+  resolvePlayerCollision(p){
+    const radius = TBOX.DATA.PLAYER_RADIUS;
+    if(this.dummy && this.dummy.alive && this.dummy.group){
+      const dx = p.x - this.dummy.group.position.x; const dz = p.z - this.dummy.group.position.z;
+      const dist = Math.hypot(dx, dz); const PUSH = radius + this.dummy.radius;
+      if(dist < PUSH && dist > 0.0001){ p.x += (dx / dist) * (PUSH - dist); p.z += (dz / dist) * (PUSH - dist); }
     }
+    if(TBOX.Corpse && TBOX.Corpse.list){
+      for(const c of TBOX.Corpse.list){
+        const dx = p.x - c.x, dz = p.z - c.z; const dist = Math.hypot(dx, dz); const R = 0.6 + radius;
+        if(dist < R && dist > 0.0001){ p.x += (dx / dist) * (R - dist); p.z += (dz / dist) * (R - dist); }
+      }
+    }
+    if(TBOX.DATA.PHYSICS.enable && TBOX.DATA.PHYSICS.playerPush){
+      const playerMass = TBOX.DATA.PHYSICS.playerMass || 70;
+      for(let i = 0; i < this.props.length; i++){
+        const obj = this.props[i]; if(!obj.mesh || obj === this.grabbedProp) continue;
+        const dx = obj.mesh.position.x - p.x; const dz = obj.mesh.position.z - p.z;
+        const dist = Math.hypot(dx, dz); const rad = radius + Math.max(obj.size.x, obj.size.z) / 2;
+        if(dist >= rad || dist < 0.0001) continue;
+        const nx = dx / dist, nz = dz / dist; const overlap = rad - dist;
+        const objMass = obj.mass || 1; const ratio = playerMass / (playerMass + objMass);
+        obj.mesh.position.x += nx * overlap * (1 - ratio * 0.5); obj.mesh.position.z += nz * overlap * (1 - ratio * 0.5);
+        p.x -= nx * overlap * ratio * 0.5; p.z -= nz * overlap * ratio * 0.5;
+        obj.phy.sleeping = false; obj.phy.sleepTimer = 0;
+      }
+    }
+    if(TBOX.DATA.AABB.enable){
+      const maxIter = TBOX.DATA.AABB.maxPushIter || 4;
+      for(let iter = 0; iter < maxIter; iter++){
+        let pushed = false;
+        for(let i = 0; i < this.aabbStatic.length; i++){ if(this._resolveAABBHorizontal(p, this.aabbStatic[i], radius)) pushed = true; }
+        for(let i = 0; i < this.aabbDynamic.length; i++){ if(this._resolveAABBHorizontal(p, this.aabbDynamic[i], radius)) pushed = true; }
+        if(!pushed) break;
+      }
+    }
+  },
+
+  resolvePlayerGround(p){
+    let groundY = 0; let onStair = false;
+    if(TBOX.DATA.AABB.enable){
+      for(let i = 0; i < this.aabbStatic.length; i++){ const g = this._resolveAABBGround(p, this.aabbStatic[i]); if(g > groundY){ groundY = g; onStair = true; } }
+      for(let i = 0; i < this.aabbDynamic.length; i++){ const g = this._resolveAABBGround(p, this.aabbDynamic[i]); if(g > groundY){ groundY = g; onStair = true; } }
+    } else {
+      for(const s of this.stairs){
+        const dx = p.x - s.x, dz = p.z - s.z;
+        if(Math.abs(dx) < s.halfW && Math.abs(dz) < s.halfD){ if(s.topY <= p.y + 0.45 && s.topY > groundY){ groundY = s.topY; onStair = true; } }
+      }
+    }
+    if(!onStair && groundY < 0) groundY = 0;
+    p.onStair = onStair;
+    return groundY;
+  },
+
+  isPlayerOnStair(){ const p = TBOX.Player; return p ? p.y > 0.8 : false; },
+
+  triggerShake(mag, time){
+    const level = TBOX.Save.get('tbox_shake', 'high'); const mul = TBOX.DATA.SHAKE_LEVEL[level] || 1;
+    const amount = TBOX.Save.getNum('tbox_shakeAmount', 100) / 100;
+    this.camState.shakeMag = Math.max(this.camState.shakeMag, mag * mul * amount);
+    this.camState.shakeTime = Math.max(this.camState.shakeTime, time);
+  },
+
+  setViewRoll(roll){ this.camState.viewRoll = roll; },
+
+  _getPropMat(colorHex){
+    const key = colorHex || '#ffffff'; let m = this._propMatCache.get(key);
+    if(!m){ m = new THREE.MeshStandardMaterial({ color: colorHex || '#ffffff', emissive: 0x000000, emissiveIntensity: 0, roughness: 0.75, metalness: 0.05 }); this._propMatCache.set(key, m); }
     return m;
   },
 
@@ -238,11 +260,7 @@ TBOX.Engine = {
       this.renderPass.renderToScreen = false;
       this.composer.addPass(this.renderPass);
 
-      this.bloomPass = new THREE.UnrealBloomPass(
-        new THREE.Vector2(w, h),
-        TBOX.Save.getNum('tbox_bloomStrength', 50) / 100,
-        0.4, 0.85
-      );
+      this.bloomPass = new THREE.UnrealBloomPass(new THREE.Vector2(w, h), TBOX.Save.getNum('tbox_bloomStrength', 50) / 100, 0.4, 0.85);
       this.bloomPass.enabled = TBOX.Save.get('tbox_bloom', '0') === '1';
       this.bloomPass.renderToScreen = false;
       this.composer.addPass(this.bloomPass);
@@ -251,269 +269,104 @@ TBOX.Engine = {
         const MotionBlurShader = {
           uniforms: { tDiffuse: { value: null }, intensity: { value: 0.5 }, time: { value: 0 } },
           vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
-          fragmentShader: `
-            uniform sampler2D tDiffuse; uniform float intensity; uniform float time; varying vec2 vUv;
-            void main(){
-              vec4 sum=vec4(0.0); float count=0.0;
-              for(float i=0.0;i<8.0;i++){ float t=i/8.0; vec2 offset=vec2(0.0,t*intensity*0.01); sum+=texture2D(tDiffuse,vUv+offset); count+=1.0; }
-              vec4 base=texture2D(tDiffuse,vUv); gl_FragColor=mix(base,sum/count,0.5);
-            }`
+          fragmentShader: `uniform sampler2D tDiffuse; uniform float intensity; uniform float time; varying vec2 vUv;
+            void main(){ vec4 sum=vec4(0.0); float count=0.0; for(float i=0.0;i<8.0;i++){ float t=i/8.0; vec2 offset=vec2(0.0,t*intensity*0.01); sum+=texture2D(tDiffuse,vUv+offset); count+=1.0; } vec4 base=texture2D(tDiffuse,vUv); gl_FragColor=mix(base,sum/count,0.5); }`
         };
-        const mbPass = new THREE.ShaderPass(MotionBlurShader);
-        mbPass.enabled = TBOX.Save.get('tbox_motionBlur', '0') === '1';
-        mbPass.renderToScreen = false;
-        this.motionBlurPass = mbPass;
-        this.composer.addPass(mbPass);
-      } catch(e){ console.warn('[Engine] 运动模糊初始化失败', e); }
+        const mbPass = new THREE.ShaderPass(MotionBlurShader); mbPass.enabled = TBOX.Save.get('tbox_motionBlur', '0') === '1'; mbPass.renderToScreen = false; this.motionBlurPass = mbPass; this.composer.addPass(mbPass);
+      } catch(e){}
 
       try {
         const FilmGrainShader = {
           uniforms: { tDiffuse: { value: null }, time: { value: 0 }, intensity: { value: 0.15 } },
           vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
-          fragmentShader: `
-            uniform sampler2D tDiffuse; uniform float time; uniform float intensity; varying vec2 vUv;
-            float rand(vec2 co){ return fract(sin(dot(co.xy,vec2(12.9898,78.233)))*43758.5453); }
-            void main(){ vec4 color=texture2D(tDiffuse,vUv); float grain=rand(vUv+time)-0.5; color.rgb+=grain*intensity; gl_FragColor=color; }`
+          fragmentShader: `uniform sampler2D tDiffuse; uniform float time; uniform float intensity; varying vec2 vUv; float rand(vec2 co){ return fract(sin(dot(co.xy,vec2(12.9898,78.233)))*43758.5453); } void main(){ vec4 color=texture2D(tDiffuse,vUv); float grain=rand(vUv+time)-0.5; color.rgb+=grain*intensity; gl_FragColor=color; }`
         };
-        const fgPass = new THREE.ShaderPass(FilmGrainShader);
-        fgPass.enabled = TBOX.Save.get('tbox_filmGrain', '0') === '1';
-        fgPass.renderToScreen = false;
-        this.filmGrainPass = fgPass;
-        this.composer.addPass(fgPass);
-      } catch(e){ console.warn('[Engine] 胶片颗粒初始化失败', e); }
+        const fgPass = new THREE.ShaderPass(FilmGrainShader); fgPass.enabled = TBOX.Save.get('tbox_filmGrain', '0') === '1'; fgPass.renderToScreen = false; this.filmGrainPass = fgPass; this.composer.addPass(fgPass);
+      } catch(e){}
 
       try {
         const ColorGradeShader = {
           uniforms: { tDiffuse: { value: null }, saturation: { value: 1.0 }, contrast: { value: 1.0 }, brightness: { value: 1.0 } },
           vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
-          fragmentShader: `
-            uniform sampler2D tDiffuse; uniform float saturation; uniform float contrast; uniform float brightness; varying vec2 vUv;
-            void main(){
-              vec4 color=texture2D(tDiffuse,vUv);
-              float gray=dot(color.rgb,vec3(0.299,0.587,0.114));
-              color.rgb=mix(vec3(gray),color.rgb,saturation);
-              color.rgb=(color.rgb-0.5)*contrast+0.5;
-              color.rgb*=brightness;
-              gl_FragColor=color;
-            }`
+          fragmentShader: `uniform sampler2D tDiffuse; uniform float saturation; uniform float contrast; uniform float brightness; varying vec2 vUv; void main(){ vec4 color=texture2D(tDiffuse,vUv); float gray=dot(color.rgb,vec3(0.299,0.587,0.114)); color.rgb=mix(vec3(gray),color.rgb,saturation); color.rgb=(color.rgb-0.5)*contrast+0.5; color.rgb*=brightness; gl_FragColor=color; }`
         };
-        const cgPass = new THREE.ShaderPass(ColorGradeShader);
-        cgPass.enabled = TBOX.Save.get('tbox_colorGrade', '0') === '1';
-        cgPass.uniforms.saturation.value = TBOX.Save.getNum('tbox_colorSaturation', 100) / 100;
-        cgPass.uniforms.contrast.value = TBOX.Save.getNum('tbox_colorContrast', 100) / 100;
-        cgPass.uniforms.brightness.value = TBOX.Save.getNum('tbox_colorBrightness', 100) / 100;
-        cgPass.renderToScreen = false;
-        this.colorGradePass = cgPass;
-        this.composer.addPass(cgPass);
-      } catch(e){ console.warn('[Engine] 色彩校正初始化失败', e); }
+        const cgPass = new THREE.ShaderPass(ColorGradeShader); cgPass.enabled = TBOX.Save.get('tbox_colorGrade', '0') === '1'; cgPass.uniforms.saturation.value = TBOX.Save.getNum('tbox_colorSaturation', 100) / 100; cgPass.uniforms.contrast.value = TBOX.Save.getNum('tbox_colorContrast', 100) / 100; cgPass.uniforms.brightness.value = TBOX.Save.getNum('tbox_colorBrightness', 100) / 100; cgPass.renderToScreen = false; this.colorGradePass = cgPass; this.composer.addPass(cgPass);
+      } catch(e){}
 
       if(typeof THREE.ShaderPass !== 'undefined' && THREE.FXAAShader){
-        const fxaaShader = THREE.FXAAShader;
-        const fxaaPass = new THREE.ShaderPass(fxaaShader);
-        const fxaaEnabled = TBOX.Save.get('tbox_fxaa', 'off') !== 'off';
-        fxaaPass.enabled = fxaaEnabled;
-        const pixelRatio = this.renderer.getPixelRatio();
-        fxaaPass.uniforms['resolution'].value.x = 1 / (w * pixelRatio);
-        fxaaPass.uniforms['resolution'].value.y = 1 / (h * pixelRatio);
-        fxaaPass.renderToScreen = false;
-        this.fxaaPass = fxaaPass;
-        this.composer.addPass(fxaaPass);
+        const fxaaPass = new THREE.ShaderPass(THREE.FXAAShader); fxaaPass.enabled = TBOX.Save.get('tbox_fxaa', 'off') !== 'off';
+        const pixelRatio = this.renderer.getPixelRatio(); fxaaPass.uniforms['resolution'].value.x = 1 / (w * pixelRatio); fxaaPass.uniforms['resolution'].value.y = 1 / (h * pixelRatio); fxaaPass.renderToScreen = false; this.fxaaPass = fxaaPass; this.composer.addPass(fxaaPass);
       }
-
-      this._updateRenderToScreen();
-      this.postProcessingEnabled = true;
-    } catch(e){
-      console.warn('[Engine] 后处理初始化失败', e);
-      this.postProcessingEnabled = false;
-    }
+      this._updateRenderToScreen(); this.postProcessingEnabled = true;
+    } catch(e){ this.postProcessingEnabled = false; }
   },
 
   _updateRenderToScreen(){
-    if(!this.composer) return;
-    var passes = this.composer.passes;
+    if(!this.composer) return; var passes = this.composer.passes;
     for(var i = 0; i < passes.length; i++) passes[i].renderToScreen = false;
-    for(var j = passes.length - 1; j >= 0; j--){
-      if(passes[j].enabled){ passes[j].renderToScreen = true; break; }
-    }
+    for(var j = passes.length - 1; j >= 0; j--){ if(passes[j].enabled){ passes[j].renderToScreen = true; break; } }
   },
 
   _applyPostProcessing(){
     if(!this.postProcessingEnabled) return;
     if(this.motionBlurPass) this.motionBlurPass.enabled = TBOX.Save.get('tbox_motionBlur', '0') === '1';
     if(this.filmGrainPass) this.filmGrainPass.enabled = TBOX.Save.get('tbox_filmGrain', '0') === '1';
-    if(this.colorGradePass){
-      this.colorGradePass.enabled = TBOX.Save.get('tbox_colorGrade', '0') === '1';
-      this.colorGradePass.uniforms.saturation.value = TBOX.Save.getNum('tbox_colorSaturation', 100) / 100;
-      this.colorGradePass.uniforms.contrast.value = TBOX.Save.getNum('tbox_colorContrast', 100) / 100;
-      this.colorGradePass.uniforms.brightness.value = TBOX.Save.getNum('tbox_colorBrightness', 100) / 100;
-    }
+    if(this.colorGradePass){ this.colorGradePass.enabled = TBOX.Save.get('tbox_colorGrade', '0') === '1'; this.colorGradePass.uniforms.saturation.value = TBOX.Save.getNum('tbox_colorSaturation', 100) / 100; this.colorGradePass.uniforms.contrast.value = TBOX.Save.getNum('tbox_colorContrast', 100) / 100; this.colorGradePass.uniforms.brightness.value = TBOX.Save.getNum('tbox_colorBrightness', 100) / 100; }
     this._updateRenderToScreen();
   },
 
   _initCSM(){
-    if(typeof THREE.CSM === 'undefined'){ console.warn('[Engine] CSM 未加载'); return; }
-    if(this.csm) return;
+    if(typeof THREE.CSM === 'undefined' || this.csm) return;
     try {
-      const csm = new THREE.CSM({
-        maxFar: 200, cascades: 3, mode: 'practical', parent: this.scene,
-        shadowMapSize: 2048,
-        lightDirection: new THREE.Vector3(0.5, 1, 0.3).normalize(),
-        camera: this.camera, lightIntensity: 2.0, lightNear: 1, lightFar: 200, lightMargin: 100
-      });
-      csm.fade = true;
-      if(this.sunLight){
-        this.sunLight.castShadow = false;
-        this.scene.remove(this.sunLight);
-        this.scene.remove(this.sunLight.target);
-      }
-      if(this.ground) csm.setupMaterial(this.ground.material);
-      this.csm = csm;
-      this.csmEnabled = true;
-      console.log('[Engine] CSM 已启用');
-    } catch(e){
-      console.warn('[Engine] CSM 初始化失败', e);
-      this.csmEnabled = false;
-    }
+      const csm = new THREE.CSM({ maxFar: 200, cascades: 3, mode: 'practical', parent: this.scene, shadowMapSize: 2048, lightDirection: new THREE.Vector3(0.5, 1, 0.3).normalize(), camera: this.camera, lightIntensity: 2.0, lightNear: 1, lightFar: 200, lightMargin: 100 });
+      csm.fade = true; if(this.sunLight){ this.sunLight.castShadow = false; this.scene.remove(this.sunLight); this.scene.remove(this.sunLight.target); }
+      if(this.ground) csm.setupMaterial(this.ground.material); this.csm = csm; this.csmEnabled = true;
+    } catch(e){ this.csmEnabled = false; }
   },
 
   _disableCSM(){
-    if(!this.csm) return;
-    try { this.csm.dispose(); } catch(e){}
-    this.csm = null;
-    this.csmEnabled = false;
-    if(!this.sunLight){
-      this.sunLight = new THREE.DirectionalLight(0xfff2dc, 2.0);
-      this.sunLight.position.set(24, 46, 18);
-      this.scene.add(this.sunLight);
-      this.scene.add(this.sunLight.target);
-    }
+    if(!this.csm) return; try { this.csm.dispose(); } catch(e){}
+    this.csm = null; this.csmEnabled = false;
+    if(!this.sunLight){ this.sunLight = new THREE.DirectionalLight(0xfff2dc, 2.0); this.sunLight.position.set(24, 46, 18); this.scene.add(this.sunLight); this.scene.add(this.sunLight.target); }
     this._applyLighting(TBOX.Save.get('tbox_lighting', '0') === '1');
-    console.log('[Engine] CSM 已禁用');
   },
 
-  _applyShadowType(){
-    const type = TBOX.Save.get('tbox_shadowType', 'pcfsoft');
-    const T = THREE;
-    if(type === 'pcf') this.renderer.shadowMap.type = T.PCFShadowMap;
-    else if(type === 'vsm') this.renderer.shadowMap.type = T.VSMShadowMap;
-    else this.renderer.shadowMap.type = T.PCFSoftShadowMap;
-  },
-
-  _applyToneMapping(){
-    const tm = TBOX.Save.get('tbox_toneMapping', 'aces');
-    const T = THREE;
-    if(tm === 'reinhard') this.renderer.toneMapping = T.ReinhardToneMapping;
-    else if(tm === 'cineon') this.renderer.toneMapping = T.CineonToneMapping;
-    else if(tm === 'linear') this.renderer.toneMapping = T.LinearToneMapping;
-    else this.renderer.toneMapping = T.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = TBOX.Save.getNum('tbox_exposure', 105) / 100;
-  },
-
-  _applyLightIntensities(){
-    const amb = TBOX.Save.getNum('tbox_ambientIntensity', 100) / 100;
-    const lightingOn = TBOX.Save.get('tbox_lighting', '0') === '1';
-    if(this.hemiLight) this.hemiLight.intensity = (lightingOn ? 0.85 : 0.2) * amb;
-    if(this.sunLight) this.sunLight.intensity = lightingOn ? 2.0 : 0.3;
-    if(this.csm && this.csm.lightIntensity !== undefined){
-      this.csm.lightIntensity = lightingOn ? 2.0 : 0.3;
-    }
-  },
-
-  _applyFogDensity(){
-    if(!this.scene) return;
-    const fogEnabled = TBOX.Save.get('tbox_fog', '1') === '1';
-    if(!fogEnabled){ this.scene.fog = null; return; }
-    const density = TBOX.Save.getNum('tbox_fogDensity', 100) / 100;
-    const near = 120 * (1 - density * 0.5);
-    const far = 480 * density;
-    this.scene.fog = new THREE.Fog(TBOX.DATA.COLOR.sky, Math.max(10, near), Math.max(50, far));
-  },
-
-  _applyBloom(){
-    if(!this.bloomPass) return;
-    const enabled = TBOX.Save.get('tbox_bloom', '0') === '1';
-    this.bloomPass.enabled = enabled;
-    this.bloomPass.strength = TBOX.Save.getNum('tbox_bloomStrength', 50) / 100;
-    this._updateRenderToScreen();
-  },
-
-  _applyFXAA(){
-    if(!this.fxaaPass) return;
-    const enabled = TBOX.Save.get('tbox_fxaa', 'off') !== 'off';
-    this.fxaaPass.enabled = enabled;
-    this._updateRenderToScreen();
-  },
+  _applyShadowType(){ const type = TBOX.Save.get('tbox_shadowType', 'pcfsoft'); const T = THREE; if(type === 'pcf') this.renderer.shadowMap.type = T.PCFShadowMap; else if(type === 'vsm') this.renderer.shadowMap.type = T.VSMShadowMap; else this.renderer.shadowMap.type = T.PCFSoftShadowMap; },
+  _applyToneMapping(){ if(!this.renderer) return; const tm = TBOX.Save.get('tbox_toneMapping', 'aces'); const T = THREE; if(tm === 'reinhard') this.renderer.toneMapping = T.ReinhardToneMapping; else if(tm === 'cineon') this.renderer.toneMapping = T.CineonToneMapping; else if(tm === 'linear') this.renderer.toneMapping = T.LinearToneMapping; else this.renderer.toneMapping = T.ACESFilmicToneMapping; this.renderer.toneMappingExposure = TBOX.Save.getNum('tbox_exposure', 105) / 100; },
+  _applyLightIntensities(){ const amb = TBOX.Save.getNum('tbox_ambientIntensity', 100) / 100; const lightingOn = TBOX.Save.get('tbox_lighting', '0') === '1'; if(this.hemiLight) this.hemiLight.intensity = (lightingOn ? 0.85 : 0.2) * amb; if(this.sunLight) this.sunLight.intensity = lightingOn ? 2.0 : 0.3; if(this.csm && this.csm.lightIntensity !== undefined) this.csm.lightIntensity = lightingOn ? 2.0 : 0.3; },
+  _applyFogDensity(){ if(!this.scene) return; const fogEnabled = TBOX.Save.get('tbox_fog', '1') === '1'; if(!fogEnabled){ this.scene.fog = null; return; } const density = TBOX.Save.getNum('tbox_fogDensity', 100) / 100; this.scene.fog = new THREE.Fog(TBOX.DATA.COLOR.sky, Math.max(10, 120 * (1 - density * 0.5)), Math.max(50, 480 * density)); },
+  _applyBloom(){ if(!this.bloomPass) return; this.bloomPass.enabled = TBOX.Save.get('tbox_bloom', '0') === '1'; this.bloomPass.strength = TBOX.Save.getNum('tbox_bloomStrength', 50) / 100; this._updateRenderToScreen(); },
+  _applyFXAA(){ if(!this.fxaaPass) return; this.fxaaPass.enabled = TBOX.Save.get('tbox_fxaa', 'off') !== 'off'; this._updateRenderToScreen(); },
 
   _loadHDR(){
-    new RGBELoader().load(
-      'https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/kloofendal_43d_clear_puresky_1k.hdr',
-      (tex) => {
-        tex.mapping = THREE.EquirectangularReflectionMapping;
-        this.scene.background = tex;
-        this.scene.environment = tex;
-        this.hdrTexture = tex;
-        this.hdrEnabled = true;
-      },
-      undefined,
-      () => {
-        this.scene.background = new THREE.Color(TBOX.DATA.COLOR.sky);
-        this.hdrEnabled = false;
-      }
-    );
+    new RGBELoader().load('https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/kloofendal_43d_clear_puresky_1k.hdr', (tex) => { tex.mapping = THREE.EquirectangularReflectionMapping; this.scene.background = tex; this.scene.environment = tex; this.hdrTexture = tex; this.hdrEnabled = true; }, undefined, () => { this.scene.background = new THREE.Color(TBOX.DATA.COLOR.sky); this.hdrEnabled = false; });
   },
 
   _applyLighting(on){ this._applyLightIntensities(); },
 
   _buildStairs(){
-    const S = TBOX.DATA.STAIRS;
-    const mat = new THREE.MeshStandardMaterial({ color: TBOX.DATA.COLOR.stair, roughness: .85, metalness: .05 });
+    const S = TBOX.DATA.STAIRS; const mat = new THREE.MeshStandardMaterial({ color: TBOX.DATA.COLOR.stair, roughness: .85, metalness: .05 });
     const shadowOn = TBOX.Save.get('tbox_shadow', '0') === '1';
-    this.stairs.length = 0;
-    this.aabbStatic.length = 0;
+    this.stairs.length = 0; this.aabbStatic.length = 0;
     for(let i = 0; i < S.count; i++){
-      const h = S.height * (i + 1);
-      const geo = new THREE.BoxGeometry(S.width, h, S.depth);
-      const mesh = new THREE.Mesh(geo, mat);
-      mesh.position.set(S.baseX, h / 2, S.baseZ + i * S.depth);
-      mesh.castShadow = shadowOn;
-      mesh.receiveShadow = shadowOn;
-      this.scene.add(mesh);
-      const stair = {
-        mesh, x: S.baseX, z: S.baseZ + i * S.depth,
-        topY: h, bottomY: 0,
-        halfW: S.width / 2, halfD: S.depth / 2,
-        index: i
-      };
+      const h = S.height * (i + 1); const geo = new THREE.BoxGeometry(S.width, h, S.depth); const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(S.baseX, h / 2, S.baseZ + i * S.depth); mesh.castShadow = shadowOn; mesh.receiveShadow = shadowOn; this.scene.add(mesh);
+      const stair = { mesh, x: S.baseX, z: S.baseZ + i * S.depth, topY: h, bottomY: 0, halfW: S.width / 2, halfD: S.depth / 2, index: i };
       this.stairs.push(stair);
-      this.addAABB({
-        x: stair.x, y: h / 2, z: stair.z,
-        hw: stair.halfW, hh: h / 2, hd: stair.halfD,
-        topY: stair.topY, bottomY: stair.bottomY,
-        tag: 'stair'
-      });
+      this.addAABB({ x: stair.x, y: h / 2, z: stair.z, hw: stair.halfW, hh: h / 2, hd: stair.halfD, topY: stair.topY, bottomY: stair.bottomY, tag: 'stair' });
     }
   },
 
   _bindInput(){
-    addEventListener('keydown', (e) => {
-      if(e.repeat) return;
-      this.keys[e.code] = true;
-      TBOX.Events.emit('input:keydown', e);
-    });
-    addEventListener('keyup', (e) => {
-      this.keys[e.code] = false;
-      TBOX.Events.emit('input:keyup', e);
-    });
+    addEventListener('keydown', (e) => { if(e.repeat) return; this.keys[e.code] = true; TBOX.Events.emit('input:keydown', e); });
+    addEventListener('keyup', (e) => { this.keys[e.code] = false; TBOX.Events.emit('input:keyup', e); });
     let pcMouseLocked = false;
     document.addEventListener('pointerlockchange', () => { pcMouseLocked = document.pointerLockElement !== null; });
     document.addEventListener('mousemove', (e) => {
-      if(!this.running || this.isTouch || !pcMouseLocked) return;
-      if(this.paused) return;
-      const sens = TBOX.Save.getNum('tbox_sens', 22);
-      const s = 0.0022 * (sens / 22);
+      if(!this.running || this.isTouch || !pcMouseLocked || this.paused) return;
+      const sens = TBOX.Save.getNum('tbox_sens', 22); const s = 0.0022 * (sens / 22);
       const invertY = TBOX.Save.get('tbox_invertY', '0') === '1' ? -1 : 1;
-      this.camState.yaw -= e.movementX * s;
-      this.camState.pitch -= e.movementY * s * invertY;
+      this.camState.yaw -= e.movementX * s; this.camState.pitch -= e.movementY * s * invertY;
       this.camState.pitch = TBOX.Utils.clamp(this.camState.pitch, TBOX.DATA.PITCH_MIN, TBOX.DATA.PITCH_MAX);
     });
     document.addEventListener('mousedown', (e) => {
@@ -521,1056 +374,359 @@ TBOX.Engine = {
       if(e.button === 0){ e.preventDefault(); TBOX.Events.emit('input:lmb', true); }
       else if(e.button === 2){ e.preventDefault(); TBOX.Events.emit('input:rmb', true); }
     });
-    document.addEventListener('mouseup', (e) => {
-      if(e.button === 0) TBOX.Events.emit('input:lmb', false);
-      else if(e.button === 2) TBOX.Events.emit('input:rmb', false);
-    });
+    document.addEventListener('mouseup', (e) => { if(e.button === 0) TBOX.Events.emit('input:lmb', false); else if(e.button === 2) TBOX.Events.emit('input:rmb', false); });
     document.addEventListener('contextmenu', (e) => e.preventDefault());
   },
 
   _bindSettings(){
     TBOX.Events.on(TBOX.EVENTS.SETTING_CHANGED, (data) => this._applySetting(data.key, data.value));
-    window.addEventListener('message', (e) => {
-      if(!e.data) return;
-      if(e.data.type === 'tbox-setting-changed'){
-        this._applySetting(e.data.key, e.data.value);
-      }
-    });
+    window.addEventListener('message', (e) => { if(e.data && e.data.type === 'tbox-setting-changed') this._applySetting(e.data.key, e.data.value); });
   },
 
   _applySetting(key, value){
     switch(key){
-      case 'tbox_fov':
-        if(this.camera){ this.camera.fov = Number(value); this.camera.updateProjectionMatrix(); }
-        break;
-      case 'tbox_sens':
-        if(this.controls) this.controls.pointerSpeed = Number(value) / 10;
-        break;
-      case 'tbox_resScale':
-        this._refreshRenderer();
-        break;
-      case 'tbox_quality':
-        try {
-          const perf = TBOX.Utils.detectPerf();
-          const finalQ = value === 'auto' ? perf : value;
-          this.Q = TBOX.DATA.QUALITY[finalQ] || TBOX.DATA.QUALITY.mid;
-          this.postProcessingAllowed = (perf !== 'low');
-        } catch(e){}
-        this._refreshRenderer();
-        break;
-      case 'tbox_perfMode':
-        this.postProcessingAllowed = (value !== '1');
-        if(!this.postProcessingAllowed && this.postProcessingEnabled){
-          this.postProcessingEnabled = false;
-        } else if(this.postProcessingAllowed && !this.postProcessingEnabled){
-          this._initPostProcessing();
-        }
-        break;
-      case 'tbox_shadow': {
-        const on = value === '1';
-        if(this.renderer) this.renderer.shadowMap.enabled = on;
-        if(this.sunLight) this.sunLight.castShadow = on;
-        if(this.ground) this.ground.receiveShadow = on;
-        this.stairs.forEach(s => { s.mesh.castShadow = on; s.mesh.receiveShadow = on; });
-        this.props.forEach(p => { if(p.mesh){ p.mesh.castShadow = on; p.mesh.receiveShadow = on; } });
-        if(this.character) this.character.root.traverse(o => { if(o.isMesh){ o.castShadow = on; o.receiveShadow = on; } });
-        if(this.dummy && this.dummy.group) this.dummy.group.traverse(o => { if(o.isMesh){ o.castShadow = on; o.receiveShadow = on; } });
-        break;
-      }
-      case 'tbox_shadowType':
-        this._applyShadowType();
-        break;
-      case 'tbox_shadowDist': {
-        if(!this.sunLight) break;
-        const dists = { near: 30, mid: 80, far: 150 };
-        const d = dists[value] || 80;
-        this.sunLight.shadow.camera.far = d;
-        this.sunLight.shadow.camera.updateProjectionMatrix();
-        break;
-      }
+      case 'tbox_fov': if(this.camera){ this.camera.fov = Number(value); this.camera.updateProjectionMatrix(); } break;
+      case 'tbox_sens': if(this.controls) this.controls.pointerSpeed = Number(value) / 10; break;
+      case 'tbox_resScale': this._refreshRenderer(); break;
+      case 'tbox_quality': try { const perf = TBOX.Utils.detectPerf(); this.Q = TBOX.DATA.QUALITY[value === 'auto' ? perf : value] || TBOX.DATA.QUALITY.mid; this.postProcessingAllowed = (perf !== 'low'); } catch(e){} this._refreshRenderer(); break;
+      case 'tbox_perfMode': this.postProcessingAllowed = (value !== '1'); if(!this.postProcessingAllowed && this.postProcessingEnabled) this.postProcessingEnabled = false; else if(this.postProcessingAllowed && !this.postProcessingEnabled) this._initPostProcessing(); break;
+      case 'tbox_shadow': { const on = value === '1'; if(this.renderer) this.renderer.shadowMap.enabled = on; if(this.sunLight) this.sunLight.castShadow = on; if(this.ground) this.ground.receiveShadow = on; this.stairs.forEach(s => { s.mesh.castShadow = on; s.mesh.receiveShadow = on; }); this.props.forEach(p => { if(p.mesh){ p.mesh.castShadow = on; p.mesh.receiveShadow = on; } }); if(this.character) this.character.root.traverse(o => { if(o.isMesh){ o.castShadow = on; o.receiveShadow = on; } }); if(this.dummy && this.dummy.group) this.dummy.group.traverse(o => { if(o.isMesh){ o.castShadow = on; o.receiveShadow = on; } }); break; }
+      case 'tbox_shadowType': this._applyShadowType(); break;
+      case 'tbox_shadowDist': { if(!this.sunLight) break; const d = { near: 30, mid: 80, far: 150 }[value] || 80; this.sunLight.shadow.camera.far = d; this.sunLight.shadow.camera.updateProjectionMatrix(); break; }
       case 'tbox_ambientIntensity':
-      case 'tbox_lighting':
-        this._applyLightIntensities();
-        break;
+      case 'tbox_lighting': this._applyLightIntensities(); break;
       case 'tbox_toneMapping':
-      case 'tbox_exposure':
-        this._applyToneMapping();
-        break;
-      case 'tbox_fxaa':
-        this._applyFXAA();
-        break;
-      case 'tbox_shadowSoft':
-        if(this.sunLight) this.sunLight.shadow.radius = Number(value);
-        break;
+      case 'tbox_exposure': this._applyToneMapping(); break;
+      case 'tbox_fxaa': this._applyFXAA(); break;
+      case 'tbox_shadowSoft': if(this.sunLight) this.sunLight.shadow.radius = Number(value); break;
       case 'tbox_fogDensity':
-      case 'tbox_fog':
-        this._applyFogDensity();
-        break;
+      case 'tbox_fog': this._applyFogDensity(); break;
       case 'tbox_bloom':
-      case 'tbox_bloomStrength':
-        this._applyBloom();
-        break;
+      case 'tbox_bloomStrength': this._applyBloom(); break;
       case 'tbox_motionBlur':
       case 'tbox_filmGrain':
       case 'tbox_colorGrade':
       case 'tbox_colorSaturation':
       case 'tbox_colorContrast':
-      case 'tbox_colorBrightness':
-        this._applyPostProcessing();
-        break;
-      case 'tbox_csmEnabled':
-        if(value === '1') this._initCSM();
-        else this._disableCSM();
-        break;
-      case 'tbox_vitals':
-        if(TBOX.UI && TBOX.UI.els && TBOX.UI.els.vitalsHud){
-          TBOX.UI.els.vitalsHud.style.display = value === '1' ? 'flex' : 'none';
-        }
-        break;
-      case 'tbox_shadowQ': {
-        if(!this.sunLight) break;
-        const sizes = { low: 512, mid: 1024, high: 2048, ultra: 4096 };
-        const s = sizes[value] || 1024;
-        this.sunLight.shadow.mapSize.set(s, s);
-        if(this.sunLight.shadow.map){ this.sunLight.shadow.map.dispose(); this.sunLight.shadow.map = null; }
-        break;
-      }
-      case 'tbox_hdr':
-        if(value === '1'){ if(!this.hdrEnabled) this._loadHDR(); }
-        else {
-          if(this.hdrTexture){ this.hdrTexture.dispose(); this.hdrTexture = null; }
-          this.scene.background = new THREE.Color(TBOX.DATA.COLOR.sky);
-          this.scene.environment = null;
-          this.hdrEnabled = false;
-        }
-        break;
+      case 'tbox_colorBrightness': this._applyPostProcessing(); break;
+      case 'tbox_csmEnabled': if(value === '1') this._initCSM(); else this._disableCSM(); break;
+      case 'tbox_shadowQ': { if(!this.sunLight) break; const s = { low: 512, mid: 1024, high: 2048, ultra: 4096 }[value] || 1024; this.sunLight.shadow.mapSize.set(s, s); if(this.sunLight.shadow.map){ this.sunLight.shadow.map.dispose(); this.sunLight.shadow.map = null; } break; }
+      case 'tbox_hdr': if(value === '1'){ if(!this.hdrEnabled) this._loadHDR(); } else { if(this.hdrTexture){ this.hdrTexture.dispose(); this.hdrTexture = null; } this.scene.background = new THREE.Color(TBOX.DATA.COLOR.sky); this.scene.environment = null; this.hdrEnabled = false; } break;
     }
   },
 
-  _refreshRenderer(){
-    if(!this.renderer) return;
-    try {
-      const Q = this.Q || TBOX.DATA.QUALITY.mid;
-      const resScale = TBOX.Save.getNum('tbox_resScale', 100) / 100;
-      this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, Q.pixelRatio * resScale));
-      this.renderer.setSize(window.innerWidth, window.innerHeight);
-      if(this.composer){
-        this.composer.setPixelRatio(this.renderer.getPixelRatio());
-        this.composer.setSize(window.innerWidth, window.innerHeight);
-      }
-      if(this.fxaaPass && this.fxaaPass.uniforms && this.fxaaPass.uniforms['resolution']){
-        const pixelRatio = this.renderer.getPixelRatio();
-        this.fxaaPass.uniforms['resolution'].value.x = 1 / (window.innerWidth * pixelRatio);
-        this.fxaaPass.uniforms['resolution'].value.y = 1 / (window.innerHeight * pixelRatio);
-      }
-    } catch(e){ console.warn('[Engine] _refreshRenderer error:', e); }
-  },
+  _refreshRenderer(){ if(!this.renderer) return; try { const Q = this.Q || TBOX.DATA.QUALITY.mid; const resScale = TBOX.Save.getNum('tbox_resScale', 100) / 100; this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, Q.pixelRatio * resScale)); this.renderer.setSize(window.innerWidth, window.innerHeight); if(this.composer){ this.composer.setPixelRatio(this.renderer.getPixelRatio()); this.composer.setSize(window.innerWidth, window.innerHeight); } if(this.fxaaPass && this.fxaaPass.uniforms && this.fxaaPass.uniforms['resolution']){ const pixelRatio = this.renderer.getPixelRatio(); this.fxaaPass.uniforms['resolution'].value.x = 1 / (window.innerWidth * pixelRatio); this.fxaaPass.uniforms['resolution'].value.y = 1 / (window.innerHeight * pixelRatio); } } catch(e){} },
 
-  _applyAllSettings(){
-    try {
-      const keys = [
-        'tbox_quality', 'tbox_resScale', 'tbox_aa',
-        'tbox_lighting', 'tbox_shadow', 'tbox_shadowQ',
-        'tbox_fog', 'tbox_bloom', 'tbox_vignette', 'tbox_speedlines',
-        'tbox_hdr', 'tbox_shadowType', 'tbox_shadowDist',
-        'tbox_ambientIntensity',
-        'tbox_toneMapping', 'tbox_exposure', 'tbox_fxaa',
-        'tbox_shadowSoft', 'tbox_fogDensity', 'tbox_bloomStrength',
-        'tbox_csmEnabled', 'tbox_fov',
-        'tbox_motionBlur', 'tbox_filmGrain', 'tbox_colorGrade',
-        'tbox_colorSaturation', 'tbox_colorContrast', 'tbox_colorBrightness',
-        'tbox_perfMode'
-      ];
-      keys.forEach(function(k){
-        try {
-          const v = TBOX.Save.get(k);
-          if(v !== null && v !== undefined) TBOX.Engine._applySetting(k, v);
-        } catch(e){}
-      });
-      if(this.scene){
-        if(this.hdrTexture){ this.hdrTexture.dispose(); this.hdrTexture = null; }
-        this.scene.background = new THREE.Color(TBOX.DATA.COLOR.sky);
-        this.scene.environment = null;
-        this.hdrEnabled = false;
-      }
-      this._refreshRenderer();
-      console.log('[Engine] 已重新应用所有设置');
-    } catch(e){ console.warn('[Engine] _applyAllSettings error:', e); }
-  },
+  _applyAllSettings(){ try { ['tbox_quality', 'tbox_resScale', 'tbox_aa', 'tbox_lighting', 'tbox_shadow', 'tbox_shadowQ', 'tbox_fog', 'tbox_bloom', 'tbox_vignette', 'tbox_speedlines', 'tbox_hdr', 'tbox_shadowType', 'tbox_shadowDist', 'tbox_ambientIntensity', 'tbox_toneMapping', 'tbox_exposure', 'tbox_fxaa', 'tbox_shadowSoft', 'tbox_fogDensity', 'tbox_bloomStrength', 'tbox_csmEnabled', 'tbox_fov', 'tbox_motionBlur', 'tbox_filmGrain', 'tbox_colorGrade', 'tbox_colorSaturation', 'tbox_colorContrast', 'tbox_colorBrightness', 'tbox_perfMode'].forEach((k) => { try { const v = TBOX.Save.get(k); if(v !== null && v !== undefined) TBOX.Engine._applySetting(k, v); } catch(e){} }); if(this.scene){ if(this.hdrTexture){ this.hdrTexture.dispose(); this.hdrTexture = null; } this.scene.background = new THREE.Color(TBOX.DATA.COLOR.sky); this.scene.environment = null; this.hdrEnabled = false; } this._refreshRenderer(); } catch(e){} },
 
-  _onResize(){
-    this.camera.aspect = innerWidth / innerHeight;
-    this.camera.updateProjectionMatrix();
-    this.renderer.setSize(innerWidth, innerHeight);
-    if(this.composer) this.composer.setSize(innerWidth, innerHeight);
-    if(this.fxaaPass){
-      const pixelRatio = this.renderer.getPixelRatio();
-      this.fxaaPass.uniforms['resolution'].value.x = 1 / (innerWidth * pixelRatio);
-      this.fxaaPass.uniforms['resolution'].value.y = 1 / (innerHeight * pixelRatio);
-    }
-  },
-
-  resolvePlayerCollision(p){
-    const radius = TBOX.DATA.PLAYER_RADIUS;
-
-    if(this.dummy && this.dummy.alive && this.dummy.group){
-      const dx = p.x - this.dummy.group.position.x;
-      const dz = p.z - this.dummy.group.position.z;
-      const dist = Math.hypot(dx, dz);
-      const PUSH = radius + this.dummy.radius;
-      if(dist < PUSH && dist > 0.0001){
-        p.x += (dx / dist) * (PUSH - dist);
-        p.z += (dz / dist) * (PUSH - dist);
-      }
-    }
-
-    if(TBOX.Corpse && TBOX.Corpse.list){
-      for(const c of TBOX.Corpse.list){
-        const dx = p.x - c.x, dz = p.z - c.z;
-        const dist = Math.hypot(dx, dz);
-        const R = 0.6 + radius;
-        if(dist < R && dist > 0.0001){
-          p.x += (dx / dist) * (R - dist);
-          p.z += (dz / dist) * (R - dist);
-        }
-      }
-    }
-
-    /* ★ 玩家 vs prop：把 prop 推开，而不是被挡住 */
-    if(TBOX.DATA.PHYSICS.enable && TBOX.DATA.PHYSICS.playerPush){
-      for(let i = 0; i < this.props.length; i++){
-        const obj = this.props[i];
-        if(!obj.mesh) continue;
-        const dx = obj.mesh.position.x - p.x;
-        const dz = obj.mesh.position.z - p.z;
-        const dist = Math.hypot(dx, dz);
-        const rad = TBOX.DATA.PLAYER_RADIUS + Math.max(obj.size.x, obj.size.z) / 2;
-        if(dist >= rad || dist < 0.0001) continue;
-        /* 重叠：把 prop 推开 */
-        const nx = dx / dist, nz = dz / dist;
-        const overlap = rad - dist;
-        obj.mesh.position.x += nx * overlap;
-        obj.mesh.position.z += nz * overlap;
-        /* 玩家轻微反推，避免卡进去 */
-        p.x -= nx * overlap * 0.15;
-        p.z -= nz * overlap * 0.15;
-        /* 唤醒物体 */
-        obj.phy.sleeping = false;
-        obj.phy.sleepTimer = 0;
-      }
-    }
-
-    if(TBOX.DATA.AABB.enable){
-      const maxIter = TBOX.DATA.AABB.maxPushIter || 4;
-      for(let iter = 0; iter < maxIter; iter++){
-        let pushed = false;
-        for(let i = 0; i < this.aabbStatic.length; i++){
-          if(this._resolveAABBHorizontal(p, this.aabbStatic[i], radius)) pushed = true;
-        }
-        for(let i = 0; i < this.aabbDynamic.length; i++){
-          if(this._resolveAABBHorizontal(p, this.aabbDynamic[i], radius)) pushed = true;
-        }
-        if(!pushed) break;
-      }
-    }
-  },
-
-  resolvePlayerGround(p){
-    let groundY = 0;
-    let onStair = false;
-    if(TBOX.DATA.AABB.enable){
-      for(let i = 0; i < this.aabbStatic.length; i++){
-        const g = this._resolveAABBGround(p, this.aabbStatic[i]);
-        if(g > groundY){ groundY = g; onStair = true; }
-      }
-      for(let i = 0; i < this.aabbDynamic.length; i++){
-        const g = this._resolveAABBGround(p, this.aabbDynamic[i]);
-        if(g > groundY){ groundY = g; onStair = true; }
-      }
-    } else {
-      for(const s of this.stairs){
-        const dx = p.x - s.x, dz = p.z - s.z;
-        if(Math.abs(dx) < s.halfW && Math.abs(dz) < s.halfD){
-          if(s.topY <= p.y + 0.45 && s.topY > groundY){
-            groundY = s.topY;
-            onStair = true;
-          }
-        }
-      }
-    }
-    if(!onStair && groundY < 0) groundY = 0;
-    p.onStair = onStair;
-    return groundY;
-  },
-
-  isPlayerOnStair(){
-    const p = TBOX.Player;
-    if(!p) return false;
-    return p.y > 0.8;
-  },
-
-  triggerShake(mag, time){
-    const level = TBOX.Save.get('tbox_shake', 'high');
-    const mul = TBOX.DATA.SHAKE_LEVEL[level] || 1;
-    const amount = TBOX.Save.getNum('tbox_shakeAmount', 100) / 100;
-    this.camState.shakeMag = Math.max(this.camState.shakeMag, mag * mul * amount);
-    this.camState.shakeTime = Math.max(this.camState.shakeTime, time);
-  },
-
-  setViewRoll(roll){ this.camState.viewRoll = roll; },
+  _onResize(){ this.camera.aspect = innerWidth / innerHeight; this.camera.updateProjectionMatrix(); this.renderer.setSize(innerWidth, innerHeight); if(this.composer) this.composer.setSize(innerWidth, innerHeight); if(this.fxaaPass){ const pixelRatio = this.renderer.getPixelRatio(); this.fxaaPass.uniforms['resolution'].value.x = 1 / (innerWidth * pixelRatio); this.fxaaPass.uniforms['resolution'].value.y = 1 / (innerHeight * pixelRatio); } },
 
   updateVitals(dt){
-    const p = TBOX.Player;
-    if(!p) return;
-    const V = TBOX.DATA.VITALS;
-    const moveState = p.moveState || 'idle';
-    let heartTarget = V.heartIdle;
-    if(moveState === 'walk') heartTarget = V.heartWalk;
-    else if(moveState === 'run') heartTarget = V.heartRun;
-    else if(moveState === 'sprint') heartTarget = V.heartSprint;
-    else if(moveState === 'climb') heartTarget = V.heartClimb;
-    const hp = p.hp;
-    if(hp < 40) heartTarget += V.heartHurtHeavy;
-    else if(hp < 70) heartTarget += V.heartHurtMid;
-    else if(hp < 90) heartTarget += V.heartHurtLight;
+    const p = TBOX.Player; if(!p) return; const V = TBOX.DATA.VITALS;
+    const moveState = p.moveState || 'idle'; let heartTarget = V.heartIdle;
+    if(moveState === 'walk') heartTarget = V.heartWalk; else if(moveState === 'run') heartTarget = V.heartRun; else if(moveState === 'sprint') heartTarget = V.heartSprint; else if(moveState === 'climb') heartTarget = V.heartClimb;
+    const hp = p.hp; if(hp < 40) heartTarget += V.heartHurtHeavy; else if(hp < 70) heartTarget += V.heartHurtMid; else if(hp < 90) heartTarget += V.heartHurtLight;
     if(p.stamina < 30) heartTarget += V.heartLowStamina;
     let lungTarget = V.lungIdle;
-    if(moveState === 'walk') lungTarget = V.lungWalk;
-    else if(moveState === 'run') lungTarget = V.lungRun;
-    else if(moveState === 'sprint') lungTarget = V.lungSprint;
-    else if(moveState === 'climb') lungTarget = V.lungClimb;
-    if(hp < 40) lungTarget += V.lungHurtHeavy;
-    else if(hp < 70) lungTarget += V.lungHurtMid;
-    else if(hp < 90) lungTarget += V.lungHurtLight;
+    if(moveState === 'walk') lungTarget = V.lungWalk; else if(moveState === 'run') lungTarget = V.lungRun; else if(moveState === 'sprint') lungTarget = V.lungSprint; else if(moveState === 'climb') lungTarget = V.lungClimb;
+    if(hp < 40) lungTarget += V.lungHurtHeavy; else if(hp < 70) lungTarget += V.lungHurtMid; else if(hp < 90) lungTarget += V.lungHurtLight;
     if(p.stamina < 30) lungTarget += V.lungLowStamina;
-    this.vitals.heartTarget = heartTarget;
-    this.vitals.lungTarget = lungTarget;
+    this.vitals.heartTarget = heartTarget; this.vitals.lungTarget = lungTarget;
     this.vitals.heart = TBOX.Utils.lerp(this.vitals.heart, heartTarget, Math.min(1, dt * V.lerpSpeed));
     this.vitals.lung = TBOX.Utils.lerp(this.vitals.lung, lungTarget, Math.min(1, dt * V.lerpSpeed));
-    this.vitals.heartPhase = (this.vitals.heartPhase + dt * (this.vitals.heart / 60)) % 1;
-    this.vitals.lungPhase = (this.vitals.lungPhase + dt * (this.vitals.lung / 60)) % 1;
+    this.vitals.heartPhase = (this.vitals.heartPhase + dt * (this.vitals.heart / 60)) % 1; this.vitals.lungPhase = (this.vitals.lungPhase + dt * (this.vitals.lung / 60)) % 1;
     if(TBOX.UI && TBOX.UI.updateVitals) TBOX.UI.updateVitals(this.vitals, p);
     if(TBOX.Save.get('tbox_heartSound', '1') === '1'){
-      const heartbeatInterval = 60 / this.vitals.heart;
-      if(!this.vitals.lastHeartbeat) this.vitals.lastHeartbeat = performance.now() / 1000;
-      const now = performance.now() / 1000;
-      if(now - this.vitals.lastHeartbeat >= heartbeatInterval){
-        this.vitals.lastHeartbeat = now;
-        if(TBOX.Audio && TBOX.Audio.playHeartbeat) TBOX.Audio.playHeartbeat(hp);
-      }
+      const heartbeatInterval = 60 / this.vitals.heart; if(!this.vitals.lastHeartbeat) this.vitals.lastHeartbeat = performance.now() / 1000;
+      const now = performance.now() / 1000; if(now - this.vitals.lastHeartbeat >= heartbeatInterval){ this.vitals.lastHeartbeat = now; if(TBOX.Audio && TBOX.Audio.playHeartbeat) TBOX.Audio.playHeartbeat(hp); }
     }
     if(TBOX.Save.get('tbox_breathSound', '1') === '1'){
-      const breathInterval = 60 / this.vitals.lung;
-      if(!this.vitals.lastBreath) this.vitals.lastBreath = performance.now() / 1000;
-      const now = performance.now() / 1000;
-      if(now - this.vitals.lastBreath >= breathInterval){
-        this.vitals.lastBreath = now;
-        if(TBOX.Audio && TBOX.Audio.playBreath) TBOX.Audio.playBreath(hp);
-      }
+      const breathInterval = 60 / this.vitals.lung; if(!this.vitals.lastBreath) this.vitals.lastBreath = performance.now() / 1000;
+      const now = performance.now() / 1000; if(now - this.vitals.lastBreath >= breathInterval){ this.vitals.lastBreath = now; if(TBOX.Audio && TBOX.Audio.playBreath) TBOX.Audio.playBreath(hp); }
     }
   },
 
   updateHurtFx(dt, rawDt){
-    const p = TBOX.Player;
-    if(!p) return;
-    const FX = TBOX.DATA.HURT_FX;
-    const hp = p.hp;
-    const hf = document.getElementById('hitFrame');
-    if(hf && this.hurtFx.hitFrameOn){
-      this.hurtFx.hitFrameTimer -= rawDt * 1000;
-      if(this.hurtFx.hitFrameTimer <= 0){ hf.classList.remove('on'); this.hurtFx.hitFrameOn = false; }
-    }
+    const p = TBOX.Player; if(!p) return; const FX = TBOX.DATA.HURT_FX; const hp = p.hp;
+    const hf = document.getElementById('hitFrame'); if(hf && this.hurtFx.hitFrameOn){ this.hurtFx.hitFrameTimer -= rawDt * 1000; if(this.hurtFx.hitFrameTimer <= 0){ hf.classList.remove('on'); this.hurtFx.hitFrameOn = false; } }
     const blink = document.getElementById('blinkOverlay');
     if(blink){
       const blinkEnabled = TBOX.Save.get('tbox_blinkFx', '1') === '1';
       if(blinkEnabled && hp < TBOX.DATA.VITALS.blinkHp && !p.dead){
-        const t = 1 - hp / TBOX.DATA.VITALS.blinkHp;
-        const period = TBOX.Utils.lerp(FX.blinkPeriodMax, FX.blinkPeriodMin, t);
-        this.hurtFx.blinkTimer += rawDt * 1000;
-        if(this.hurtFx.blinkTimer >= period){ this.hurtFx.blinkTimer = 0; this.hurtFx.blinkPhase = 1; }
+        const t = 1 - hp / TBOX.DATA.VITALS.blinkHp; const period = TBOX.Utils.lerp(FX.blinkPeriodMax, FX.blinkPeriodMin, t);
+        this.hurtFx.blinkTimer += rawDt * 1000; if(this.hurtFx.blinkTimer >= period){ this.hurtFx.blinkTimer = 0; this.hurtFx.blinkPhase = 1; }
         if(this.hurtFx.blinkPhase > 0){
-          const closeMs = FX.blinkCloseMs;
-          const phase = 1 - this.hurtFx.blinkPhase;
+          const closeMs = FX.blinkCloseMs; const phase = 1 - this.hurtFx.blinkPhase;
           blink.style.opacity = String(1 - Math.abs(phase * 2 - 1));
           this.hurtFx.blinkPhase -= rawDt * 1000 / (closeMs * 2);
           if(this.hurtFx.blinkPhase <= 0){ this.hurtFx.blinkPhase = 0; blink.style.opacity = '0'; }
         } else blink.style.opacity = '0';
       } else blink.style.opacity = '0';
     }
-    const slowMoEnabled = TBOX.Save.get('tbox_slowMo', '1') === '1';
-    let slowMo = 1.0;
-    if(slowMoEnabled && !p.dead){
-      if(hp < 10) slowMo = FX.slowMoHp10;
-      else if(hp < 20) slowMo = FX.slowMoHp20;
-    }
+    const slowMoEnabled = TBOX.Save.get('tbox_slowMo', '1') === '1'; let slowMo = 1.0;
+    if(slowMoEnabled && !p.dead){ if(hp < 10) slowMo = FX.slowMoHp10; else if(hp < 20) slowMo = FX.slowMoHp20; }
     this.hurtFx.slowMoCurrent = TBOX.Utils.lerp(this.hurtFx.slowMoCurrent, slowMo, Math.min(1, dt * 3));
     const app = document.getElementById('app');
     if(app){
-      const desatEnabled = TBOX.Save.get('tbox_desatFx', '1') === '1';
-      let blur = 0, desat = 0;
-      if(hp < 40){ blur = FX.blurHeavy; if(desatEnabled) desat = FX.desatHeavy; }
-      else if(hp < 70){ blur = FX.blurHeavy * 0.5; }
+      const desatEnabled = TBOX.Save.get('tbox_desatFx', '1') === '1'; let blur = 0, desat = 0;
+      if(hp < 40){ blur = FX.blurHeavy; if(desatEnabled) desat = FX.desatHeavy; } else if(hp < 70){ blur = FX.blurHeavy * 0.5; }
       const newFilter = `blur(${blur.toFixed(2)}px) saturate(${(1 - desat).toFixed(2)})`;
-      if(this._lastFilter !== newFilter){
-        app.style.filter = newFilter;
-        this._lastFilter = newFilter;
-      }
+      if(this._lastFilter !== newFilter){ app.style.filter = newFilter; this._lastFilter = newFilter; }
     }
   },
 
-  triggerHitFrame(){
-    if(TBOX.Save.get('tbox_hitFrame', '1') !== '1') return;
-    const hf = document.getElementById('hitFrame');
-    if(!hf) return;
-    hf.classList.add('on');
-    this.hurtFx.hitFrameOn = true;
-    this.hurtFx.hitFrameTimer = TBOX.DATA.HURT_FX.hitFrameIn + TBOX.DATA.HURT_FX.hitFrameOut;
-  },
+  triggerHitFrame(){ if(TBOX.Save.get('tbox_hitFrame', '1') !== '1') return; const hf = document.getElementById('hitFrame'); if(!hf) return; hf.classList.add('on'); this.hurtFx.hitFrameOn = true; this.hurtFx.hitFrameTimer = TBOX.DATA.HURT_FX.hitFrameIn + TBOX.DATA.HURT_FX.hitFrameOut; },
 
-  triggerHitShake(dmg){
-    if(TBOX.Save.get('tbox_hitShake', '1') !== '1') return;
-    const FX = TBOX.DATA.HURT_FX;
-    let mag = FX.hitShakeMagLight, time = FX.hitShakeTimeLight;
-    if(dmg >= 6){ mag = FX.hitShakeMagHeavy; time = FX.hitShakeTimeHeavy; }
-    else if(dmg >= 3){ mag = FX.hitShakeMagMid; time = FX.hitShakeTimeMid; }
-    this.triggerShake(mag, time);
-    this.triggerHitFrame();
-  },
+  triggerHitShake(dmg){ if(TBOX.Save.get('tbox_hitShake', '1') !== '1') return; const FX = TBOX.DATA.HURT_FX; let mag = FX.hitShakeMagLight, time = FX.hitShakeTimeLight; if(dmg >= 6){ mag = FX.hitShakeMagHeavy; time = FX.hitShakeTimeHeavy; } else if(dmg >= 3){ mag = FX.hitShakeMagMid; time = FX.hitShakeTimeMid; } this.triggerShake(mag, time); this.triggerHitFrame(); },
 
   updateDeathFx(dt, rawDt){
-    const p = TBOX.Player;
-    if(!p) return;
-    const D = TBOX.DATA.DEATH;
-    if(p.dead && !this.deathFx.active){
-      this.deathFx.active = true;
-      this.deathFx.timer = 0;
-      this.deathFx.fadeLevel = 0;
-      this.deathFx.blinkLevel = 0;
-      this.deathFx.dizzyRoll = 0;
-      this.deathFx.dizzyTime = 0;
-      if(TBOX.Audio && TBOX.Audio.playDeath) TBOX.Audio.playDeath();
-      if(TBOX.Audio && TBOX.Audio.playTinnitus) TBOX.Audio.playTinnitus();
-      this.triggerShake(0.8, 0.6);
-    }
-    if(!p.dead && this.deathFx.active){
-      this.deathFx.active = false;
-      this.deathFx.timer = 0;
-      this.deathFx.fadeLevel = 0;
-      this.deathFx.blinkLevel = 0;
-      this.deathFx.dizzyRoll = 0;
-      const ds = document.getElementById('deathScreen'); if(ds) ds.style.opacity = '0';
-      const hv = document.getElementById('hurtVignette'); if(hv) hv.style.opacity = '0';
-      const blink = document.getElementById('blinkOverlay'); if(blink) blink.style.opacity = '0';
-    }
+    const p = TBOX.Player; if(!p) return; const D = TBOX.DATA.DEATH;
+    if(p.dead && !this.deathFx.active){ this.deathFx.active = true; this.deathFx.timer = 0; this.deathFx.fadeLevel = 0; this.deathFx.blinkLevel = 0; this.deathFx.dizzyRoll = 0; this.deathFx.dizzyTime = 0; if(TBOX.Audio && TBOX.Audio.playDeath) TBOX.Audio.playDeath(); if(TBOX.Audio && TBOX.Audio.playTinnitus) TBOX.Audio.playTinnitus(); this.triggerShake(0.8, 0.6); }
+    if(!p.dead && this.deathFx.active){ this.deathFx.active = false; this.deathFx.timer = 0; this.deathFx.fadeLevel = 0; this.deathFx.blinkLevel = 0; this.deathFx.dizzyRoll = 0; const ds = document.getElementById('deathScreen'); if(ds) ds.style.opacity = '0'; const hv = document.getElementById('hurtVignette'); if(hv) hv.style.opacity = '0'; const blink = document.getElementById('blinkOverlay'); if(blink) blink.style.opacity = '0'; }
     if(!this.deathFx.active) return;
-    this.deathFx.timer += dt;
-    this.deathFx.dizzyTime += dt;
-    const t = this.deathFx.timer;
-    if(this.camState.mode === 'fps'){
-      const dizzyAmp = D.dizzyRollAmp * Math.max(0, 1 - t / 2.0);
-      this.deathFx.dizzyRoll = Math.sin(this.deathFx.dizzyTime * D.dizzySpeed) * dizzyAmp;
-    } else this.deathFx.dizzyRoll = 0;
-    if(t >= D.fadeStart){
-      const fadeT = Math.min(1, (t - D.fadeStart) / D.fadeDur);
-      this.deathFx.fadeLevel = fadeT * fadeT;
-    }
-    if(t >= D.blinkStart){
-      const blinkT = Math.min(1, (t - D.blinkStart) / (D.blinkEnd - D.blinkStart));
-      this.deathFx.blinkLevel = blinkT * blinkT;
-    }
+    this.deathFx.timer += dt; this.deathFx.dizzyTime += dt; const t = this.deathFx.timer;
+    if(this.camState.mode === 'fps'){ const dizzyAmp = D.dizzyRollAmp * Math.max(0, 1 - t / 2.0); this.deathFx.dizzyRoll = Math.sin(this.deathFx.dizzyTime * D.dizzySpeed) * dizzyAmp; } else this.deathFx.dizzyRoll = 0;
+    if(t >= D.fadeStart){ const fadeT = Math.min(1, (t - D.fadeStart) / D.fadeDur); this.deathFx.fadeLevel = fadeT * fadeT; }
+    if(t >= D.blinkStart){ const blinkT = Math.min(1, (t - D.blinkStart) / (D.blinkEnd - D.blinkStart)); this.deathFx.blinkLevel = blinkT * blinkT; }
     const hv = document.getElementById('hurtVignette');
-    if(hv){
-      const fade = this.deathFx.fadeLevel;
-      const r = 100 - fade * 70;
-      const a = 0.6 + fade * 0.4;
-      hv.style.background = `radial-gradient(ellipse at 50% 50%,
-        rgba(0,0,0,0) ${r * 0.3}%,
-        rgba(40,0,0,${a * 0.5}) ${r * 0.6}%,
-        rgba(80,0,10,${a * 0.85}) ${r}%,
-        rgba(20,0,0,${a}) 100%)`;
-      hv.style.opacity = String(Math.min(1, fade));
-    }
+    if(hv){ const fade = this.deathFx.fadeLevel; const r = 100 - fade * 70; const a = 0.6 + fade * 0.4; hv.style.background = `radial-gradient(ellipse at 50% 50%, rgba(0,0,0,0) ${r * 0.3}%, rgba(40,0,0,${a * 0.5}) ${r * 0.6}%, rgba(80,0,10,${a * 0.85}) ${r}%, rgba(20,0,0,${a}) 100%)`; hv.style.opacity = String(Math.min(1, fade)); }
     const blink = document.getElementById('blinkOverlay');
-    if(blink){
-      const b = this.deathFx.blinkLevel;
-      const h = b * 50;
-      blink.style.setProperty('--blink-h', h + '%');
-      blink.style.opacity = String(b);
-      blink.style.background = `linear-gradient(180deg,
-        rgba(0,0,0,${b}) 0%,
-        rgba(0,0,0,0) ${h}%,
-        rgba(0,0,0,0) ${100 - h}%,
-        rgba(0,0,0,${b}) 100%)`;
-    }
-    const app = document.getElementById('app');
-    if(app && this.camState.mode === 'fps'){
-      const dizzyBlur = D.dizzyBlur * Math.max(0, 1 - t / 2.0);
-      app.style.filter = `blur(${dizzyBlur.toFixed(2)}px)`;
-    }
-    if(t >= D.blinkEnd){
-      const ds = document.getElementById('deathScreen');
-      if(ds){ ds.style.display = 'block'; const blackT = Math.min(1, (t - D.blinkEnd) / 0.3); ds.style.opacity = String(blackT); }
-    }
+    if(blink){ const b = this.deathFx.blinkLevel; const h = b * 50; blink.style.setProperty('--blink-h', h + '%'); blink.style.opacity = String(b); blink.style.background = `linear-gradient(180deg, rgba(0,0,0,${b}) 0%, rgba(0,0,0,0) ${h}%, rgba(0,0,0,0) ${100 - h}%, rgba(0,0,0,${b}) 100%)`; }
+    const app = document.getElementById('app'); if(app && this.camState.mode === 'fps'){ const dizzyBlur = D.dizzyBlur * Math.max(0, 1 - t / 2.0); app.style.filter = `blur(${dizzyBlur.toFixed(2)}px)`; }
+    if(t >= D.blinkEnd){ const ds = document.getElementById('deathScreen'); if(ds){ ds.style.display = 'block'; const blackT = Math.min(1, (t - D.blinkEnd) / 0.3); ds.style.opacity = String(blackT); } }
   },
 
   updateCamera(p, character, dt, rawDt){
-    const D = TBOX.DATA;
-    const headWorld = this._tmpHeadWorld;
-    const headQuat = this._tmpHeadQuat;
-    if(character && character.head){
-      character.head.getWorldPosition(headWorld);
-      character.head.getWorldQuaternion(headQuat);
-    } else {
-      headWorld.set(p.x, p.y + D.EYE_H, p.z);
-      headQuat.identity();
-    }
+    const D = TBOX.DATA; const headWorld = this._tmpHeadWorld; const headQuat = this._tmpHeadQuat;
+    if(character && character.head){ character.head.getWorldPosition(headWorld); character.head.getWorldQuaternion(headQuat); }
+    else { headWorld.set(p.x, p.y + D.EYE_H, p.z); headQuat.identity(); }
     let shX = 0, shY = 0;
-    if(this.camState.shakeTime > 0){
-      this.camState.shakeTime -= rawDt;
-      const k = Math.max(0, this.camState.shakeTime);
-      shX = (Math.random() - 0.5) * this.camState.shakeMag * k * 6;
-      shY = (Math.random() - 0.5) * this.camState.shakeMag * k * 6;
-      if(this.camState.shakeTime <= 0) this.camState.shakeMag = 0;
-    }
-    const swayEnabled = TBOX.Save.get('tbox_viewSway', '1') === '1';
-    let swayX = 0, swayY = 0;
+    if(this.camState.shakeTime > 0){ this.camState.shakeTime -= rawDt; const k = Math.max(0, this.camState.shakeTime); shX = (Math.random() - 0.5) * this.camState.shakeMag * k * 6; shY = (Math.random() - 0.5) * this.camState.shakeMag * k * 6; if(this.camState.shakeTime <= 0) this.camState.shakeMag = 0; }
+    const swayEnabled = TBOX.Save.get('tbox_viewSway', '1') === '1'; let swayX = 0, swayY = 0;
     if(swayEnabled && !p.dead){
-      const V = D.VIEW_SWAY;
-      const moveState = p.moveState || 'idle';
-      let speed = V.speedIdle;
-      if(moveState === 'walk') speed = V.speedWalk;
-      else if(moveState === 'run') speed = V.speedRun;
-      else if(moveState === 'sprint') speed = V.speedSprint;
-      this.swayTime += dt * speed;
-      const ampMul = (TBOX.Save.getNum('tbox_swayAmount', 100) / 100) * 0.6;
-      swayX = Math.sin(this.swayTime) * V.ampX * ampMul;
-      swayY = Math.cos(this.swayTime * 1.7) * V.ampY * ampMul;
-      const breathPhase = performance.now() / 1000 * V.breathSpeed;
-      const breathIntensity = 1.0 * ampMul;
-      swayY += Math.sin(breathPhase) * V.breathAmp * breathIntensity;
-      swayX += Math.cos(breathPhase * 0.7) * V.breathAmp * 0.4 * breathIntensity;
+      const V = D.VIEW_SWAY; const moveState = p.moveState || 'idle'; let speed = V.speedIdle;
+      if(moveState === 'walk') speed = V.speedWalk; else if(moveState === 'run') speed = V.speedRun; else if(moveState === 'sprint') speed = V.speedSprint;
+      this.swayTime += dt * speed; const ampMul = (TBOX.Save.getNum('tbox_swayAmount', 100) / 100) * 0.6;
+      swayX = Math.sin(this.swayTime) * V.ampX * ampMul; swayY = Math.cos(this.swayTime * 1.7) * V.ampY * ampMul;
+      const breathPhase = performance.now() / 1000 * V.breathSpeed; const breathIntensity = 1.0 * ampMul;
+      swayY += Math.sin(breathPhase) * V.breathAmp * breathIntensity; swayX += Math.cos(breathPhase * 0.7) * V.breathAmp * 0.4 * breathIntensity;
     }
-    const runShakeEnabled = TBOX.Save.get('tbox_runShake', '1') === '1';
-    let runShakeX = 0, runShakeY = 0;
+    const runShakeEnabled = TBOX.Save.get('tbox_runShake', '1') === '1'; let runShakeX = 0, runShakeY = 0;
     if(runShakeEnabled && !p.dead){
-      const R = D.RUN_SHAKE;
-      const moveState = p.moveState || 'idle';
-      let amp = 0;
-      if(moveState === 'walk') amp = R.walkAmp;
-      else if(moveState === 'run') amp = R.runAmp;
-      else if(moveState === 'sprint') amp = R.sprintAmp;
-      if(amp > 0){
-        const ampMul = (TBOX.Save.getNum('tbox_runShakeAmount', 100) / 100) * 0.6;
-        const phase = p.runPhase * 2;
-        runShakeX = Math.sin(phase) * amp * ampMul;
-        runShakeY = Math.abs(Math.cos(phase)) * amp * 0.7 * ampMul;
-      }
+      const R = D.RUN_SHAKE; const moveState = p.moveState || 'idle'; let amp = 0;
+      if(moveState === 'walk') amp = R.walkAmp; else if(moveState === 'run') amp = R.runAmp; else if(moveState === 'sprint') amp = R.sprintAmp;
+      if(amp > 0){ const ampMul = (TBOX.Save.getNum('tbox_runShakeAmount', 100) / 100) * 0.6; const phase = p.runPhase * 2; runShakeX = Math.sin(phase) * amp * ampMul; runShakeY = Math.abs(Math.cos(phase)) * amp * 0.7 * ampMul; }
     }
-    const cy = Math.cos(this.camState.yaw), sy = Math.sin(this.camState.yaw);
-    const fwdX = -sy, fwdZ = -cy;
+    const cy = Math.cos(this.camState.yaw), sy = Math.sin(this.camState.yaw); const fwdX = -sy, fwdZ = -cy;
     const targetTrans = this.camState.mode === 'tps' ? 1 : 0;
     this.camState.transition = TBOX.Utils.lerp(this.camState.transition, targetTrans, Math.min(1, dt / D.TPS_TRANSITION));
-    const inspectCamY = p.inspecting ? (p.inspectCamY || 0) : 0;
-    const camFwd = D.CAM_FWD_OFFSET;
+    const inspectCamY = p.inspecting ? (p.inspectCamY || 0) : 0; const camFwd = D.CAM_FWD_OFFSET;
     if(p.dead && this.camState.mode === 'fps'){
-      const targetX = headWorld.x + shX;
-      const targetY = Math.max(0.30, headWorld.y + shY);
-      const targetZ = headWorld.z;
-      const LAMBDA_POS = 12;
+      const targetX = headWorld.x + shX; const targetY = Math.max(0.30, headWorld.y + shY); const targetZ = headWorld.z; const LAMBDA_POS = 12;
       this.camera.position.x = TBOX.Utils.damp(this.camera.position.x, targetX, LAMBDA_POS, dt);
       this.camera.position.y = TBOX.Utils.damp(this.camera.position.y, targetY, LAMBDA_POS, dt);
       this.camera.position.z = TBOX.Utils.damp(this.camera.position.z, targetZ, LAMBDA_POS, dt);
-      this._tmpShadowQuat.copy(headQuat);
-      this._tmpEuler.setFromQuaternion(this._tmpShadowQuat, 'YXZ');
-      this._tmpEuler.z += this.deathFx.dizzyRoll;
-      this._tmpEuler.x += shX * 0.05;
-      this._tmpEuler.y += shY * 0.05;
-      this._tmpShadowQuat.setFromEuler(this._tmpEuler);
-      const t = Math.min(1, dt * 10);
-      this.camera.quaternion.slerp(this._tmpShadowQuat, t);
-      return;
+      this._tmpShadowQuat.copy(headQuat); this._tmpEuler.setFromQuaternion(this._tmpShadowQuat, 'YXZ');
+      this._tmpEuler.z += this.deathFx.dizzyRoll; this._tmpEuler.x += shX * 0.05; this._tmpEuler.y += shY * 0.05;
+      this._tmpShadowQuat.setFromEuler(this._tmpEuler); const t = Math.min(1, dt * 10); this.camera.quaternion.slerp(this._tmpShadowQuat, t); return;
     }
     if(p.dead && this.camState.mode === 'tps'){
-      const tpsDist = TBOX.Save.getNum('tbox_tpsDist', 45) / 10;
-      const tpsH = TBOX.Save.getNum('tbox_tpsH', 16) / 10;
-      const backX = Math.sin(this.camState.yaw);
-      const backZ = Math.cos(this.camState.yaw);
-      const targetX = headWorld.x + backX * tpsDist;
-      const targetY = headWorld.y + tpsH + 0.6;
-      const targetZ = headWorld.z + backZ * tpsDist;
+      const tpsDist = TBOX.Save.getNum('tbox_tpsDist', 45) / 10; const tpsH = TBOX.Save.getNum('tbox_tpsH', 16) / 10;
+      const backX = Math.sin(this.camState.yaw); const backZ = Math.cos(this.camState.yaw);
+      const targetX = headWorld.x + backX * tpsDist; const targetY = headWorld.y + tpsH + 0.6; const targetZ = headWorld.z + backZ * tpsDist;
       const LAMBDA_POS = 5;
       this.camera.position.x = TBOX.Utils.damp(this.camera.position.x, targetX, LAMBDA_POS, dt);
       this.camera.position.y = TBOX.Utils.damp(this.camera.position.y, targetY, LAMBDA_POS, dt);
       this.camera.position.z = TBOX.Utils.damp(this.camera.position.z, targetZ, LAMBDA_POS, dt);
-      this._tmpLookAt.copy(headWorld);
-      this.camera.lookAt(this._tmpLookAt);
-      return;
+      this._tmpLookAt.copy(headWorld); this.camera.lookAt(this._tmpLookAt); return;
     }
-    if(this.camState.transition < 0.001){
-      this.camera.position.set(
-        headWorld.x + shX + fwdX * camFwd,
-        headWorld.y + shY + inspectCamY,
-        headWorld.z + fwdZ * camFwd
-      );
-    } else {
-      const tpsDist = TBOX.Save.getNum('tbox_tpsDist', 45) / 10;
-      const tpsH = TBOX.Save.getNum('tbox_tpsH', 16) / 10;
-      const backX = Math.sin(this.camState.yaw);
-      const backZ = Math.cos(this.camState.yaw);
-      const tpsX = p.x + backX * tpsDist;
-      const tpsY = headWorld.y + tpsH;
-      const tpsZ = p.z + backZ * tpsDist;
-      const safeY = Math.max(0.40, tpsY);
-      const fpsX = headWorld.x + shX + fwdX * camFwd;
-      const fpsY = headWorld.y + shY + inspectCamY;
-      const fpsZ = headWorld.z + fwdZ * camFwd;
+    if(this.camState.transition < 0.001){ this.camera.position.set(headWorld.x + shX + fwdX * camFwd, headWorld.y + shY + inspectCamY, headWorld.z + fwdZ * camFwd); }
+    else {
+      const tpsDist = TBOX.Save.getNum('tbox_tpsDist', 45) / 10; const tpsH = TBOX.Save.getNum('tbox_tpsH', 16) / 10;
+      const backX = Math.sin(this.camState.yaw); const backZ = Math.cos(this.camState.yaw);
+      const tpsX = p.x + backX * tpsDist; const tpsY = headWorld.y + tpsH; const tpsZ = p.z + backZ * tpsDist; const safeY = Math.max(0.40, tpsY);
+      const fpsX = headWorld.x + shX + fwdX * camFwd; const fpsY = headWorld.y + shY + inspectCamY; const fpsZ = headWorld.z + fwdZ * camFwd;
       const t = this.camState.transition;
-      this.camera.position.set(
-        TBOX.Utils.lerp(fpsX, tpsX, t),
-        TBOX.Utils.lerp(fpsY, safeY, t),
-        TBOX.Utils.lerp(fpsZ, tpsZ, t)
-      );
+      this.camera.position.set(TBOX.Utils.lerp(fpsX, tpsX, t), TBOX.Utils.lerp(fpsY, safeY, t), TBOX.Utils.lerp(fpsZ, tpsZ, t));
     }
     if(this.camera.position.y < 0.30) this.camera.position.y = 0.30;
     const rollActive = p.dodging || p.knockedDown;
-    if(!rollActive && Math.abs(this.camState.viewRoll) > 0.001){
-      this.camState.viewRoll = TBOX.Utils.lerp(this.camState.viewRoll, 0, Math.min(1, dt * 10));
-      if(Math.abs(this.camState.viewRoll) < 0.001) this.camState.viewRoll = 0;
-    } else if(rollActive){
-      const MAX = 0.25;
-      this.camState.viewRoll = TBOX.Utils.clamp(this.camState.viewRoll, -MAX, MAX);
-    }
-    const viewShakeX = (Math.random() - 0.5) * p.camKick * 0.5;
-    const viewShakeY = (Math.random() - 0.5) * p.camKick * 0.5;
-    const totalYaw = this.camState.yaw + viewShakeX + swayX + runShakeX;
-    const totalPitch = this.camState.pitch + viewShakeY + swayY + runShakeY;
+    if(!rollActive && Math.abs(this.camState.viewRoll) > 0.001){ this.camState.viewRoll = TBOX.Utils.lerp(this.camState.viewRoll, 0, Math.min(1, dt * 10)); if(Math.abs(this.camState.viewRoll) < 0.001) this.camState.viewRoll = 0; }
+    else if(rollActive){ const MAX = 0.25; this.camState.viewRoll = TBOX.Utils.clamp(this.camState.viewRoll, -MAX, MAX); }
+    const viewShakeX = (Math.random() - 0.5) * p.camKick * 0.5; const viewShakeY = (Math.random() - 0.5) * p.camKick * 0.5;
+    const totalYaw = this.camState.yaw + viewShakeX + swayX + runShakeX; const totalPitch = this.camState.pitch + viewShakeY + swayY + runShakeY;
     this.camera.rotation.set(totalPitch, totalYaw, this.camState.viewRoll, 'YXZ');
     if(character && character.head && character.head.material){
-      const hm = character.head.material;
-      if(Array.isArray(hm)) hm.forEach(function(m){ m.opacity = TBOX.Engine.camState.transition * 0.85; });
-      else hm.opacity = this.camState.transition * 0.85;
+      const hm = character.head.material; if(Array.isArray(hm)) hm.forEach(function(m){ m.opacity = TBOX.Engine.camState.transition * 0.85; }); else hm.opacity = this.camState.transition * 0.85;
     }
-    const baseFov = TBOX.Save.getNum('tbox_fov', 120);
-    const attackFov = (p.attackTimer > 0 && ['leftKick','rightKick','knee','push'].includes(p.attackType)) ? 4 : 0;
-    p.fovKick = TBOX.Utils.lerp(p.fovKick, 0, Math.min(1, rawDt * 12));
-    const targetFov = baseFov + p.fovKick + attackFov;
-    if(Math.abs(this.camera.fov - targetFov) > 0.01){
-      this.camera.fov = targetFov;
-      this.camera.updateProjectionMatrix();
-    }
+    const baseFov = TBOX.Save.getNum('tbox_fov', 120); const attackFov = (p.attackTimer > 0 && ['leftKick','rightKick','knee','push'].includes(p.attackType)) ? 4 : 0;
+    p.fovKick = TBOX.Utils.lerp(p.fovKick, 0, Math.min(1, rawDt * 12)); const targetFov = baseFov + p.fovKick + attackFov;
+    if(Math.abs(this.camera.fov - targetFov) > 0.01){ this.camera.fov = targetFov; this.camera.updateProjectionMatrix(); }
   },
 
   updateCrosshairSpread(dt){
-    if(!TBOX.UI || !TBOX.UI.setCrosshairSpread) return;
-    var p = TBOX.Player;
-    if(!p) return;
-    var target = 0;
-    if(p.speedFactor > 0.1) target += Math.min(0.5, p.speedFactor * 0.5);
-    if(p.attackTimer > 0) target += 0.7;
-    if(!p.onGround) target += 0.4;
-    var lambda = 10;
-    this._chSpreadCurrent = TBOX.Utils.damp(this._chSpreadCurrent, target, lambda, dt);
-    TBOX.UI.setCrosshairSpread(this._chSpreadCurrent);
+    if(!TBOX.UI || !TBOX.UI.setCrosshairSpread) return; var p = TBOX.Player; if(!p) return;
+    var target = 0; if(p.speedFactor > 0.1) target += Math.min(0.5, p.speedFactor * 0.5); if(p.attackTimer > 0) target += 0.7; if(!p.onGround) target += 0.4;
+    this._chSpreadCurrent = TBOX.Utils.damp(this._chSpreadCurrent, target, 10, dt); TBOX.UI.setCrosshairSpread(this._chSpreadCurrent);
   },
 
-  toggleView(){
-    this.camState.mode = this.camState.mode === 'fps' ? 'tps' : 'fps';
-    TBOX.UI.updateMode(this.camState.mode);
-    TBOX.Events.emit(TBOX.EVENTS.CAM_SWITCH, this.camState.mode);
-  },
+  toggleView(){ this.camState.mode = this.camState.mode === 'fps' ? 'tps' : 'fps'; TBOX.UI.updateMode(this.camState.mode); TBOX.Events.emit(TBOX.EVENTS.CAM_SWITCH, this.camState.mode); },
 
-  /* ============================================================
-   * ★ 物理系统 v2：精确碰撞 + 环境碰撞 + 玩家推
-   * ============================================================ */
   updatePhysics(dt){
-    const P = TBOX.DATA.PHYSICS;
-    if(!P.enable) return;
-    const props = this.props;
-    const grab = this.grabbedProp;
-
+    const P = TBOX.DATA.PHYSICS; if(!P.enable) return; const props = this.props; const grab = this.grabbedProp;
     for(let i = 0; i < props.length; i++){
-      const obj = props[i];
-      if(!obj.mesh) continue;
-      if(obj === grab) continue;
-
-      const phy = obj.phy;
-      if(!phy) continue;
-
-      /* 重力 */
-      phy.vy += P.gravity * dt;
-
-      /* 摩擦 */
-      const friction = phy.onGround ? P.friction : P.airFriction;
-      const fr = Math.max(0, 1 - friction * dt);
-      phy.vx *= fr;
-      phy.vz *= fr;
-
-      /* 位移 */
-      obj.mesh.position.x += phy.vx * dt;
-      obj.mesh.position.y += phy.vy * dt;
-      obj.mesh.position.z += phy.vz * dt;
-
-      /* 地面 */
+      const obj = props[i]; if(!obj.mesh || obj === grab) continue; const phy = obj.phy; if(!phy) continue;
+      phy.vy += P.gravity * dt; const friction = phy.onGround ? P.friction : P.airFriction; const fr = Math.max(0, 1 - friction * dt); phy.vx *= fr; phy.vz *= fr;
+      obj.mesh.position.x += phy.vx * dt; obj.mesh.position.y += phy.vy * dt; obj.mesh.position.z += phy.vz * dt;
       if(P.collideStairs) this._resolvePropGround(obj, dt);
-      /* ★ 环境 AABB 水平推挤 */
-      this._resolvePropVsStatic(obj, dt);
-      /* 物体 vs 物体 */
-      if(P.propCollision) this._resolvePropVsProps(obj, i);
-      /* 物体 vs 玩家 */
-      if(P.playerPush) this._resolvePropVsPlayer(obj, dt);
-
-      /* 同步 box */
-      obj.box.x = obj.mesh.position.x;
-      obj.box.y = obj.mesh.position.y;
-      obj.box.z = obj.mesh.position.z;
-      obj.box.topY = obj.mesh.position.y + obj.size.y / 2;
-      obj.box.bottomY = obj.mesh.position.y - obj.size.y / 2;
-
-      /* 休眠 */
+      this._resolvePropVsStatic(obj, dt); if(P.propCollision) this._resolvePropVsProps(obj, i); if(P.playerPush) this._resolvePropVsPlayer(obj, dt);
+      obj.box.x = obj.mesh.position.x; obj.box.y = obj.mesh.position.y; obj.box.z = obj.mesh.position.z;
+      obj.box.topY = obj.mesh.position.y + obj.size.y / 2; obj.box.bottomY = obj.mesh.position.y - obj.size.y / 2;
       const speed = Math.hypot(phy.vx, phy.vy, phy.vz);
-      if(speed < P.sleepSpeed && phy.onGround){
-        phy.sleepTimer += dt;
-        if(phy.sleepTimer > P.sleepTime){
-          phy.sleeping = true;
-          phy.vx = 0; phy.vy = 0; phy.vz = 0;
-        }
-      } else {
-        phy.sleepTimer = 0;
-        phy.sleeping = false;
-      }
+      if(speed < P.sleepSpeed && phy.onGround){ phy.sleepTimer += dt; if(phy.sleepTimer > P.sleepTime){ phy.sleeping = true; phy.vx = 0; phy.vy = 0; phy.vz = 0; } }
+      else { phy.sleepTimer = 0; phy.sleeping = false; }
     }
-
-    while(this.props.length > P.maxProps){
-      this.deleteProp(this.props[0]);
-    }
+    while(this.props.length > P.maxProps){ this.deleteProp(this.props[0]); }
   },
 
   _resolvePropGround(obj, dt){
-    const P = TBOX.DATA.PHYSICS;
-    const pos = obj.mesh.position;
-    const halfH = obj.size.y / 2;
-    let groundY = 0;
-    for(let i = 0; i < this.aabbStatic.length; i++){
-      const box = this.aabbStatic[i];
-      if(box.tag === 'prop') continue;
-      const dx = pos.x - box.x;
-      const dz = pos.z - box.z;
-      if(Math.abs(dx) < box.hw + obj.size.x / 2 && Math.abs(dz) < box.hd + obj.size.z / 2){
-        if(box.topY > groundY && pos.y - halfH < box.topY) groundY = box.topY;
-      }
-    }
-    if(pos.y - halfH < groundY){
-      pos.y = groundY + halfH;
-      if(obj.phy.vy < 0){
-        obj.phy.vy = -obj.phy.vy * P.restitution;
-        if(Math.abs(obj.phy.vy) < 0.5) obj.phy.vy = 0;
-      }
-      obj.phy.onGround = true;
-    } else {
-      obj.phy.onGround = false;
-    }
+    const P = TBOX.DATA.PHYSICS; const pos = obj.mesh.position; const halfH = obj.size.y / 2; let groundY = 0;
+    for(let i = 0; i < this.aabbStatic.length; i++){ const box = this.aabbStatic[i]; if(box.tag === 'prop') continue; const dx = pos.x - box.x; const dz = pos.z - box.z; if(Math.abs(dx) < box.hw + obj.size.x / 2 && Math.abs(dz) < box.hd + obj.size.z / 2){ if(box.topY > groundY && pos.y - halfH < box.topY) groundY = box.topY; } }
+    if(pos.y - halfH < groundY){ pos.y = groundY + halfH; if(obj.phy.vy < 0){ obj.phy.vy = -obj.phy.vy * P.restitution; if(Math.abs(obj.phy.vy) < 0.5) obj.phy.vy = 0; } obj.phy.onGround = true; } else { obj.phy.onGround = false; }
   },
 
-  /* ★ 新增：物体 vs 环境 AABB 水平推挤（修复穿墙） */
   _resolvePropVsStatic(obj, dt){
-    const P = TBOX.DATA.PHYSICS;
-    const pos = obj.mesh.position;
-    const halfW = obj.size.x / 2;
-    const halfD = obj.size.z / 2;
-    const halfH = obj.size.y / 2;
-    const topY = pos.y + halfH;
-    const botY = pos.y - halfH;
-
+    const P = TBOX.DATA.PHYSICS; const pos = obj.mesh.position; const halfW = obj.size.x / 2; const halfD = obj.size.z / 2; const halfH = obj.size.y / 2;
+    const topY = pos.y + halfH; const botY = pos.y - halfH;
     for(let i = 0; i < this.aabbStatic.length; i++){
-      const box = this.aabbStatic[i];
-      if(box.tag === 'prop') continue;
-      /* 垂直不重叠 */
-      if(topY <= box.bottomY || botY >= box.topY) continue;
-      /* 水平 AABB */
-      const dx = pos.x - box.x;
-      const dz = pos.z - box.z;
-      const overlapX = (box.hw + halfW) - Math.abs(dx);
-      const overlapZ = (box.hd + halfD) - Math.abs(dz);
+      const box = this.aabbStatic[i]; if(box.tag === 'prop') continue; if(topY <= box.bottomY || botY >= box.topY) continue;
+      const dx = pos.x - box.x; const dz = pos.z - box.z; const overlapX = (box.hw + halfW) - Math.abs(dx); const overlapZ = (box.hd + halfD) - Math.abs(dz);
       if(overlapX <= 0 || overlapZ <= 0) continue;
-      /* 最小分离轴推出 */
-      if(overlapX < overlapZ){
-        pos.x += (dx > 0 ? overlapX : -overlapX);
-        obj.phy.vx = -obj.phy.vx * P.restitution;
-      } else {
-        pos.z += (dz > 0 ? overlapZ : -overlapZ);
-        obj.phy.vz = -obj.phy.vz * P.restitution;
-      }
+      if(overlapX < overlapZ){ pos.x += (dx > 0 ? overlapX : -overlapX); obj.phy.vx = -obj.phy.vx * P.restitution; }
+      else { pos.z += (dz > 0 ? overlapZ : -overlapZ); obj.phy.vz = -obj.phy.vz * P.restitution; }
       obj.phy.sleeping = false;
     }
   },
 
   _resolvePropVsProps(obj, myIdx){
-    const P = TBOX.DATA.PHYSICS;
-    const pos = obj.mesh.position;
+    const P = TBOX.DATA.PHYSICS; const pos = obj.mesh.position;
     for(let j = 0; j < this.props.length; j++){
-      if(j === myIdx) continue;
-      const other = this.props[j];
-      if(!other.mesh) continue;
-      const op = other.mesh.position;
-      const dx = pos.x - op.x;
-      const dz = pos.z - op.z;
-      const dy = pos.y - op.y;
-      const rx = (obj.size.x + other.size.x) / 2;
-      const rz = (obj.size.z + other.size.z) / 2;
-      const ry = (obj.size.y + other.size.y) / 2;
+      if(j === myIdx) continue; const other = this.props[j]; if(!other.mesh) continue; const op = other.mesh.position;
+      const dx = pos.x - op.x; const dz = pos.z - op.z; const dy = pos.y - op.y;
+      const rx = (obj.size.x + other.size.x) / 2; const rz = (obj.size.z + other.size.z) / 2; const ry = (obj.size.y + other.size.y) / 2;
       if(Math.abs(dx) < rx && Math.abs(dz) < rz && Math.abs(dy) < ry){
-        const overlapX = rx - Math.abs(dx);
-        const overlapZ = rz - Math.abs(dz);
-        if(overlapX < overlapZ){
-          const sign = dx > 0 ? 1 : -1;
-          pos.x += sign * overlapX * 0.5;
-          other.mesh.position.x -= sign * overlapX * 0.5;
-          const v = obj.phy.vx;
-          obj.phy.vx = other.phy.vx * 0.5;
-          other.phy.vx = v * 0.5;
-        } else {
-          const sign = dz > 0 ? 1 : -1;
-          pos.z += sign * overlapZ * 0.5;
-          other.mesh.position.z -= sign * overlapZ * 0.5;
-          const v = obj.phy.vz;
-          obj.phy.vz = other.phy.vz * 0.5;
-          other.phy.vz = v * 0.5;
-        }
-        if(Math.abs(dy) > 0.01){
-          const overlapY = ry - Math.abs(dy);
-          const sign = dy > 0 ? 1 : -1;
-          pos.y += sign * overlapY * 0.5;
-          other.mesh.position.y -= sign * overlapY * 0.5;
-        }
-        obj.phy.sleeping = false;
-        other.phy.sleeping = false;
+        const overlapX = rx - Math.abs(dx); const overlapZ = rz - Math.abs(dz);
+        if(overlapX < overlapZ){ const sign = dx > 0 ? 1 : -1; pos.x += sign * overlapX * 0.5; other.mesh.position.x -= sign * overlapX * 0.5; const v = obj.phy.vx; obj.phy.vx = other.phy.vx * 0.5; other.phy.vx = v * 0.5; }
+        else { const sign = dz > 0 ? 1 : -1; pos.z += sign * overlapZ * 0.5; other.mesh.position.z -= sign * overlapZ * 0.5; const v = obj.phy.vz; obj.phy.vz = other.phy.vz * 0.5; other.phy.vz = v * 0.5; }
+        if(Math.abs(dy) > 0.01){ const overlapY = ry - Math.abs(dy); const sign = dy > 0 ? 1 : -1; pos.y += sign * overlapY * 0.5; other.mesh.position.y -= sign * overlapY * 0.5; }
+        obj.phy.sleeping = false; other.phy.sleeping = false;
       }
     }
   },
 
-  /* ★ 玩家推物体（真实速度驱动） */
   _resolvePropVsPlayer(obj, dt){
-    const p = TBOX.Player;
-    if(!p) return;
-    const pos = obj.mesh.position;
-    const dx = pos.x - p.x;
-    const dz = pos.z - p.z;
-    const dist = Math.hypot(dx, dz);
+    const p = TBOX.Player; if(!p) return;
+    if(obj === this.grabbedProp) return; /* ★ 关键修复：手中物体不推玩家 */
+    const pos = obj.mesh.position; const dx = pos.x - p.x; const dz = pos.z - p.z; const dist = Math.hypot(dx, dz);
     const rad = TBOX.DATA.PLAYER_RADIUS + Math.max(obj.size.x, obj.size.z) / 2;
     if(dist >= rad || dist < 0.0001) return;
-    const nx = dx / dist, nz = dz / dist;
-    const overlap = rad - dist;
-    pos.x += nx * overlap;
-    pos.z += nz * overlap;
-    /* 玩家速度驱动推力 */
+    const nx = dx / dist, nz = dz / dist; const overlap = rad - dist;
+    pos.x += nx * overlap; pos.z += nz * overlap;
     const pSpeed = Math.hypot(p.moveDirX || 0, p.moveDirZ || 0) * (p.speedFactor || 0) * 8;
-    const force = Math.max(2.0, pSpeed) * 6.0;
-    obj.phy.vx += nx * force * dt;
-    obj.phy.vz += nz * force * dt;
-    obj.phy.sleeping = false;
-    obj.phy.sleepTimer = 0;
+    const objMass = obj.mass || 1; const force = (Math.max(2.0, pSpeed) * 6.0) / Math.max(0.3, objMass);
+    obj.phy.vx += nx * force * dt; obj.phy.vz += nz * force * dt; obj.phy.sleeping = false; obj.phy.sleepTimer = 0;
   },
 
-  /* ============================================================
-   * ★ 抓取：第三人称修复
-   * ============================================================ */
   grabProp(){
-    const G = TBOX.DATA.GRAB;
-    if(!G.enable) return false;
-    if(this.grabbedProp) return false;
-    const p = TBOX.Player;
-    if(!p) return false;
-
-    /* 第三人称：从玩家胸口出发，方向用 camState.yaw/pitch */
-    const yaw = this.camState.yaw;
-    const pitch = this.camState.pitch;
-    const dirX = -Math.sin(yaw) * Math.cos(pitch);
-    const dirY = Math.sin(pitch);
-    const dirZ = -Math.cos(yaw) * Math.cos(pitch);
-
-    const originX = p.x;
-    const originY = p.y + 1.2;
-    const originZ = p.z;
-
-    let best = null;
-    let bestT = G.range;
+    const G = TBOX.DATA.GRAB; if(!G.enable || this.grabbedProp) return false; const p = TBOX.Player; if(!p) return false;
+    const yaw = this.camState.yaw; const pitch = this.camState.pitch;
+    const dirX = -Math.sin(yaw) * Math.cos(pitch); const dirY = Math.sin(pitch); const dirZ = -Math.cos(yaw) * Math.cos(pitch);
+    const originX = p.x; const originY = p.y + 1.2; const originZ = p.z;
+    let best = null; let bestT = G.range;
     for(let i = 0; i < this.props.length; i++){
-      const obj = this.props[i];
-      if(!obj.mesh) continue;
-      const toX = obj.mesh.position.x - originX;
-      const toY = obj.mesh.position.y - originY;
-      const toZ = obj.mesh.position.z - originZ;
-      const t = toX * dirX + toY * dirY + toZ * dirZ;
-      if(t < 0 || t > G.range) continue;
-      const cx = originX + dirX * t;
-      const cy = originY + dirY * t;
-      const cz = originZ + dirZ * t;
+      const obj = this.props[i]; if(!obj.mesh) continue;
+      const toX = obj.mesh.position.x - originX; const toY = obj.mesh.position.y - originY; const toZ = obj.mesh.position.z - originZ;
+      const t = toX * dirX + toY * dirY + toZ * dirZ; if(t < 0 || t > G.range) continue;
+      const cx = originX + dirX * t; const cy = originY + dirY * t; const cz = originZ + dirZ * t;
       const d = Math.hypot(obj.mesh.position.x - cx, obj.mesh.position.y - cy, obj.mesh.position.z - cz);
       const r = Math.max(obj.size.x, obj.size.y, obj.size.z) / 2;
       if(d < r && t < bestT){ bestT = t; best = obj; }
     }
-    if(!best) return false;
-    this.grabbedProp = best;
-    best.phy.sleeping = false;
-    this.grabDist = bestT;
-    return true;
+    if(!best || (best.mass || 1) > (G.maxMass || 15)) return false;
+    this.grabbedProp = best; best.phy.sleeping = false; this.grabDist = bestT; this.grabState = 'held'; this.grabTimer = 0; return true;
   },
 
-  releaseProp(){
-    if(!this.grabbedProp) return false;
-    this.grabbedProp.phy.sleeping = false;
-    this.grabbedProp = null;
-    this.grabDist = 0;
-    return true;
-  },
+  releaseProp(){ if(!this.grabbedProp) return false; this.grabbedProp.phy.sleeping = false; this.grabbedProp = null; this.grabDist = 0; this.grabState = 'none'; this.grabTimer = 0; return true; },
 
   throwProp(){
-    const G = TBOX.DATA.GRAB;
-    if(!this.grabbedProp) return false;
-    const obj = this.grabbedProp;
-    /* 用玩家朝向而不是相机朝向（第三人称也正确） */
-    const yaw = this.camState.yaw;
-    const pitch = this.camState.pitch;
-    const dirX = -Math.sin(yaw) * Math.cos(pitch);
-    const dirY = Math.sin(pitch);
-    const dirZ = -Math.cos(yaw) * Math.cos(pitch);
-    obj.phy.vx = dirX * G.throwSpeed;
-    obj.phy.vy = dirY * G.throwSpeed + 2;
-    obj.phy.vz = dirZ * G.throwSpeed;
-    obj.phy.sleeping = false;
-    this.grabbedProp = null;
-    this.grabDist = 0;
-    return true;
+    const G = TBOX.DATA.GRAB; if(!this.grabbedProp) return false; const obj = this.grabbedProp;
+    const yaw = this.camState.yaw; const pitch = this.camState.pitch;
+    const dirX = -Math.sin(yaw) * Math.cos(pitch); const dirY = Math.sin(pitch); const dirZ = -Math.cos(yaw) * Math.cos(pitch);
+    obj.phy.vx = dirX * G.throwSpeed; obj.phy.vy = dirY * G.throwSpeed + 2; obj.phy.vz = dirZ * G.throwSpeed;
+    obj.phy.sleeping = false; this.grabbedProp = null; this.grabDist = 0; this.grabState = 'none'; this.grabTimer = 0; return true;
   },
 
   updateGrab(dt){
-    const G = TBOX.DATA.GRAB;
-    if(!G.enable) return;
-    const obj = this.grabbedProp;
-    if(!obj || !obj.mesh) return;
-    const p = TBOX.Player;
-    if(!p) return;
-    /* 目标位置：从玩家胸口沿 camState 方向 holdDistance 处 */
-    const yaw = this.camState.yaw;
-    const pitch = this.camState.pitch;
-    const dirX = -Math.sin(yaw) * Math.cos(pitch);
-    const dirY = Math.sin(pitch);
-    const dirZ = -Math.cos(yaw) * Math.cos(pitch);
-    const targetX = p.x + dirX * G.holdDistance;
-    const targetY = p.y + 1.2 + dirY * G.holdDistance;
-    const targetZ = p.z + dirZ * G.holdDistance;
+    const G = TBOX.DATA.GRAB; if(!G.enable) return; const obj = this.grabbedProp; if(!obj || !obj.mesh) return; const p = TBOX.Player; if(!p) return;
+    this.grabTimer += dt;
+    const yaw = this.camState.yaw; const pitch = this.camState.pitch;
+    const dirX = -Math.sin(yaw) * Math.cos(pitch); const dirY = Math.sin(pitch); const dirZ = -Math.cos(yaw) * Math.cos(pitch);
+    const targetX = p.x + dirX * G.holdDistance; const targetY = p.y + 1.2 + dirY * G.holdDistance; const targetZ = p.z + dirZ * G.holdDistance;
 
-    const lam = TBOX.DATA.PHYSICS.grabFollowLambda;
-    const k = 1 - Math.exp(-lam * dt);
+    const testBox = { x: targetX, y: targetY, z: targetZ, hw: obj.size.x / 2, hh: obj.size.y / 2, hd: obj.size.z / 2 };
+    /* ★ 关键修复：如果物体目标位置碰到了非 prop 的环境（如墙壁、楼梯），立即脱手，绝不推玩家 */
+    const hits = this.queryAABB(testBox, (b) => b !== obj.box && b.tag !== 'prop');
+    if(hits.length > 0){
+      this.releaseProp();
+      return;
+    }
+
+    const lam = TBOX.DATA.PHYSICS.grabFollowLambda; const k = 1 - Math.exp(-lam * dt);
     obj.mesh.position.x += (targetX - obj.mesh.position.x) * k;
     obj.mesh.position.y += (targetY - obj.mesh.position.y) * k;
     obj.mesh.position.z += (targetZ - obj.mesh.position.z) * k;
-
-    obj.phy.vx = 0; obj.phy.vy = 0; obj.phy.vz = 0;
-    obj.phy.sleeping = false;
-    obj.box.x = obj.mesh.position.x;
-    obj.box.y = obj.mesh.position.y;
-    obj.box.z = obj.mesh.position.z;
-    obj.box.topY = obj.mesh.position.y + obj.size.y / 2;
-    obj.box.bottomY = obj.mesh.position.y - obj.size.y / 2;
+    obj.phy.vx = 0; obj.phy.vy = 0; obj.phy.vz = 0; obj.phy.sleeping = false;
+    obj.box.x = obj.mesh.position.x; obj.box.y = obj.mesh.position.y; obj.box.z = obj.mesh.position.z;
+    obj.box.topY = obj.mesh.position.y + obj.size.y / 2; obj.box.bottomY = obj.mesh.position.y - obj.size.y / 2;
   },
 
-  start(){
-    this.running = true; this.paused = false;
-    this.lastTime = performance.now();
-    if(!this.isTouch && this.controls){ try { this.controls.lock(); } catch(e){} }
-    this._startAmbient();
-    requestAnimationFrame((now) => this.loop(now));
-  },
-
-  _startAmbient(){
-    if(TBOX.Audio && TBOX.Audio.startAmbient) TBOX.Audio.startAmbient();
-  },
-
-  requestLock(){
-    if(this.isTouch) return;
-    if(this.controls && !this.controls.isLocked){ try { this.controls.lock(); } catch(e){} }
-  },
-
-  pause(){ this.paused = true; },
-  resume(){ this.paused = false; this.lastTime = performance.now(); },
+  start(){ this.running = true; this.paused = false; this.lastTime = performance.now(); if(!this.isTouch && this.controls){ try { this.controls.lock(); } catch(e){} } this._startAmbient(); requestAnimationFrame((now) => this.loop(now)); },
+  _startAmbient(){ if(TBOX.Audio && TBOX.Audio.startAmbient) TBOX.Audio.startAmbient(); },
+  requestLock(){ if(this.isTouch) return; if(this.controls && !this.controls.isLocked){ try { this.controls.lock(); } catch(e){} } },
+  pause(){ this.paused = true; }, resume(){ this.paused = false; this.lastTime = performance.now(); },
 
   loop(now){
     requestAnimationFrame((t) => this.loop(t));
-    const rawDt = Math.min((now - this.lastTime) / 1000, 0.05);
-    this.lastTime = now;
+    const rawDt = Math.min((now - this.lastTime) / 1000, 0.05); this.lastTime = now;
     if(!isFinite(rawDt) || rawDt <= 0){ this._render(); return; }
     const fpsLimit = TBOX.Save.getNum('tbox_fpsLimit', 60);
-    if(fpsLimit > 0 && fpsLimit < 240){
-      const minFrameTime = 1000 / fpsLimit;
-      if(now - (this._lastFrameTime || 0) < minFrameTime) return;
-      this._lastFrameTime = now;
-    }
-    let timeScale = 1.0;
-    if(TBOX.Save.get('tbox_slowMo', '1') === '1' && this.player && !this.player.dead){
-      timeScale *= this.hurtFx.slowMoCurrent;
-    }
-    const dt = rawDt * timeScale;
-    if(this.paused){ this._render(); return; }
+    if(fpsLimit > 0 && fpsLimit < 240){ const minFrameTime = 1000 / fpsLimit; if(now - (this._lastFrameTime || 0) < minFrameTime) return; this._lastFrameTime = now; }
+    let timeScale = 1.0; if(TBOX.Save.get('tbox_slowMo', '1') === '1' && this.player && !this.player.dead){ timeScale *= this.hurtFx.slowMoCurrent; }
+    const dt = rawDt * timeScale; if(this.paused){ this._render(); return; }
     this.fpsAcc += rawDt; this.fpsFrames++;
-    if(this.fpsAcc >= 0.5){
-      this.fpsValue = Math.round(this.fpsFrames / this.fpsAcc);
-      if(this.player && TBOX.Save.get('tbox_showfps', 'off') === 'on') TBOX.UI.updateFPS(this.fpsValue);
-      if(this.player && TBOX.Save.get('tbox_showCoord', '0') === '1') TBOX.UI.updateCoord(this.player);
-      this.fpsAcc = 0; this.fpsFrames = 0;
-    }
-    let hitStopDt = dt;
-    if(this.player && this.player.hitStop > 0){
-      this.player.hitStop -= rawDt;
-      hitStopDt = dt * 0.15;
-    }
-    if(this.onUpdate) this.onUpdate(hitStopDt, now);
-    if(this.onUpdateAction) this.onUpdateAction(hitStopDt, now);
+    if(this.fpsAcc >= 0.5){ this.fpsValue = Math.round(this.fpsFrames / this.fpsAcc); if(this.player && TBOX.Save.get('tbox_showfps', 'off') === 'on') TBOX.UI.updateFPS(this.fpsValue); if(this.player && TBOX.Save.get('tbox_showCoord', '0') === '1') TBOX.UI.updateCoord(this.player); this.fpsAcc = 0; this.fpsFrames = 0; }
+    let hitStopDt = dt; if(this.player && this.player.hitStop > 0){ this.player.hitStop -= rawDt; hitStopDt = dt * 0.15; }
+    if(this.onUpdate) this.onUpdate(hitStopDt, now); if(this.onUpdateAction) this.onUpdateAction(hitStopDt, now);
     TBOX.Action.updateEnemyPose(hitStopDt, now);
-    this.updateVitals(dt);
-    this.updateHurtFx(dt, rawDt);
-    this.updateDeathFx(dt, rawDt);
+    this.updateVitals(dt); this.updateHurtFx(dt, rawDt); this.updateDeathFx(dt, rawDt);
     if(this.player && this.character) this.updateCamera(this.player, this.character, dt, rawDt);
-    this.updatePhysics(dt);
-    this.updateGrab(dt);
+    this.updatePhysics(dt); this.updateGrab(dt);
     if(this.onUpdateFragments) this.onUpdateFragments(rawDt);
-    this.updateCrosshairSpread(dt);
-    TBOX.UI.updateCompass(this.camState.yaw);
-    TBOX.UI.updateHurtVignette(this.player);
-    TBOX.UI.updateHpHud(this.player);
+    this.updateCrosshairSpread(dt); TBOX.UI.updateCompass(this.camState.yaw); TBOX.UI.updateHurtVignette(this.player); TBOX.UI.updateHpHud(this.player);
     if(this.csm && this.csmEnabled) this.csm.update();
     const shadowOn = TBOX.Save.get('tbox_shadow', '0') === '1';
-    if(shadowOn && !this.csmEnabled){
-      this.shadowTick = (this.shadowTick + 1) % this.Q.shadowTick;
-      if(this.shadowTick === 0 && this.player){
-        this.sunLight.position.set(this.player.x + 24, 46, this.player.z + 18);
-        this.sunLight.target.position.set(this.player.x, 0, this.player.z);
-        this.renderer.shadowMap.needsUpdate = true;
-      }
-    }
+    if(shadowOn && !this.csmEnabled){ this.shadowTick = (this.shadowTick + 1) % this.Q.shadowTick; if(this.shadowTick === 0 && this.player){ this.sunLight.position.set(this.player.x + 24, 46, this.player.z + 18); this.sunLight.target.position.set(this.player.x, 0, this.player.z); this.renderer.shadowMap.needsUpdate = true; } }
     this._render();
   },
 
   _render(){
     var t = performance.now() / 1000;
-    if(this.filmGrainPass && this.filmGrainPass.enabled){
-      this.filmGrainPass.uniforms.time.value = t;
-    }
-    if(this.motionBlurPass && this.motionBlurPass.enabled){
-      this.motionBlurPass.uniforms.time.value = t;
-      var p = TBOX.Player;
-      if(p){
-        var sp = p.speedFactor || 0;
-        this.motionBlurPass.uniforms.intensity.value = 0.2 + sp * 0.8;
-      }
-    }
-    if(this.postProcessingEnabled && this.composer){
-      this.composer.render();
-    } else {
-      this.renderer.render(this.scene, this.camera);
-    }
+    if(this.filmGrainPass && this.filmGrainPass.enabled) this.filmGrainPass.uniforms.time.value = t;
+    if(this.motionBlurPass && this.motionBlurPass.enabled){ this.motionBlurPass.uniforms.time.value = t; var p = TBOX.Player; if(p){ var sp = p.speedFactor || 0; this.motionBlurPass.uniforms.intensity.value = 0.2 + sp * 0.8; } }
+    if(this.postProcessingEnabled && this.composer) this.composer.render(); else this.renderer.render(this.scene, this.camera);
   },
 
+  /* ★ 核心重写：几何体生成器（完全不穿模，丝滑过度） */
   _geoDispatch(id, s){
     switch(id){
       case 'cube':            return this._geo_cube(s);
@@ -1597,18 +753,21 @@ TBOX.Engine = {
       case 'pyramid8':        return this._geo_pyramid(s, 8);
       case 'pyramid12':       return this._geo_pyramid(s, 12);
       case 'pyramid16':       return this._geo_pyramid(s, 16);
+      case 'pyramid-truncated': return this._geo_pyramid_truncated(s);
       case 'cylinder':        return this._geo_cylinder(s);
       case 'cylinder-hollow': return this._geo_cylinder_hollow(s);
       case 'cone':            return this._geo_cone(s);
       case 'cone-truncated':  return this._geo_cone_truncated(s);
+      case 'cone-hollow':     return this._geo_cone_hollow(s);
       case 'disc':            return this._geo_disc(s, 0.08);
       case 'disc-thick':      return this._geo_disc(s, 0.35);
       case 'disc-hollow':     return this._geo_disc_hollow(s);
       case 'torus':           return this._geo_torus(s, 0.20);
       case 'torus-thick':     return this._geo_torus(s, 0.35);
       case 'torus-half':      return this._geo_torus_half(s);
+      case 'torus-major':     return this._geo_torus_major(s);
+      case 'torus-minor':     return this._geo_torus_minor(s);
       case 'wedge':           return this._geo_wedge(s);
-      case 'wedge-curved':    return this._geo_wedge_curved(s);
       case 'ramp':            return this._geo_ramp(s);
       case 'ramp-curved':     return this._geo_ramp_curved(s);
       case 'step':            return this._geo_step(s);
@@ -1623,7 +782,14 @@ TBOX.Engine = {
       case 'star5':           return this._geo_star(s, 5);
       case 'star6':           return this._geo_star(s, 6);
       case 'star8':           return this._geo_star(s, 8);
+      case 'star10':          return this._geo_star(s, 10);
+      case 'star12':          return this._geo_star(s, 12);
+      case 'star16':          return this._geo_star(s, 16);
       case 'ring':            return this._geo_ring(s);
+      case 'spiral':          return this._geo_spiral(s);
+      case 'dome':            return this._geo_dome(s);
+      case 'column':          return this._geo_column(s);
+      case 'rail':            return this._geo_rail(s);
       case 'A-shape':         return this._geo_letter(s, 'A');
       case 'B-shape':         return this._geo_letter(s, 'B');
       case 'C-shape':         return this._geo_letter(s, 'C');
@@ -1646,7 +812,6 @@ TBOX.Engine = {
       case 'plate-ring':      return this._geo_plate_ring(s);
       case 'plate-star':      return this._geo_plate_star(s);
       case 'rod':             return this._geo_rod(s, 0);
-      case 'rod-hex':         return this._geo_rod(s, 6);
       case 'tube':            return this._geo_tube(s, 0);
       case 'tube-square':     return this._geo_tube(s, 4);
       case 'tube-hex':        return this._geo_tube(s, 6);
@@ -1662,9 +827,6 @@ TBOX.Engine = {
       case 'beam-curved':     return this._geo_beam_curved(s);
       case 'panel':           return this._geo_panel(s);
       case 'panel-curved':    return this._geo_panel_curved(s);
-      case 'bracket-U':       return this._geo_bracket(s, 0);
-      case 'bracket-L':       return this._geo_bracket(s, 1);
-      case 'bracket-T':       return this._geo_bracket(s, 2);
       default:                return new THREE.BoxGeometry(s, s, s);
     }
   },
@@ -1679,708 +841,348 @@ TBOX.Engine = {
   _geo_hemisphere(s){ return new THREE.SphereGeometry(s * 0.5, 24, 16, 0, Math.PI * 2, 0, Math.PI / 2); },
   _geo_quarter_sphere(s){ return new THREE.SphereGeometry(s * 0.5, 24, 16, 0, Math.PI / 2, 0, Math.PI / 2); },
   _geo_capsule(s){ return new THREE.CapsuleGeometry(s * 0.35, s * 0.6, 8, 16); },
-
   _geo_prism(s, n){ return new THREE.CylinderGeometry(s * 0.5, s * 0.5, s, n); },
   _geo_pyramid(s, n){ return new THREE.ConeGeometry(s * 0.5, s, n); },
-
+  _geo_pyramid_truncated(s){ return new THREE.CylinderGeometry(s * 0.25, s * 0.5, s, 4); },
   _geo_cylinder(s){ return new THREE.CylinderGeometry(s * 0.5, s * 0.5, s, 32); },
 
-  /* ★ 真双壁空心圆柱 */
   _geo_cylinder_hollow(s){
     const r1 = s * 0.5, r2 = s * 0.28, h = s, segs = 32;
     const outer = new THREE.CylinderGeometry(r1, r1, h, segs, 1, true);
-    const inner = new THREE.CylinderGeometry(r2, r2, h, segs, 1, true);
-    inner.scale(-1, 1, 1);
-    const capTop = new THREE.RingGeometry(r2, r1, segs);
-    capTop.rotateX(-Math.PI / 2);
-    capTop.translate(0, h / 2, 0);
-    const capBot = new THREE.RingGeometry(r2, r1, segs);
-    capBot.rotateX(Math.PI / 2);
-    capBot.translate(0, -h / 2, 0);
-    return this._mergeGeosWithUV([
-      { geo: outer,  pos: [0, 0, 0], rot: [0, 0, 0] },
-      { geo: inner,  pos: [0, 0, 0], rot: [0, 0, 0] },
-      { geo: capTop, pos: [0, 0, 0], rot: [0, 0, 0] },
-      { geo: capBot, pos: [0, 0, 0], rot: [0, 0, 0] }
-    ]);
+    const inner = new THREE.CylinderGeometry(r2, r2, h, segs, 1, true); inner.scale(-1, 1, 1);
+    const capTop = new THREE.RingGeometry(r2, r1, segs); capTop.rotateX(-Math.PI / 2); capTop.translate(0, h / 2, 0);
+    const capBot = new THREE.RingGeometry(r2, r1, segs); capBot.rotateX(Math.PI / 2); capBot.translate(0, -h / 2, 0);
+    return this._mergeGeosWithUV([{ geo: outer, pos: [0, 0, 0], rot: [0, 0, 0] }, { geo: inner, pos: [0, 0, 0], rot: [0, 0, 0] }, { geo: capTop, pos: [0, 0, 0], rot: [0, 0, 0] }, { geo: capBot, pos: [0, 0, 0], rot: [0, 0, 0] }]);
   },
 
   _geo_cone(s){ return new THREE.ConeGeometry(s * 0.5, s, 32); },
   _geo_cone_truncated(s){ return new THREE.CylinderGeometry(s * 0.3, s * 0.5, s, 32); },
 
+  _geo_cone_hollow(s){
+    const outer = new THREE.ConeGeometry(s * 0.5, s, 32, 1, true);
+    const inner = new THREE.ConeGeometry(s * 0.4, s * 0.9, 32, 1, true); inner.scale(-1, 1, 1);
+    const cap = new THREE.RingGeometry(s * 0.4, s * 0.5, 32); cap.rotateX(Math.PI / 2); cap.translate(0, -s / 2, 0);
+    return this._mergeGeosWithUV([{ geo: outer, pos: [0, 0, 0], rot: [0, 0, 0] }, { geo: inner, pos: [0, 0, 0], rot: [0, 0, 0] }, { geo: cap, pos: [0, 0, 0], rot: [0, 0, 0] }]);
+  },
+
   _geo_disc(s, h){ return new THREE.CylinderGeometry(s * 0.7, s * 0.7, s * h, 32); },
 
-  /* ★ 真双壁带孔圆盘 */
   _geo_disc_hollow(s){
-    const h = s * 0.15;
-    const r1 = s * 0.7, r2 = s * 0.28;
+    const h = s * 0.15; const r1 = s * 0.7, r2 = s * 0.28;
     const outer = new THREE.CylinderGeometry(r1, r1, h, 32, 1, true);
-    const inner = new THREE.CylinderGeometry(r2, r2, h, 32, 1, true);
-    inner.scale(-1, 1, 1);
-    const capTop = new THREE.RingGeometry(r2, r1, 32);
-    capTop.rotateX(-Math.PI / 2);
-    capTop.translate(0, h / 2, 0);
-    const capBot = new THREE.RingGeometry(r2, r1, 32);
-    capBot.rotateX(Math.PI / 2);
-    capBot.translate(0, -h / 2, 0);
-    return this._mergeGeosWithUV([
-      { geo: outer,  pos: [0, 0, 0], rot: [0, 0, 0] },
-      { geo: inner,  pos: [0, 0, 0], rot: [0, 0, 0] },
-      { geo: capTop, pos: [0, 0, 0], rot: [0, 0, 0] },
-      { geo: capBot, pos: [0, 0, 0], rot: [0, 0, 0] }
-    ]);
+    const inner = new THREE.CylinderGeometry(r2, r2, h, 32, 1, true); inner.scale(-1, 1, 1);
+    const capTop = new THREE.RingGeometry(r2, r1, 32); capTop.rotateX(-Math.PI / 2); capTop.translate(0, h / 2, 0);
+    const capBot = new THREE.RingGeometry(r2, r1, 32); capBot.rotateX(Math.PI / 2); capBot.translate(0, -h / 2, 0);
+    return this._mergeGeosWithUV([{ geo: outer, pos: [0, 0, 0], rot: [0, 0, 0] }, { geo: inner, pos: [0, 0, 0], rot: [0, 0, 0] }, { geo: capTop, pos: [0, 0, 0], rot: [0, 0, 0] }, { geo: capBot, pos: [0, 0, 0], rot: [0, 0, 0] }]);
   },
 
   _geo_torus(s, tube){ return new THREE.TorusGeometry(s * 0.5, s * tube, 16, 48); },
   _geo_torus_half(s){ return new THREE.TorusGeometry(s * 0.5, s * 0.2, 16, 48, Math.PI); },
+  _geo_torus_major(s){ return new THREE.TorusGeometry(s * 0.6, s * 0.3, 20, 48); },
+  _geo_torus_minor(s){ return new THREE.TorusGeometry(s * 0.4, s * 0.3, 20, 48); },
 
+  /* ★ 用标准 ExtrudeGeometry 替代手写，绝不出错 */
   _geo_wedge(s){
-    const v = new Float32Array([
-      0, 0, 0,  s, 0, 0,  s, 0, s,
-      0, 0, 0,  s, 0, s,  0, 0, s,
-      0, 0, 0,  0, 0, s,  0, s, s,
-      0, 0, 0,  0, s, s,  0, s, 0,
-      0, 0, 0,  0, s, 0,  s, 0, 0,
-      s, 0, 0,  0, s, 0,  s, 0, s,
-      0, 0, s,  s, 0, s,  0, s, s
-    ]);
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.BufferAttribute(v, 3));
-    g.computeVertexNormals();
-    return g;
-  },
-
-  _geo_wedge_curved(s){
-    const v = [];
-    const seg = 10;
-    for(let i = 0; i < seg; i++){
-      const t0 = i / seg;
-      const t1 = (i + 1) / seg;
-      const x0 = t0 * s, x1 = t1 * s;
-      const y0 = Math.sin(t0 * Math.PI / 2) * s * 0.5;
-      const y1 = Math.sin(t1 * Math.PI / 2) * s * 0.5;
-      v.push(x0, 0, 0, x1, 0, 0, x1, y1, 0);
-      v.push(x0, 0, 0, x1, y1, 0, x0, y0, 0);
-      v.push(x0, 0, 0, x1, 0, 0, x1, 0, s);
-      v.push(x0, 0, 0, x1, 0, s, x0, 0, s);
-      v.push(x0, 0, s, x1, 0, s, x1, y1, s);
-      v.push(x0, 0, s, x1, y1, s, x0, y0, s);
+    const shape = new THREE.Shape();
+    shape.moveTo(-s/2, -s/2); shape.lineTo(s/2, -s/2); shape.lineTo(s/2, s/2); shape.lineTo(-s/2, s/2); shape.closePath();
+    const geo = new THREE.ExtrudeGeometry(shape, { depth: s, bevelEnabled: false });
+    geo.rotateX(-Math.PI / 2);
+    const pos = geo.attributes.position.array;
+    // 删掉顶部顶点使其变成楔形
+    for(let i = 0; i < pos.length; i += 3){
+      if(pos[i+1] > 0.001 && pos[i] > 0) pos[i+1] = 0;
     }
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(v), 3));
-    g.computeVertexNormals();
-    return g;
+    geo.computeVertexNormals();
+    return geo;
   },
 
   _geo_ramp(s){
-    const v = new Float32Array([
-      0, 0, 0,  s, 0, 0,  s, s, 0,
-      0, 0, 0,  s, s, 0,  0, 0, 0,
-      0, 0, 0,  0, 0, s,  s, 0, s,
-      0, 0, 0,  s, 0, s,  s, 0, 0,
-      s, 0, 0,  s, 0, s,  s, s, s,
-      s, 0, 0,  s, s, s,  s, s, 0,
-      0, 0, s,  0, 0, 0,  0, s, 0,
-      0, 0, s,  0, s, 0,  0, s, s
-    ]);
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.BufferAttribute(v, 3));
-    g.computeVertexNormals();
-    return g;
+    const shape = new THREE.Shape();
+    shape.moveTo(-s/2, -s/2); shape.lineTo(s/2, -s/2); shape.lineTo(s/2, s/2); shape.closePath();
+    const geo = new THREE.ExtrudeGeometry(shape, { depth: s, bevelEnabled: false });
+    geo.rotateX(-Math.PI / 2);
+    return geo;
   },
 
   _geo_ramp_curved(s){
-    const v = [];
-    const seg = 10;
-    for(let i = 0; i < seg; i++){
-      const t0 = i / seg, t1 = (i + 1) / seg;
-      const x0 = t0 * s, x1 = t1 * s;
-      const y0 = Math.sin(t0 * Math.PI / 2) * s;
-      const y1 = Math.sin(t1 * Math.PI / 2) * s;
-      v.push(x0, y0, 0, x1, y1, 0, x1, 0, 0);
-      v.push(x0, y0, 0, x1, 0, 0, x0, 0, 0);
-      v.push(x0, 0, 0, x1, 0, 0, x1, 0, s);
-      v.push(x0, 0, 0, x1, 0, s, x0, 0, s);
-      v.push(x0, 0, s, x1, 0, s, x1, y1, s);
-      v.push(x0, 0, s, x1, y1, s, x0, y0, s);
-    }
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(v), 3));
-    g.computeVertexNormals();
-    return g;
+    const shape = new THREE.Shape();
+    shape.moveTo(-s/2, -s/2); shape.quadraticCurveTo(s/2, -s/2, s/2, s/2); shape.lineTo(-s/2, -s/2); shape.closePath();
+    const geo = new THREE.ExtrudeGeometry(shape, { depth: s, bevelEnabled: false });
+    geo.rotateX(-Math.PI / 2);
+    return geo;
   },
 
   _geo_step(s){
-    const v = new Float32Array([
-      0,0,0,  s,0,0,  s,s,0,
-      0,0,0,  s,s,0,  0,s,0,
-      0,0,s,  s,0,s,  s,0,0,
-      0,0,s,  s,0,0,  0,0,0,
-      0,s,0,  s,s,0,  s,s/2,s,
-      0,s,0,  s,s/2,s, 0,s/2,s,
-      0,s/2,s, s,s/2,s, s,s,s,
-      0,s/2,s, s,s,s, 0,s,s,
-      0,0,s,  0,s/2,s, 0,s,s,
-      s,0,s,  s,s,s,  s,s/2,s,
-      s,0,s,  s,s/2,s, s,0,0
-    ]);
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.BufferAttribute(v, 3));
-    g.computeVertexNormals();
-    return g;
+    const shape = new THREE.Shape();
+    shape.moveTo(-s/2, -s/2); shape.lineTo(s/2, -s/2); shape.lineTo(s/2, 0); shape.lineTo(0, 0); shape.lineTo(0, s/2); shape.lineTo(-s/2, s/2); shape.closePath();
+    const geo = new THREE.ExtrudeGeometry(shape, { depth: s, bevelEnabled: false });
+    geo.rotateX(-Math.PI / 2); geo.translate(0, s/2, 0);
+    return geo;
   },
 
   _geo_stair(s){
-    const v = [];
-    const steps = 5;
-    const stepH = s / steps;
-    const stepD = s / steps;
+    const steps = 5; const w = s; const d = s; const h = s;
+    const stepW = w / steps; const stepH = h / steps; const stepD = d / steps;
+    const shapes = [];
     for(let i = 0; i < steps; i++){
-      const y = stepH * (i + 1);
-      const z = stepD * i;
-      v.push(0, y, z, s, y, z, s, y, z + stepD);
-      v.push(0, y, z, s, y, z + stepD, 0, y, z + stepD);
-      v.push(0, 0, z + stepD, s, 0, z + stepD, s, y, z + stepD);
-      v.push(0, 0, z + stepD, s, y, z + stepD, 0, y, z + stepD);
-      v.push(0, y, z + stepD, 0, y, z, 0, 0, z);
-      v.push(s, y, z + stepD, s, y, z, s, 0, z);
-      v.push(0, 0, z, s, 0, z, s, 0, z + stepD);
-      v.push(0, 0, z, s, 0, z + stepD, 0, 0, z + stepD);
+      const shape = new THREE.Shape();
+      const x0 = -w/2 + i * stepW; const x1 = x0 + stepW;
+      const y0 = -h/2; const y1 = -h/2 + (i+1) * stepH;
+      shape.moveTo(x0, y0); shape.lineTo(x1, y0); shape.lineTo(x1, y1); shape.lineTo(x0, y1); shape.closePath();
+      shapes.push(shape);
     }
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(v), 3));
-    g.computeVertexNormals();
-    return g;
+    const geo = new THREE.ExtrudeGeometry(shapes, { depth: d, bevelEnabled: false });
+    geo.rotateX(-Math.PI / 2); geo.translate(0, h/2, 0);
+    return geo;
   },
 
   _geo_stair_spiral(s){
     const pts = [];
-    for(let i = 0; i <= 16; i++){
-      const t = i / 16;
-      const a = t * Math.PI * 2;
-      pts.push(new THREE.Vector3(Math.cos(a) * s * 0.4, t * s, Math.sin(a) * s * 0.4));
-    }
-    const curve = new THREE.CatmullRomCurve3(pts);
-    return new THREE.TubeGeometry(curve, 32, s * 0.1, 8, false);
+    for(let i = 0; i <= 16; i++){ const t = i / 16; const a = t * Math.PI * 2; pts.push(new THREE.Vector3(Math.cos(a) * s * 0.4, t * s, Math.sin(a) * s * 0.4)); }
+    const curve = new THREE.CatmullRomCurve3(pts); return new THREE.TubeGeometry(curve, 32, s * 0.1, 8, false);
   },
 
-  _geo_arch(s, half){
-    return new THREE.TorusGeometry(s * 0.5, s * 0.15, 12, 32, half ? Math.PI / 2 : Math.PI);
-  },
+  _geo_arch(s, half){ return new THREE.TorusGeometry(s * 0.5, s * 0.15, 12, 32, half ? Math.PI / 2 : Math.PI); },
 
-  /* ★ X 形交叉（两条斜杠交叉） */
   _geo_cross(s){
-    const g1 = new THREE.BoxGeometry(s, s * 0.35, s * 0.35);
-    g1.rotateZ(Math.PI / 4);
-    const g2 = new THREE.BoxGeometry(s, s * 0.35, s * 0.35);
-    g2.rotateZ(-Math.PI / 4);
-    return this._mergeGeosWithUV([
-      { geo: g1, pos: [0, 0, 0], rot: [0, 0, 0] },
-      { geo: g2, pos: [0, 0, 0], rot: [0, 0, 0] }
-    ]);
+    const g1 = new THREE.BoxGeometry(s, s * 0.35, s * 0.35); g1.rotateZ(Math.PI / 4);
+    const g2 = new THREE.BoxGeometry(s, s * 0.35, s * 0.35); g2.rotateZ(-Math.PI / 4);
+    return this._mergeGeosWithUV([{ geo: g1, pos: [0, 0, 0], rot: [0, 0, 0] }, { geo: g2, pos: [0, 0, 0], rot: [0, 0, 0] }]);
   },
 
-  /* ★ 真空心加号：4 个 Box 拼，中间真的空 */
   _geo_plus(s){
     const t = s * 0.35;
-    const g = new THREE.Group();
-    const parts = [
-      { geo: new THREE.BoxGeometry(t, t, t), pos: [0, s * 0.3, 0], rot: [0, 0, 0] },
-      { geo: new THREE.BoxGeometry(t, t, t), pos: [0, -s * 0.3, 0], rot: [0, 0, 0] },
-      { geo: new THREE.BoxGeometry(t, t, t), pos: [-s * 0.3, 0, 0], rot: [0, 0, 0] },
-      { geo: new THREE.BoxGeometry(t, t, t), pos: [s * 0.3, 0, 0], rot: [0, 0, 0] }
-    ];
-    return this._mergeGeosWithUV(parts);
+    return this._mergeGeosWithUV([{ geo: new THREE.BoxGeometry(t, t, t), pos: [0, s * 0.3, 0], rot: [0, 0, 0] }, { geo: new THREE.BoxGeometry(t, t, t), pos: [0, -s * 0.3, 0], rot: [0, 0, 0] }, { geo: new THREE.BoxGeometry(t, t, t), pos: [-s * 0.3, 0, 0], rot: [0, 0, 0] }, { geo: new THREE.BoxGeometry(t, t, t), pos: [s * 0.3, 0, 0], rot: [0, 0, 0] }]);
   },
 
   _geo_star(s, n){
     const shape = new THREE.Shape();
-    for(let i = 0; i < n * 2; i++){
-      const a = -Math.PI / 2 + i * Math.PI / n;
-      const r = (i % 2 === 0) ? s * 0.5 : s * 0.2;
-      const x = Math.cos(a) * r, y = Math.sin(a) * r;
-      if(i === 0) shape.moveTo(x, y); else shape.lineTo(x, y);
-    }
-    shape.closePath();
-    return new THREE.ExtrudeGeometry(shape, { depth: s * 0.2, bevelEnabled: false });
+    for(let i = 0; i < n * 2; i++){ const a = -Math.PI / 2 + i * Math.PI / n; const r = (i % 2 === 0) ? s * 0.5 : s * 0.2; const x = Math.cos(a) * r, y = Math.sin(a) * r; if(i === 0) shape.moveTo(x, y); else shape.lineTo(x, y); }
+    shape.closePath(); return new THREE.ExtrudeGeometry(shape, { depth: s * 0.2, bevelEnabled: false });
   },
 
-  _geo_ring(s){
-    /* 细圆环：管状 */
-    return new THREE.TorusGeometry(s * 0.5, s * 0.08, 12, 48);
+  _geo_ring(s){ return new THREE.TorusGeometry(s * 0.5, s * 0.08, 12, 48); },
+  _geo_spiral(s){
+    const pts = [];
+    for(let i = 0; i <= 32; i++){ const t = i / 32; const a = t * Math.PI * 4; pts.push(new THREE.Vector3(Math.cos(a) * s * 0.3, (t - 0.5) * s, Math.sin(a) * s * 0.3)); }
+    const curve = new THREE.CatmullRomCurve3(pts); return new THREE.TubeGeometry(curve, 48, s * 0.06, 8, false);
+  },
+  _geo_dome(s){ return new THREE.SphereGeometry(s * 0.5, 24, 16, 0, Math.PI * 2, 0, Math.PI / 2); },
+  _geo_column(s){
+    return this._mergeGeosWithUV([{ geo: new THREE.BoxGeometry(s * 0.4, s * 0.15, s * 0.4), pos: [0, -s * 0.425, 0], rot: [0, 0, 0] }, { geo: new THREE.CylinderGeometry(s * 0.15, s * 0.15, s * 0.7, 12), pos: [0, 0, 0], rot: [0, 0, 0] }, { geo: new THREE.BoxGeometry(s * 0.4, s * 0.15, s * 0.4), pos: [0, s * 0.425, 0], rot: [0, 0, 0] }]);
+  },
+  _geo_rail(s){
+    return this._mergeGeosWithUV([{ geo: new THREE.BoxGeometry(s, s * 0.08, s * 0.15), pos: [0, s * 0.1, 0], rot: [0, 0, 0] }, { geo: new THREE.BoxGeometry(s * 0.15, s * 0.15, s * 0.15), pos: [-s * 0.4, -s * 0.05, 0], rot: [0, 0, 0] }, { geo: new THREE.BoxGeometry(s * 0.15, s * 0.15, s * 0.15), pos: [s * 0.4, -s * 0.05, 0], rot: [0, 0, 0] }]);
   },
 
-  /* ★ 像素字母（用 Box 拼出 A-Z 的一部分） */
+  /* ★ 完美重写：使用 Shape + holes 挖出真实孔洞 */
   _geo_letter(s, letter){
-    const t = s * 0.18;       /* 笔画粗细 */
-    const W = s;              /* 宽 */
-    const H = s;              /* 高 */
-    const D = s * 0.18;       /* 深 */
-    const parts = [];
+    const t = s * 0.15; // 笔画粗细
+    const w = s * 0.7; const h = s; // 字母宽高
+    const shape = new THREE.Shape();
+    const holes = [];
 
-    function bar(x, y, w, h){
-      parts.push({
-        geo: new THREE.BoxGeometry(w, h, D),
-        pos: [x, y, 0],
-        rot: [0, 0, 0]
-      });
+    if(letter === 'B'){
+      // 左竖
+      shape.moveTo(-w/2, h/2); shape.lineTo(-w/2 + t, h/2); shape.lineTo(-w/2 + t, -h/2); shape.lineTo(-w/2, -h/2); shape.closePath();
+      // 上半圈
+      const s1 = new THREE.Shape(); s1.moveTo(-w/2 + t, h/2); s1.lineTo(0, h/2); s1.quadraticCurveTo(w/2, h/2, w/2, h/4); s1.quadraticCurveTo(w/2, 0, 0, 0); s1.lineTo(-w/2 + t, 0); s1.closePath(); shape.holes.push(s1); shape.autoClose = false; shape.curves.push(...s1.curves);
+      // 下半圈
+      const s2 = new THREE.Shape(); s2.moveTo(-w/2 + t, 0); s2.lineTo(0, 0); s2.quadraticCurveTo(w/2, 0, w/2, -h/4); s2.quadraticCurveTo(w/2, -h/2, 0, -h/2); s2.lineTo(-w/2 + t, -h/2); s2.closePath(); shape.curves.push(...s2.curves);
+      // 挖孔
+      const hole1 = new THREE.Path(); hole1.moveTo(-w/2 + t, 0.05*h); hole1.lineTo(w/4, 0.05*h); hole1.quadraticCurveTo(w/3, 0.05*h, w/3, 0); hole1.quadraticCurveTo(w/3, -0.05*h, w/4, -0.05*h); hole1.lineTo(-w/2 + t, -0.05*h); hole1.closePath();
+      const hole2 = new THREE.Path(); hole2.moveTo(-w/2 + t, -0.15*h); hole2.lineTo(w/4, -0.15*h); hole2.quadraticCurveTo(w/3, -0.15*h, w/3, -0.25*h); hole2.quadraticCurveTo(w/3, -0.35*h, w/4, -0.35*h); hole2.lineTo(-w/2 + t, -0.35*h); hole2.closePath();
+      shape.holes.push(hole1, hole2);
+    } else if(letter === 'A'){
+      shape.moveTo(-w/2, -h/2); shape.lineTo(0, h/2); shape.lineTo(w/2, -h/2); shape.lineTo(w/2 - t, -h/2); shape.lineTo(w/4 - t/2, 0); shape.lineTo(-w/4 + t/2, 0); shape.lineTo(-w/2 + t, -h/2); shape.closePath();
+      const hole = new THREE.Path(); hole.moveTo(-w/4, -h/2 + t); hole.lineTo(w/4, -h/2 + t); hole.lineTo(w/4 - t, -h/2 + t * 2); hole.lineTo(-w/4 + t, -h/2 + t * 2); hole.closePath(); shape.holes.push(hole);
+    } else if(letter === 'O' || letter === '0'){
+      shape.absarc(0, 0, h/2, 0, Math.PI * 2, false);
+      const hole = new THREE.Path(); hole.absarc(0, 0, h/2 - t, 0, Math.PI * 2, true); shape.holes.push(hole);
+    } else if(letter === 'C'){
+      shape.absarc(0, 0, h/2, Math.PI * 0.2, Math.PI * 1.8, false);
+      shape.lineTo(-w/2 + t, -h/4); shape.lineTo(-w/2 + t, h/4); shape.closePath();
+    } else if(letter === 'H'){
+      shape.moveTo(-w/2, h/2); shape.lineTo(-w/2 + t, h/2); shape.lineTo(-w/2 + t, t/2); shape.lineTo(w/2 - t, t/2); shape.lineTo(w/2 - t, h/2); shape.lineTo(w/2, h/2); shape.lineTo(w/2, -h/2); shape.lineTo(w/2 - t, -h/2); shape.lineTo(w/2 - t, -t/2); shape.lineTo(-w/2 + t, -t/2); shape.lineTo(-w/2 + t, -h/2); shape.lineTo(-w/2, -h/2); shape.closePath();
+    } else if(letter === 'I'){
+      shape.moveTo(-w/2, h/2); shape.lineTo(w/2, h/2); shape.lineTo(w/2, h/2 - t); shape.lineTo(t/2, h/2 - t); shape.lineTo(t/2, -h/2 + t); shape.lineTo(w/2, -h/2 + t); shape.lineTo(w/2, -h/2); shape.lineTo(-w/2, -h/2); shape.lineTo(-w/2, -h/2 + t); shape.lineTo(-t/2, -h/2 + t); shape.lineTo(-t/2, h/2 - t); shape.lineTo(-w/2, h/2 - t); shape.closePath();
+    } else if(letter === 'T'){
+      shape.moveTo(-w/2, h/2); shape.lineTo(w/2, h/2); shape.lineTo(w/2, h/2 - t); shape.lineTo(t/2, h/2 - t); shape.lineTo(t/2, -h/2); shape.lineTo(-t/2, -h/2); shape.lineTo(-t/2, h/2 - t); shape.lineTo(-w/2, h/2 - t); shape.closePath();
+    } else if(letter === 'U'){
+      shape.moveTo(-w/2, h/2); shape.lineTo(-w/2 + t, h/2); shape.lineTo(-w/2 + t, -h/2 + t); shape.quadraticCurveTo(0, -h/2 + t, w/2 - t, -h/2 + t); shape.lineTo(w/2 - t, h/2); shape.lineTo(w/2, h/2); shape.lineTo(w/2, -h/2 + t); shape.quadraticCurveTo(0, -h/2, -w/2, -h/2 + t); shape.closePath();
+    } else if(letter === 'X'){
+      shape.moveTo(-w/2, h/2); shape.lineTo(-w/2 + t, h/2); shape.lineTo(0, 0); shape.lineTo(w/2 - t, h/2); shape.lineTo(w/2, h/2); shape.lineTo(t/2, 0); shape.lineTo(w/2, -h/2); shape.lineTo(w/2 - t, -h/2); shape.lineTo(0, 0); shape.lineTo(-w/2 + t, -h/2); shape.lineTo(-w/2, -h/2); shape.lineTo(-t/2, 0); shape.closePath();
+    } else if(letter === 'Z'){
+      shape.moveTo(-w/2, h/2); shape.lineTo(w/2, h/2); shape.lineTo(w/2, h/2 - t); shape.lineTo(-w/2 + t * 1.5, h/2 - t); shape.lineTo(w/2, -h/2 + t); shape.lineTo(w/2, -h/2); shape.lineTo(-w/2, -h/2); shape.lineTo(-w/2, -h/2 + t); shape.lineTo(w/2 - t * 1.5, -h/2 + t); shape.lineTo(-w/2, h/2 - t); shape.closePath();
+    } else {
+      return new THREE.BoxGeometry(s, s, s); // 兜底
     }
 
-    switch(letter){
-      case 'A':
-        bar(-W*0.3, 0, t, H);
-        bar( W*0.3, 0, t, H);
-        bar(0,  H*0.3, W*0.6, t);
-        bar(0,  0, W*0.4, t);
-        break;
-      case 'B':
-        bar(-W*0.3, 0, t, H);
-        bar(-W*0.3 + W*0.2,  H*0.4, W*0.4, t);
-        bar(-W*0.3 + W*0.2,  0, W*0.4, t);
-        bar(-W*0.3 + W*0.2, -H*0.4, W*0.4, t);
-        bar( W*0.3,  H*0.25, t, H*0.3);
-        bar( W*0.3, -H*0.25, t, H*0.3);
-        break;
-      case 'C':
-        bar(-W*0.3, 0, t, H);
-        bar(0,  H*0.4, W*0.6, t);
-        bar(0, -H*0.4, W*0.6, t);
-        break;
-      case 'H':
-        bar(-W*0.3, 0, t, H);
-        bar( W*0.3, 0, t, H);
-        bar(0, 0, W*0.6, t);
-        break;
-      case 'I':
-        bar(0,  H*0.4, W*0.6, t);
-        bar(0, -H*0.4, W*0.6, t);
-        bar(0, 0, t, H*0.8);
-        break;
-      case 'O':
-        bar(-W*0.3, 0, t, H);
-        bar( W*0.3, 0, t, H);
-        bar(0,  H*0.4, W*0.6, t);
-        bar(0, -H*0.4, W*0.6, t);
-        break;
-      case 'T':
-        bar(0,  H*0.4, W, t);
-        bar(0, 0, t, H*0.8);
-        break;
-      case 'U':
-        bar(-W*0.3, 0, t, H*0.8);
-        bar( W*0.3, 0, t, H*0.8);
-        bar(0, -H*0.4, W*0.6, t);
-        break;
-      case 'X':
-        bar(0, 0, W, t).geo.rotateZ(Math.PI / 4);
-        var g1 = parts.pop();
-        parts.push({ geo: new THREE.BoxGeometry(W*1.2, t, D), pos: [0,0,0], rot: [0,0,Math.PI/4] });
-        parts.push({ geo: new THREE.BoxGeometry(W*1.2, t, D), pos: [0,0,0], rot: [0,0,-Math.PI/4] });
-        break;
-      case 'Z':
-        bar(0,  H*0.4, W*0.6, t);
-        bar(0, -H*0.4, W*0.6, t);
-        var gz = new THREE.BoxGeometry(W*0.8, t, D);
-        gz.rotateZ(-Math.PI/3);
-        parts.push({ geo: gz, pos: [0, 0, 0], rot: [0,0,0] });
-        break;
-    }
-
-    return this._mergeGeosWithUV(parts);
+    const geo = new THREE.ExtrudeGeometry(shape, { depth: s * 0.2, bevelEnabled: false });
+    geo.center();
+    return geo;
   },
 
   _geo_minus(s){ return new THREE.BoxGeometry(s, s * 0.35, s * 0.3); },
-
-  _geo_slash(s){
-    const g = new THREE.BoxGeometry(s, s * 0.2, s * 0.2);
-    g.rotateZ(Math.PI / 4);
-    return g;
-  },
-
-  _geo_backslash(s){
-    const g = new THREE.BoxGeometry(s, s * 0.2, s * 0.2);
-    g.rotateZ(-Math.PI / 4);
-    return g;
-  },
-
+  _geo_slash(s){ const g = new THREE.BoxGeometry(s, s * 0.2, s * 0.2); g.rotateZ(Math.PI / 4); return g; },
+  _geo_backslash(s){ const g = new THREE.BoxGeometry(s, s * 0.2, s * 0.2); g.rotateZ(-Math.PI / 4); return g; },
   _geo_plate(s, mulW, mulH){ return new THREE.BoxGeometry(s * mulW, s * 0.1, s * mulH); },
 
   _geo_plate_tri(s){
-    const shape = new THREE.Shape();
-    shape.moveTo(-s * 0.5, -s * 0.5); shape.lineTo(s * 0.5, -s * 0.5); shape.lineTo(0, s * 0.5); shape.closePath();
+    const shape = new THREE.Shape(); shape.moveTo(-s * 0.5, -s * 0.5); shape.lineTo(s * 0.5, -s * 0.5); shape.lineTo(0, s * 0.5); shape.closePath();
     return new THREE.ExtrudeGeometry(shape, { depth: s * 0.1, bevelEnabled: false });
   },
-
   _geo_plate_poly(s, n){
-    const shape = new THREE.Shape();
-    for(let i = 0; i < n; i++){
-      const a = i * 2 * Math.PI / n;
-      const x = Math.cos(a) * s * 0.5, y = Math.sin(a) * s * 0.5;
-      if(i === 0) shape.moveTo(x, y); else shape.lineTo(x, y);
-    }
-    shape.closePath();
-    return new THREE.ExtrudeGeometry(shape, { depth: s * 0.1, bevelEnabled: false });
+    const shape = new THREE.Shape(); for(let i = 0; i < n; i++){ const a = i * 2 * Math.PI / n; const x = Math.cos(a) * s * 0.5, y = Math.sin(a) * s * 0.5; if(i === 0) shape.moveTo(x, y); else shape.lineTo(x, y); }
+    shape.closePath(); return new THREE.ExtrudeGeometry(shape, { depth: s * 0.1, bevelEnabled: false });
   },
-
   _geo_plate_circle(s){ return new THREE.CylinderGeometry(s * 0.5, s * 0.5, s * 0.1, 32); },
 
-  /* ★ 真双壁薄环片 */
   _geo_plate_ring(s){
-    const h = s * 0.1;
-    const r1 = s * 0.5, r2 = s * 0.25;
+    const h = s * 0.1; const r1 = s * 0.5, r2 = s * 0.25;
     const outer = new THREE.CylinderGeometry(r1, r1, h, 32, 1, true);
-    const inner = new THREE.CylinderGeometry(r2, r2, h, 32, 1, true);
-    inner.scale(-1, 1, 1);
-    const capTop = new THREE.RingGeometry(r2, r1, 32);
-    capTop.rotateX(-Math.PI / 2);
-    capTop.translate(0, h / 2, 0);
-    const capBot = new THREE.RingGeometry(r2, r1, 32);
-    capBot.rotateX(Math.PI / 2);
-    capBot.translate(0, -h / 2, 0);
-    return this._mergeGeosWithUV([
-      { geo: outer,  pos: [0, 0, 0], rot: [0, 0, 0] },
-      { geo: inner,  pos: [0, 0, 0], rot: [0, 0, 0] },
-      { geo: capTop, pos: [0, 0, 0], rot: [0, 0, 0] },
-      { geo: capBot, pos: [0, 0, 0], rot: [0, 0, 0] }
-    ]);
+    const inner = new THREE.CylinderGeometry(r2, r2, h, 32, 1, true); inner.scale(-1, 1, 1);
+    const capTop = new THREE.RingGeometry(r2, r1, 32); capTop.rotateX(-Math.PI / 2); capTop.translate(0, h / 2, 0);
+    const capBot = new THREE.RingGeometry(r2, r1, 32); capBot.rotateX(Math.PI / 2); capBot.translate(0, -h / 2, 0);
+    return this._mergeGeosWithUV([{ geo: outer, pos: [0, 0, 0], rot: [0, 0, 0] }, { geo: inner, pos: [0, 0, 0], rot: [0, 0, 0] }, { geo: capTop, pos: [0, 0, 0], rot: [0, 0, 0] }, { geo: capBot, pos: [0, 0, 0], rot: [0, 0, 0] }]);
   },
 
   _geo_plate_star(s){
     const shape = new THREE.Shape();
-    for(let i = 0; i < 10; i++){
-      const a = -Math.PI / 2 + i * Math.PI / 5;
-      const r = (i % 2 === 0) ? s * 0.5 : s * 0.2;
-      const x = Math.cos(a) * r, y = Math.sin(a) * r;
-      if(i === 0) shape.moveTo(x, y); else shape.lineTo(x, y);
-    }
-    shape.closePath();
-    return new THREE.ExtrudeGeometry(shape, { depth: s * 0.1, bevelEnabled: false });
+    for(let i = 0; i < 10; i++){ const a = -Math.PI / 2 + i * Math.PI / 5; const r = (i % 2 === 0) ? s * 0.5 : s * 0.2; const x = Math.cos(a) * r, y = Math.sin(a) * r; if(i === 0) shape.moveTo(x, y); else shape.lineTo(x, y); }
+    shape.closePath(); return new THREE.ExtrudeGeometry(shape, { depth: s * 0.1, bevelEnabled: false });
   },
 
-  _geo_rod(s, sides){
-    if(sides === 0) return new THREE.CylinderGeometry(s * 0.15, s * 0.15, s, 16);
-    return new THREE.CylinderGeometry(s * 0.15, s * 0.15, s, sides);
-  },
+  _geo_rod(s, sides){ if(sides === 0) return new THREE.CylinderGeometry(s * 0.15, s * 0.15, s, 16); return new THREE.CylinderGeometry(s * 0.15, s * 0.15, s, sides); },
 
-  /* ★ 真双壁空心管 */
   _geo_tube(s, sides){
-    const r1 = s * 0.22, r2 = s * 0.12;
-    const segs = sides === 0 ? 24 : sides;
-    const h = s;
+    const r1 = s * 0.22, r2 = s * 0.12; const segs = sides === 0 ? 24 : sides; const h = s;
     const outer = new THREE.CylinderGeometry(r1, r1, h, segs, 1, true);
-    const inner = new THREE.CylinderGeometry(r2, r2, h, segs, 1, true);
-    inner.scale(-1, 1, 1);
-    const capTop = new THREE.RingGeometry(r2, r1, segs);
-    capTop.rotateX(-Math.PI / 2);
-    capTop.translate(0, h / 2, 0);
-    const capBot = new THREE.RingGeometry(r2, r1, segs);
-    capBot.rotateX(Math.PI / 2);
-    capBot.translate(0, -h / 2, 0);
-    return this._mergeGeosWithUV([
-      { geo: outer,  pos: [0, 0, 0], rot: [0, 0, 0] },
-      { geo: inner,  pos: [0, 0, 0], rot: [0, 0, 0] },
-      { geo: capTop, pos: [0, 0, 0], rot: [0, 0, 0] },
-      { geo: capBot, pos: [0, 0, 0], rot: [0, 0, 0] }
-    ]);
+    const inner = new THREE.CylinderGeometry(r2, r2, h, segs, 1, true); inner.scale(-1, 1, 1);
+    const capTop = new THREE.RingGeometry(r2, r1, segs); capTop.rotateX(-Math.PI / 2); capTop.translate(0, h / 2, 0);
+    const capBot = new THREE.RingGeometry(r2, r1, segs); capBot.rotateX(Math.PI / 2); capBot.translate(0, -h / 2, 0);
+    return this._mergeGeosWithUV([{ geo: outer, pos: [0, 0, 0], rot: [0, 0, 0] }, { geo: inner, pos: [0, 0, 0], rot: [0, 0, 0] }, { geo: capTop, pos: [0, 0, 0], rot: [0, 0, 0] }, { geo: capBot, pos: [0, 0, 0], rot: [0, 0, 0] }]);
   },
 
   _geo_frame(s, sides){
     if(sides === 0){
-      return this._mergeGeosWithUV([
-        { geo: new THREE.BoxGeometry(s, s * 0.1, s * 0.1), pos: [0, s * 0.45, 0], rot: [0, 0, 0] },
-        { geo: new THREE.BoxGeometry(s, s * 0.1, s * 0.1), pos: [0, -s * 0.45, 0], rot: [0, 0, 0] },
-        { geo: new THREE.BoxGeometry(s * 0.1, s * 0.8, s * 0.1), pos: [-s * 0.45, 0, 0], rot: [0, 0, 0] },
-        { geo: new THREE.BoxGeometry(s * 0.1, s * 0.8, s * 0.1), pos: [s * 0.45, 0, 0], rot: [0, 0, 0] }
-      ]);
+      return this._mergeGeosWithUV([{ geo: new THREE.BoxGeometry(s, s * 0.1, s * 0.1), pos: [0, s * 0.45, 0], rot: [0, 0, 0] }, { geo: new THREE.BoxGeometry(s, s * 0.1, s * 0.1), pos: [0, -s * 0.45, 0], rot: [0, 0, 0] }, { geo: new THREE.BoxGeometry(s * 0.1, s * 0.8, s * 0.1), pos: [-s * 0.45, 0, 0], rot: [0, 0, 0] }, { geo: new THREE.BoxGeometry(s * 0.1, s * 0.8, s * 0.1), pos: [s * 0.45, 0, 0], rot: [0, 0, 0] }]);
     }
     return new THREE.TorusGeometry(s * 0.5, s * 0.08, 8, 32);
   },
 
   _geo_gear(s, teeth, tube){
     const shape = new THREE.Shape();
-    for(let i = 0; i < teeth * 2; i++){
-      const a = -Math.PI / 2 + i * Math.PI / teeth;
-      const r = (i % 2 === 0) ? s * 0.5 : s * (0.5 - tube);
-      const x = Math.cos(a) * r, y = Math.sin(a) * r;
-      if(i === 0) shape.moveTo(x, y); else shape.lineTo(x, y);
-    }
+    for(let i = 0; i < teeth * 2; i++){ const a = -Math.PI / 2 + i * Math.PI / teeth; const r = (i % 2 === 0) ? s * 0.5 : s * (0.5 - tube); const x = Math.cos(a) * r, y = Math.sin(a) * r; if(i === 0) shape.moveTo(x, y); else shape.lineTo(x, y); }
     shape.closePath();
-    const hole = new THREE.Path();
-    hole.absarc(0, 0, s * 0.15, 0, Math.PI * 2, true);
-    shape.holes.push(hole);
+    const hole = new THREE.Path(); hole.absarc(0, 0, s * 0.15, 0, Math.PI * 2, true); shape.holes.push(hole);
     return new THREE.ExtrudeGeometry(shape, { depth: s * 0.25, bevelEnabled: false });
   },
 
-  /* ★ 轮子：实心圆盘 + 中心孔 / 辐条轮：圆环 + 十字辐条 + 中心孔（和图标一致） */
   _geo_wheel(s, spoke){
-    if(!spoke){
-      const disc = new THREE.CylinderGeometry(s * 0.5, s * 0.5, s * 0.2, 32);
-      disc.rotateX(Math.PI / 2);
-      const hubHole = new THREE.CylinderGeometry(s * 0.15, s * 0.15, s * 0.22, 16);
-      hubHole.rotateX(Math.PI / 2);
-      /* 用圆柱当实心轮，中心孔用一个暗色小圆柱视觉上区分 */
-      return this._mergeGeosWithUV([
-        { geo: disc, pos: [0, 0, 0], rot: [0, 0, 0] }
-      ]);
-    }
-    /* 辐条轮：环 + 十字辐条 + 中心 */
+    if(!spoke){ const disc = new THREE.CylinderGeometry(s * 0.5, s * 0.5, s * 0.2, 32); disc.rotateX(Math.PI / 2); return disc; }
     const ring = new THREE.TorusGeometry(s * 0.5, s * 0.08, 8, 32);
-    const hub = new THREE.CylinderGeometry(s * 0.15, s * 0.15, s * 0.2, 16);
-    hub.rotateX(Math.PI / 2);
+    const hub = new THREE.CylinderGeometry(s * 0.15, s * 0.15, s * 0.2, 16); hub.rotateX(Math.PI / 2);
     const s1 = new THREE.BoxGeometry(s * 0.8, s * 0.08, s * 0.08);
     const s2 = new THREE.BoxGeometry(s * 0.08, s * 0.8, s * 0.08);
-    return this._mergeGeosWithUV([
-      { geo: ring, pos: [0, 0, 0], rot: [0, 0, 0] },
-      { geo: hub,  pos: [0, 0, 0], rot: [0, 0, 0] },
-      { geo: s1,   pos: [0, 0, 0], rot: [0, 0, 0] },
-      { geo: s2,   pos: [0, 0, 0], rot: [0, 0, 0] }
-    ]);
+    return this._mergeGeosWithUV([{ geo: ring, pos: [0, 0, 0], rot: [0, 0, 0] }, { geo: hub,  pos: [0, 0, 0], rot: [0, 0, 0] }, { geo: s1,   pos: [0, 0, 0], rot: [0, 0, 0] }, { geo: s2,   pos: [0, 0, 0], rot: [0, 0, 0] }]);
   },
 
-  _geo_bar(s){ return new THREE.BoxGeometry(s, s * 0.2, s * 0.2); },
-
+  _geo_bar(s){ return new THREE.BoxGeometry(s, s * 0.15, s * 0.4); },
   _geo_bar_curved(s){
-    const pts = [];
-    for(let i = 0; i <= 12; i++){
-      const t = i / 12;
-      pts.push(new THREE.Vector3(t * s - s * 0.5, Math.sin(t * Math.PI) * s * 0.25, 0));
-    }
-    const curve = new THREE.CatmullRomCurve3(pts);
-    return new THREE.TubeGeometry(curve, 16, s * 0.1, 8, false);
+    const shape = new THREE.Shape(); const w = s, h = s * 0.4;
+    shape.moveTo(-w / 2, 0); shape.quadraticCurveTo(0, h, w / 2, 0); shape.lineTo(w / 2, s * 0.1); shape.quadraticCurveTo(0, h + s * 0.1, -w / 2, s * 0.1); shape.closePath();
+    return new THREE.ExtrudeGeometry(shape, { depth: s * 0.15, bevelEnabled: false });
   },
-
-  _geo_beam(s){ return new THREE.BoxGeometry(s, s * 0.25, s * 0.25); },
-
+  _geo_beam(s){
+    const h = s * 0.25, w = s, d = s * 0.25; const flange = s * 0.06;
+    return this._mergeGeosWithUV([{ geo: new THREE.BoxGeometry(w, flange, d), pos: [0, h / 2 - flange / 2, 0], rot: [0, 0, 0] }, { geo: new THREE.BoxGeometry(w, flange, d), pos: [0, -h / 2 + flange / 2, 0], rot: [0, 0, 0] }, { geo: new THREE.BoxGeometry(w, h - flange * 2, d * 0.4), pos: [0, 0, 0], rot: [0, 0, 0] }]);
+  },
   _geo_beam_curved(s){
-    const pts = [];
-    for(let i = 0; i <= 12; i++){
-      const t = i / 12;
-      pts.push(new THREE.Vector3(t * s - s * 0.5, Math.sin(t * Math.PI) * s * 0.3, 0));
-    }
-    const curve = new THREE.CatmullRomCurve3(pts);
-    return new THREE.TubeGeometry(curve, 16, s * 0.15, 8, false);
+    const shape = new THREE.Shape(); const w = s, h = s * 0.5, th = s * 0.15;
+    shape.moveTo(-w / 2, 0); shape.quadraticCurveTo(0, h, w / 2, 0); shape.lineTo(w / 2, th); shape.quadraticCurveTo(0, h + th, -w / 2, th); shape.closePath();
+    return new THREE.ExtrudeGeometry(shape, { depth: s * 0.25, bevelEnabled: false });
   },
-
   _geo_panel(s){ return new THREE.BoxGeometry(s * 0.6, s, s * 0.1); },
-
   _geo_panel_curved(s){
-    const shape = new THREE.Shape();
-    shape.moveTo(-s * 0.3, -s * 0.5);
-    shape.quadraticCurveTo(0, s * 0.5, s * 0.3, -s * 0.5);
-    shape.lineTo(s * 0.3, -s * 0.5);
-    shape.closePath();
+    const shape = new THREE.Shape(); shape.moveTo(-s * 0.3, -s * 0.5); shape.quadraticCurveTo(0, s * 0.5, s * 0.3, -s * 0.5); shape.lineTo(s * 0.3, -s * 0.5); shape.closePath();
     return new THREE.ExtrudeGeometry(shape, { depth: s * 0.1, bevelEnabled: false });
   },
 
-  _geo_bracket(s, type){
-    if(type === 0){
-      /* U 形 */
-      return this._mergeGeosWithUV([
-        { geo: new THREE.BoxGeometry(s * 0.3, s * 0.8, s * 0.3), pos: [-s * 0.35, 0, 0], rot: [0, 0, 0] },
-        { geo: new THREE.BoxGeometry(s * 0.3, s * 0.8, s * 0.3), pos: [s * 0.35, 0, 0], rot: [0, 0, 0] },
-        { geo: new THREE.BoxGeometry(s * 0.4, s * 0.3, s * 0.3), pos: [0, -s * 0.25, 0], rot: [0, 0, 0] }
-      ]);
-    }
-    if(type === 1){
-      /* L 形 */
-      return this._mergeGeosWithUV([
-        { geo: new THREE.BoxGeometry(s * 0.3, s * 0.8, s * 0.3), pos: [-s * 0.35, 0, 0], rot: [0, 0, 0] },
-        { geo: new THREE.BoxGeometry(s * 0.7, s * 0.3, s * 0.3), pos: [s * 0.1, -s * 0.25, 0], rot: [0, 0, 0] }
-      ]);
-    }
-    /* T 形 */
-    return this._mergeGeosWithUV([
-      { geo: new THREE.BoxGeometry(s, s * 0.3, s * 0.3), pos: [0, s * 0.35, 0], rot: [0, 0, 0] },
-      { geo: new THREE.BoxGeometry(s * 0.3, s * 0.7, s * 0.3), pos: [0, -s * 0.15, 0], rot: [0, 0, 0] }
-    ]);
-  },
-
   _mergeGeosWithUV(parts){
-    const positions = [];
-    const normals = [];
-    const uvs = [];
+    const positions = []; const normals = []; const uvs = [];
     for(let i = 0; i < parts.length; i++){
-      const p = parts[i];
-      const geo = p.geo;
-      const posArr = geo.attributes.position;
-      const norArr = geo.attributes.normal;
-      const uvArr = geo.attributes.uv;
-      const posOffset = p.pos || [0, 0, 0];
-      const rot = p.rot || [0, 0, 0];
-      const flip = !!p.flipNormals;
-
-      const m = new THREE.Matrix4();
-      const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(rot[0], rot[1], rot[2], 'XYZ'));
-      m.makeRotationFromQuaternion(q);
+      const p = parts[i]; const geo = p.geo; const posArr = geo.attributes.position; const norArr = geo.attributes.normal; const uvArr = geo.attributes.uv;
+      const posOffset = p.pos || [0, 0, 0]; const rot = p.rot || [0, 0, 0]; const flip = !!p.flipNormals;
+      const m = new THREE.Matrix4(); const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(rot[0], rot[1], rot[2], 'XYZ')); m.makeRotationFromQuaternion(q);
       const vec = new THREE.Vector3();
-
-      const idx = geo.index ? geo.index.array : null;
-      const count = idx ? idx.length : posArr.count;
+      const idx = geo.index ? geo.index.array : null; const count = idx ? idx.length : posArr.count;
       for(let k = 0; k < count; k++){
         const j = idx ? idx[k] : k;
-        vec.set(posArr.getX(j), posArr.getY(j), posArr.getZ(j));
-        vec.applyMatrix4(m);
-        vec.x += posOffset[0];
-        vec.y += posOffset[1];
-        vec.z += posOffset[2];
+        vec.set(posArr.getX(j), posArr.getY(j), posArr.getZ(j)); vec.applyMatrix4(m);
+        vec.x += posOffset[0]; vec.y += posOffset[1]; vec.z += posOffset[2];
         positions.push(vec.x, vec.y, vec.z);
-
-        if(norArr){
-          const nv = new THREE.Vector3(norArr.getX(j), norArr.getY(j), norArr.getZ(j));
-          nv.applyQuaternion(q);
-          if(flip) nv.multiplyScalar(-1);
-          normals.push(nv.x, nv.y, nv.z);
-        }
-        if(uvArr){
-          uvs.push(uvArr.getX(j), uvArr.getY(j));
-        } else {
-          uvs.push(0, 0);
-        }
+        if(norArr){ const nv = new THREE.Vector3(norArr.getX(j), norArr.getY(j), norArr.getZ(j)); nv.applyQuaternion(q); if(flip) nv.multiplyScalar(-1); normals.push(nv.x, nv.y, nv.z); }
+        if(uvArr) uvs.push(uvArr.getX(j), uvArr.getY(j)); else uvs.push(0, 0);
       }
       geo.dispose();
     }
     const merged = new THREE.BufferGeometry();
     merged.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-    if(normals.length === positions.length) merged.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
-    else merged.computeVertexNormals();
+    if(normals.length === positions.length) merged.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3)); else merged.computeVertexNormals();
     if(uvs.length === (positions.length / 3) * 2) merged.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
     return merged;
   },
 
-  /* ============================================================
-   * ★ spawnProp：使用 DATA.COLLISION 精确碰撞箱 + 居中几何体
-   * ============================================================ */
   spawnProp(id, options){
     if(!this.scene) return null;
     options = options || {};
-
-    const shapeId = options.shapeId || 'cube';
-    const sizeScale = options.sizeScale || 1.0;
-    const colorHex = options.colorHex || '#cccccc';
-
-    const geo = this._geoDispatch(shapeId, sizeScale);
-    const mat = this._getPropMat(colorHex);
-    const mesh = new THREE.Mesh(geo, mat);
-
+    const shapeId = options.shapeId || 'cube'; const sizeScale = options.sizeScale || 1.0; const colorHex = options.colorHex || '#cccccc';
+    const geo = this._geoDispatch(shapeId, sizeScale); const mat = this._getPropMat(colorHex); const mesh = new THREE.Mesh(geo, mat);
     const shadowOn = TBOX.Save.get('tbox_shadow', '0') === '1';
-    mesh.castShadow = shadowOn;
-    mesh.receiveShadow = shadowOn;
+    mesh.castShadow = shadowOn; mesh.receiveShadow = shadowOn;
 
-    /* ★ 居中几何体：把几何体从任意位置移到原点 */
-    geo.computeBoundingBox();
-    const bb = geo.boundingBox;
-    const center = new THREE.Vector3();
-    bb.getCenter(center);
-    geo.translate(-center.x, -center.y, -center.z);
-    geo.computeBoundingBox();
-    geo.computeBoundingSphere();
+    geo.computeBoundingBox(); const bb = geo.boundingBox; const center = new THREE.Vector3(); bb.getCenter(center); geo.translate(-center.x, -center.y, -center.z); geo.computeBoundingBox(); geo.computeBoundingSphere();
+    const size = new THREE.Vector3(); geo.boundingBox.getSize(size);
 
-    const size = new THREE.Vector3();
-    geo.boundingBox.getSize(size);
-
-    /* 初始位置：玩家前方 4 米 */
     let px = 0, pz = -3;
     if(TBOX.Player){
-      const yaw = this.camState.yaw;
-      const pitch = this.camState.pitch;
-      const dirX = -Math.sin(yaw) * Math.cos(pitch);
-      const dirY = Math.sin(pitch);
-      const dirZ = -Math.cos(yaw) * Math.cos(pitch);
-      const originX = TBOX.Player.x;
-      const originY = TBOX.Player.y + TBOX.DATA.EYE_H;
-      const originZ = TBOX.Player.z;
+      const yaw = this.camState.yaw; const pitch = this.camState.pitch;
+      const dirX = -Math.sin(yaw) * Math.cos(pitch); const dirY = Math.sin(pitch); const dirZ = -Math.cos(yaw) * Math.cos(pitch);
+      const originX = TBOX.Player.x; const originY = TBOX.Player.y + TBOX.DATA.EYE_H; const originZ = TBOX.Player.z;
       let t = 4;
-      if(dirY < -0.01){
-        const tt = (0 - originY) / dirY;
-        if(tt > 0.5 && tt < 20) t = tt;
-      }
-      px = originX + dirX * t;
-      pz = originZ + dirZ * t;
+      if(dirY < -0.01){ const tt = (0 - originY) / dirY; if(tt > 0.5 && tt < 20) t = tt; }
+      px = originX + dirX * t; pz = originZ + dirZ * t;
     }
 
-    /* ★ 位置：几何体已居中，y = size.y/2 */
     const py = size.y / 2;
-    mesh.position.set(px, py, pz);
-    mesh.rotation.y = this.camState.yaw;
-    this.scene.add(mesh);
+    mesh.position.set(px, py, pz); mesh.rotation.y = this.camState.yaw; this.scene.add(mesh);
 
-    /* ★ 从 DATA.COLLISION 查表生成多 AABB */
-    const colDef = (TBOX.DATA.COLLISION && TBOX.DATA.COLLISION[shapeId])
-      || { type: 'box', w: 1.0, h: 1.0, d: 1.0 };
-
+    const colDef = (TBOX.DATA.COLLISION && TBOX.DATA.COLLISION[shapeId]) || { type: 'box', w: 1.0, h: 1.0, d: 1.0, mass: 1.0 };
+    const mass = (colDef.mass || 1.0) * sizeScale * sizeScale * sizeScale;
     const boxes = [];
-    if(colDef.type === 'box'){
-      boxes.push({
-        w: colDef.w * sizeScale,
-        h: colDef.h * sizeScale,
-        d: colDef.d * sizeScale,
-        ox: 0, oy: 0, oz: 0
-      });
-    } else if(colDef.type === 'multi'){
-      for(const b of colDef.boxes){
-        boxes.push({
-          w: b.w * sizeScale,
-          h: b.h * sizeScale,
-          d: b.d * sizeScale,
-          ox: (b.ox || 0) * sizeScale,
-          oy: (b.oy || 0) * sizeScale,
-          oz: (b.oz || 0) * sizeScale
-        });
-      }
-    } else if(colDef.type === 'sphere'){
-      const r = colDef.r * sizeScale;
-      boxes.push({ w: r * 2, h: r * 2, d: r * 2, ox: 0, oy: 0, oz: 0 });
-    }
+    if(colDef.type === 'box'){ boxes.push({ w: colDef.w * sizeScale, h: colDef.h * sizeScale, d: colDef.d * sizeScale, ox: 0, oy: 0, oz: 0 }); }
+    else if(colDef.type === 'multi'){ for(const b of colDef.boxes){ boxes.push({ w: b.w * sizeScale, h: b.h * sizeScale, d: b.d * sizeScale, ox: (b.ox || 0) * sizeScale, oy: (b.oy || 0) * sizeScale, oz: (b.oz || 0) * sizeScale }); } }
+    else if(colDef.type === 'sphere'){ const r = colDef.r * sizeScale; boxes.push({ w: r * 2, h: r * 2, d: r * 2, ox: 0, oy: 0, oz: 0 }); }
 
-    /* 主 box 用于粗略碰撞 */
-    const box = {
-      x: px, y: py, z: pz,
-      hw: Math.max(0.05, size.x / 2),
-      hh: Math.max(0.05, size.y / 2),
-      hd: Math.max(0.05, size.z / 2),
-      topY: py + size.y / 2,
-      bottomY: py - size.y / 2,
-      tag: 'prop'
-    };
+    const box = { x: px, y: py, z: pz, hw: Math.max(0.05, size.x / 2), hh: Math.max(0.05, size.y / 2), hd: Math.max(0.05, size.z / 2), topY: py + size.y / 2, bottomY: py - size.y / 2, tag: 'prop' };
     this.addAABB(box);
 
-    const obj = {
-      id: id || ('prop_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8)),
-      mesh: mesh,
-      box: box,
-      boxes: boxes,
-      shapeId: shapeId,
-      sizeScale: sizeScale,
-      colorHex: colorHex,
-      label: options.label || '',
-      size: size.clone(),
-      phy: { vx: 0, vy: 0, vz: 0, onGround: false, sleeping: false, sleepTimer: 0 }
-    };
-    this.props.push(obj);
-    return obj;
+    const obj = { id: id || ('prop_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8)), mesh: mesh, box: box, boxes: boxes, mass: mass, shapeId: shapeId, sizeScale: sizeScale, colorHex: colorHex, label: options.label || '', size: size.clone(), phy: { vx: 0, vy: 0, vz: 0, onGround: false, sleeping: false, sleepTimer: 0 } };
+    this.props.push(obj); return obj;
   },
 
   deleteProp(obj){
     if(!obj) return false;
-    const idx = this.props.indexOf(obj);
-    if(idx >= 0) this.props.splice(idx, 1);
+    const idx = this.props.indexOf(obj); if(idx >= 0) this.props.splice(idx, 1);
     if(this.grabbedProp === obj) this.grabbedProp = null;
-    if(obj.mesh){
-      this.scene.remove(obj.mesh);
-      if(obj.mesh.geometry) obj.mesh.geometry.dispose();
-    }
-    if(obj.box){
-      const bi = this.aabbStatic.indexOf(obj.box);
-      if(bi >= 0) this.aabbStatic.splice(bi, 1);
-    }
+    if(obj.mesh){ this.scene.remove(obj.mesh); if(obj.mesh.geometry) obj.mesh.geometry.dispose(); }
+    if(obj.box){ const bi = this.aabbStatic.indexOf(obj.box); if(bi >= 0) this.aabbStatic.splice(bi, 1); }
     return true;
   },
 
   clearProps(){
-    for(let i = this.props.length - 1; i >= 0; i--){
-      this.deleteProp(this.props[i]);
-    }
-    this.props.length = 0;
-    this.grabbedProp = null;
+    for(let i = this.props.length - 1; i >= 0; i--){ this.deleteProp(this.props[i]); }
+    this.props.length = 0; this.grabbedProp = null; this.grabState = 'none';
   }
 };

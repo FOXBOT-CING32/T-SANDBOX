@@ -1,6 +1,6 @@
 /* ============================================================
  * spawnmenu.js · 生成菜单系统
- * V1.0.0 · 90 形状 × 12 大小 × 60 颜色 · 90 独立 SVG
+ * V3.0.0 · 等轴测 SVG + 新形状 + "物体"文案
  * ============================================================ */
 window.TBOX = window.TBOX || {};
 
@@ -12,7 +12,6 @@ TBOX.SpawnMenu = {
   gridView: null,
   crumb: null,
   emptyEl: null,
-  countEl: null,
   searchEl: null,
   ctx: null,
 
@@ -43,7 +42,8 @@ TBOX.SpawnMenu = {
         { id: 'sphere',         label: '球体' },
         { id: 'hemisphere',     label: '半球' },
         { id: 'quarter-sphere', label: '四分之一球' },
-        { id: 'capsule',        label: '胶囊' }
+        { id: 'capsule',        label: '胶囊' },
+        { id: 'dome',           label: '穹顶' }
       ]
     },
     {
@@ -67,7 +67,8 @@ TBOX.SpawnMenu = {
         { id: 'pyramid6',  label: '六棱锥' },
         { id: 'pyramid8',  label: '八棱锥' },
         { id: 'pyramid12', label: '十二棱锥' },
-        { id: 'pyramid16', label: '十六棱锥' }
+        { id: 'pyramid16', label: '十六棱锥' },
+        { id: 'pyramid-truncated', label: '截锥' }
       ]
     },
     {
@@ -77,12 +78,15 @@ TBOX.SpawnMenu = {
         { id: 'cylinder-hollow', label: '空心圆柱' },
         { id: 'cone',            label: '圆锥' },
         { id: 'cone-truncated',  label: '圆台' },
+        { id: 'cone-hollow',     label: '空心圆锥' },
         { id: 'disc',            label: '圆盘' },
         { id: 'disc-thick',      label: '厚圆盘' },
         { id: 'disc-hollow',     label: '空心圆盘' },
         { id: 'torus',           label: '甜甜圈' },
         { id: 'torus-thick',     label: '厚甜甜圈' },
-        { id: 'torus-half',      label: '半甜甜圈' }
+        { id: 'torus-half',      label: '半甜甜圈' },
+        { id: 'torus-major',     label: '大环' },
+        { id: 'torus-minor',     label: '小环' }
       ]
     },
     {
@@ -102,23 +106,30 @@ TBOX.SpawnMenu = {
     {
       id: 'special', label: '特殊形状',
       shapes: [
-        { id: 'cross',     label: '十字' },
-        { id: 'star3',     label: '三角星' },
-        { id: 'star4',     label: '四角星' },
-        { id: 'star5',     label: '五角星' },
-        { id: 'star6',     label: '六角星' },
-        { id: 'star8',     label: '八角星' },
-        { id: 'ring',      label: '环' },
-        { id: 'ring-square', label: '方环' },
-        { id: 'A-shape',   label: '字母 A' },
-        { id: 'B-shape',   label: '字母 B' },
-        { id: 'U-shape',   label: 'U 形' },
-        { id: 'H-shape',   label: 'H 形' },
-        { id: 'I-shape',   label: 'I 形' },
-        { id: 'plus',      label: '加号' },
-        { id: 'minus',     label: '减号' },
-        { id: 'slash',     label: '斜杠' },
-        { id: 'backslash', label: '反斜杠' }
+        { id: 'cross',        label: 'X 交叉' },
+        { id: 'plus',         label: '空心加号' },
+        { id: 'star3',        label: '三角星' },
+        { id: 'star4',        label: '四角星' },
+        { id: 'star5',        label: '五角星' },
+        { id: 'star6',        label: '六角星' },
+        { id: 'star8',        label: '八角星' },
+        { id: 'ring',         label: '圆环' },
+        { id: 'spiral',       label: '螺旋' },
+        { id: 'column',       label: '柱子' },
+        { id: 'rail',         label: '轨道' },
+        { id: 'A-shape',      label: '字母 A' },
+        { id: 'B-shape',      label: '字母 B' },
+        { id: 'C-shape',      label: '字母 C' },
+        { id: 'H-shape',      label: '字母 H' },
+        { id: 'I-shape',      label: '字母 I' },
+        { id: 'O-shape',      label: '字母 O' },
+        { id: 'T-shape',      label: '字母 T' },
+        { id: 'U-shape',      label: '字母 U' },
+        { id: 'X-shape',      label: '字母 X' },
+        { id: 'Z-shape',      label: '字母 Z' },
+        { id: 'minus',        label: '减号' },
+        { id: 'slash',        label: '斜杠' },
+        { id: 'backslash',    label: '反斜杠' }
       ]
     },
     {
@@ -138,13 +149,11 @@ TBOX.SpawnMenu = {
       id: 'rod', label: '细杆 / 管',
       shapes: [
         { id: 'rod',           label: '细杆' },
-        { id: 'rod-square',    label: '方杆' },
         { id: 'rod-hex',       label: '六棱杆' },
         { id: 'tube',          label: '空心管' },
         { id: 'tube-square',   label: '方管' },
         { id: 'tube-hex',      label: '六棱管' },
-        { id: 'frame',         label: '框架' },
-        { id: 'frame-square',  label: '方框架' },
+        { id: 'frame',         label: '方框架' },
         { id: 'frame-circle',  label: '圆框架' }
       ]
     },
@@ -153,17 +162,14 @@ TBOX.SpawnMenu = {
       shapes: [
         { id: 'gear',         label: '齿轮' },
         { id: 'gear-thick',   label: '厚齿轮' },
-        { id: 'wheel',        label: '轮子' },
+        { id: 'wheel',        label: '实心轮' },
         { id: 'wheel-spoke',  label: '辐条轮' },
         { id: 'bar',          label: '长条' },
         { id: 'bar-curved',   label: '弧形条' },
         { id: 'beam',         label: '梁' },
         { id: 'beam-curved',  label: '弧形梁' },
         { id: 'panel',        label: '面板' },
-        { id: 'panel-curved', label: '弧形面板' },
-        { id: 'bracket',      label: '支架' },
-        { id: 'bracket-L',    label: 'L 支架' },
-        { id: 'bracket-T',    label: 'T 支架' }
+        { id: 'panel-curved', label: '弧形面板' }
       ]
     }
   ],
@@ -255,7 +261,6 @@ TBOX.SpawnMenu = {
     this.gridView = document.getElementById('smGridView');
     this.crumb = document.getElementById('smCrumb');
     this.emptyEl = document.getElementById('smEmpty');
-    this.countEl = document.getElementById('smCount');
     this.searchEl = document.getElementById('smSearch');
     this.ctx = document.getElementById('spawnmenu-ctx');
     this._bindTop();
@@ -569,14 +574,14 @@ TBOX.SpawnMenu = {
     if(this.currentTab !== 'spawn'){ this.crumb.textContent = '暂无内容'; return; }
     var shape = this._findShape(this.currentNode);
     if(shape){
-      this.crumb.innerHTML = '生成物 / <span>' + shape.label + '</span> · 共 <span>' + this.currentList.length + '</span> 个';
+      this.crumb.innerHTML = '物体 / <span>' + shape.label + '</span> · 共 <span>' + this.currentList.length + '</span> 个';
     } else {
-      this.crumb.textContent = '生成物 / …';
+      this.crumb.textContent = '物体 / …';
     }
   },
 
   /* ============================================================
-   * SVG 图标 · 90 形状独立绘制
+   * SVG 图标 · 等轴测投影
    * ============================================================ */
   _buildSvg(shapeId, colorHex){
     var c = colorHex || '#cccccc';
@@ -609,6 +614,7 @@ TBOX.SpawnMenu = {
       case 'hemisphere':      return this._svg_hemisphere(c, d, l);
       case 'quarter-sphere':  return this._svg_quarter_sphere(c, d, l);
       case 'capsule':         return this._svg_capsule(c, d, l);
+      case 'dome':            return this._svg_dome(c, d, l);
       case 'prism3':          return this._svg_prism3(c, d, l);
       case 'prism4':          return this._svg_prism4(c, d, l);
       case 'prism5':          return this._svg_prism5(c, d, l);
@@ -623,16 +629,20 @@ TBOX.SpawnMenu = {
       case 'pyramid8':        return this._svg_pyramid8(c, d, l);
       case 'pyramid12':       return this._svg_pyramid12(c, d, l);
       case 'pyramid16':       return this._svg_pyramid16(c, d, l);
+      case 'pyramid-truncated': return this._svg_pyramid_truncated(c, d, l);
       case 'cylinder':        return this._svg_cylinder(c, d, l);
       case 'cylinder-hollow': return this._svg_cylinder_hollow(c, d, l);
       case 'cone':            return this._svg_cone(c, d, l);
       case 'cone-truncated':  return this._svg_cone_truncated(c, d, l);
+      case 'cone-hollow':     return this._svg_cone_hollow(c, d, l);
       case 'disc':            return this._svg_disc(c, d, l);
       case 'disc-thick':      return this._svg_disc_thick(c, d, l);
       case 'disc-hollow':     return this._svg_disc_hollow(c, d, l);
       case 'torus':           return this._svg_torus(c, d, l);
       case 'torus-thick':     return this._svg_torus_thick(c, d, l);
       case 'torus-half':      return this._svg_torus_half(c, d, l);
+      case 'torus-major':     return this._svg_torus_major(c, d, l);
+      case 'torus-minor':     return this._svg_torus_minor(c, d, l);
       case 'wedge':           return this._svg_wedge(c, d, l);
       case 'wedge-curved':    return this._svg_wedge_curved(c, d, l);
       case 'ramp':            return this._svg_ramp(c, d, l);
@@ -642,20 +652,27 @@ TBOX.SpawnMenu = {
       case 'stair-spiral':    return this._svg_stair_spiral(c, d, l);
       case 'arch':            return this._svg_arch(c, d, l);
       case 'arch-half':       return this._svg_arch_half(c, d, l);
-      case 'cross':           return this._svg_cross(c, d, l);
-      case 'star3':           return this._svg_star3(c, d, l);
-      case 'star4':           return this._svg_star4(c, d, l);
-      case 'star5':           return this._svg_star5(c, d, l);
-      case 'star6':           return this._svg_star6(c, d, l);
-      case 'star8':           return this._svg_star8(c, d, l);
+      case 'cross':           return this._svg_cross_x(c, d, l);
+      case 'plus':            return this._svg_plus_hollow(c, d, l);
+      case 'star3':           return this._svg_star(c, 3);
+      case 'star4':           return this._svg_star(c, 4);
+      case 'star5':           return this._svg_star(c, 5);
+      case 'star6':           return this._svg_star(c, 6);
+      case 'star8':           return this._svg_star(c, 8);
       case 'ring':            return this._svg_ring(c, d, l);
-      case 'ring-square':     return this._svg_ring_square(c, d, l);
-      case 'A-shape':         return this._svg_A(c, d, l);
-      case 'B-shape':         return this._svg_B(c, d, l);
-      case 'U-shape':         return this._svg_U_shape(c, d, l);
-      case 'H-shape':         return this._svg_H_shape(c, d, l);
-      case 'I-shape':         return this._svg_I_shape(c, d, l);
-      case 'plus':            return this._svg_plus(c, d, l);
+      case 'spiral':          return this._svg_spiral(c, d, l);
+      case 'column':          return this._svg_column(c, d, l);
+      case 'rail':            return this._svg_rail(c, d, l);
+      case 'A-shape':         return this._svg_letter(c, 'A');
+      case 'B-shape':         return this._svg_letter(c, 'B');
+      case 'C-shape':         return this._svg_letter(c, 'C');
+      case 'H-shape':         return this._svg_letter(c, 'H');
+      case 'I-shape':         return this._svg_letter(c, 'I');
+      case 'O-shape':         return this._svg_letter(c, 'O');
+      case 'T-shape':         return this._svg_letter(c, 'T');
+      case 'U-shape':         return this._svg_letter(c, 'U');
+      case 'X-shape':         return this._svg_letter(c, 'X');
+      case 'Z-shape':         return this._svg_letter(c, 'Z');
       case 'minus':           return this._svg_minus(c, d, l);
       case 'slash':           return this._svg_slash(c, d, l);
       case 'backslash':       return this._svg_backslash(c, d, l);
@@ -668,13 +685,11 @@ TBOX.SpawnMenu = {
       case 'plate-ring':      return this._svg_plate_ring(c, d, l);
       case 'plate-star':      return this._svg_plate_star(c, d, l);
       case 'rod':             return this._svg_rod(c, d, l);
-      case 'rod-square':      return this._svg_rod_square(c, d, l);
       case 'rod-hex':         return this._svg_rod_hex(c, d, l);
       case 'tube':            return this._svg_tube(c, d, l);
       case 'tube-square':     return this._svg_tube_square(c, d, l);
       case 'tube-hex':        return this._svg_tube_hex(c, d, l);
       case 'frame':           return this._svg_frame(c, d, l);
-      case 'frame-square':    return this._svg_frame_square(c, d, l);
       case 'frame-circle':    return this._svg_frame_circle(c, d, l);
       case 'gear':            return this._svg_gear(c, d, l);
       case 'gear-thick':      return this._svg_gear_thick(c, d, l);
@@ -686,280 +701,123 @@ TBOX.SpawnMenu = {
       case 'beam-curved':     return this._svg_beam_curved(c, d, l);
       case 'panel':           return this._svg_panel(c, d, l);
       case 'panel-curved':    return this._svg_panel_curved(c, d, l);
-      case 'bracket':         return this._svg_bracket(c, d, l);
-      case 'bracket-L':       return this._svg_bracket_L(c, d, l);
-      case 'bracket-T':       return this._svg_bracket_T(c, d, l);
       default:                return '<text x="70" y="75" text-anchor="middle" fill="#fff" font-size="14">?</text>';
     }
   },
 
-  /* ---------- 多面体 ---------- */
-
+  /* 多面体 */
   _svg_cube(c, d, l){
-    return '' +
-      '<path d="M70 35 L100 50 L70 65 L40 50 Z" fill="' + l + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>' +
+    return '<path d="M70 35 L100 50 L70 65 L40 50 Z" fill="' + l + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>' +
       '<path d="M40 50 L70 65 L70 105 L40 90 Z" fill="' + c + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>' +
       '<path d="M100 50 L100 90 L70 105 L70 65 Z" fill="' + d + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>';
   },
-
   _svg_cuboid(c, d, l){
-    return '' +
-      '<path d="M70 38 L115 52 L70 66 L25 52 Z" fill="' + l + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>' +
+    return '<path d="M70 38 L115 52 L70 66 L25 52 Z" fill="' + l + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>' +
       '<path d="M25 52 L70 66 L70 98 L25 84 Z" fill="' + c + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>' +
       '<path d="M115 52 L115 84 L70 98 L70 66 Z" fill="' + d + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>';
   },
-
   _svg_tetrahedron(c, d, l){
-    return '' +
-      '<path d="M70 25 L110 100 L70 100 Z" fill="' + l + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>' +
+    return '<path d="M70 25 L110 100 L70 100 Z" fill="' + l + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>' +
       '<path d="M70 25 L30 100 L70 100 Z" fill="' + c + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>' +
       '<path d="M30 100 L110 100 L70 115 Z" fill="' + d + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>';
   },
-
   _svg_octahedron(c, d, l){
-    return '' +
-      '<path d="M70 20 L105 70 L70 70 Z" fill="' + l + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>' +
+    return '<path d="M70 20 L105 70 L70 70 Z" fill="' + l + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>' +
       '<path d="M70 20 L35 70 L70 70 Z" fill="' + c + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>' +
       '<path d="M35 70 L70 70 L70 120 Z" fill="' + d + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>' +
       '<path d="M105 70 L70 70 L70 120 Z" fill="' + c + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>';
   },
-
   _svg_dodecahedron(c, d, l){
-    return '' +
-      '<polygon points="70,20 100,35 110,65 90,90 50,90 30,65 40,35" fill="' + c + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>' +
-      '<polygon points="70,20 100,35 70,50 40,35" fill="' + l + '" stroke="#000" stroke-width="1.2" stroke-linejoin="round"/>' +
-      '<polygon points="100,35 110,65 80,80 70,50" fill="' + d + '" stroke="#000" stroke-width="1.2" stroke-linejoin="round"/>' +
-      '<polygon points="40,35 70,50 80,80 50,90 30,65" fill="' + c + '" stroke="#000" stroke-width="1.2" stroke-linejoin="round"/>' +
-      '<polygon points="80,80 110,65 90,90" fill="' + d + '" stroke="#000" stroke-width="1.2" stroke-linejoin="round"/>';
+    return '<polygon points="70,20 100,35 110,65 90,90 50,90 30,65 40,35" fill="' + c + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>' +
+      '<polygon points="70,20 100,35 70,50 40,35" fill="' + l + '" stroke="#000" stroke-width="1.2"/>' +
+      '<polygon points="100,35 110,65 80,80 70,50" fill="' + d + '" stroke="#000" stroke-width="1.2"/>' +
+      '<polygon points="40,35 70,50 80,80 50,90 30,65" fill="' + c + '" stroke="#000" stroke-width="1.2"/>';
   },
-
   _svg_icosahedron(c, d, l){
-    return '' +
-      '<polygon points="70,20 100,40 100,75 70,95 40,75 40,40" fill="' + c + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>' +
-      '<polygon points="70,20 100,40 70,55 40,40" fill="' + l + '" stroke="#000" stroke-width="1" stroke-linejoin="round"/>' +
-      '<polygon points="100,40 100,75 70,75 70,55" fill="' + d + '" stroke="#000" stroke-width="1" stroke-linejoin="round"/>' +
-      '<polygon points="40,40 70,55 70,75 40,75" fill="' + c + '" stroke="#000" stroke-width="1" stroke-linejoin="round"/>' +
-      '<polygon points="70,75 100,75 70,95" fill="' + d + '" stroke="#000" stroke-width="1" stroke-linejoin="round"/>' +
-      '<polygon points="70,75 70,95 40,75" fill="' + c + '" stroke="#000" stroke-width="1" stroke-linejoin="round"/>';
+    return '<polygon points="70,20 100,40 100,75 70,95 40,75 40,40" fill="' + c + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>' +
+      '<polygon points="70,20 100,40 70,55 40,40" fill="' + l + '" stroke="#000" stroke-width="1"/>' +
+      '<polygon points="100,40 100,75 70,75 70,55" fill="' + d + '" stroke="#000" stroke-width="1"/>' +
+      '<polygon points="40,40 70,55 70,75 40,75" fill="' + c + '" stroke="#000" stroke-width="1"/>';
   },
-
   _svg_sphere(c, d, l){
-    return '' +
-      '<circle cx="70" cy="70" r="45" fill="' + c + '" stroke="#000" stroke-width="1.5"/>' +
+    return '<circle cx="70" cy="70" r="45" fill="' + c + '" stroke="#000" stroke-width="1.5"/>' +
       '<ellipse cx="70" cy="70" rx="45" ry="18" fill="none" stroke="#000" stroke-width="1" opacity="0.35"/>' +
       '<ellipse cx="70" cy="70" rx="18" ry="45" fill="none" stroke="#000" stroke-width="1" opacity="0.35"/>' +
       '<circle cx="55" cy="52" r="9" fill="' + l + '" opacity="0.8"/>' +
       '<circle cx="52" cy="49" r="4" fill="#fff" opacity="0.7"/>';
   },
-
   _svg_hemisphere(c, d, l){
-    return '' +
-      '<path d="M25 80 A45 45 0 0 1 115 80 L115 80 L25 80 Z" fill="' + c + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>' +
+    return '<path d="M25 80 A45 45 0 0 1 115 80 L115 80 L25 80 Z" fill="' + c + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>' +
       '<ellipse cx="70" cy="80" rx="45" ry="14" fill="' + d + '" stroke="#000" stroke-width="1.5"/>' +
       '<circle cx="55" cy="58" r="6" fill="' + l + '" opacity="0.7"/>';
   },
-
   _svg_quarter_sphere(c, d, l){
-    return '' +
-      '<path d="M30 100 L30 60 A40 40 0 0 1 70 100 Z" fill="' + c + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>' +
-      '<path d="M30 100 L70 100 L70 60 A40 40 0 0 0 30 60 Z" fill="' + d + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round" opacity="0.6"/>' +
+    return '<path d="M30 100 L30 60 A40 40 0 0 1 70 100 Z" fill="' + c + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>' +
       '<circle cx="45" cy="80" r="5" fill="' + l + '" opacity="0.7"/>';
   },
-
   _svg_capsule(c, d, l){
-    return '' +
-      '<path d="M50 35 L50 105 A20 20 0 0 0 90 105 L90 35 A20 20 0 0 0 50 35 Z" fill="' + c + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>' +
+    return '<path d="M50 35 L50 105 A20 20 0 0 0 90 105 L90 35 A20 20 0 0 0 50 35 Z" fill="' + c + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>' +
       '<ellipse cx="70" cy="35" rx="20" ry="8" fill="' + l + '" stroke="#000" stroke-width="1"/>' +
       '<ellipse cx="70" cy="105" rx="20" ry="8" fill="' + d + '" stroke="#000" stroke-width="1"/>';
   },
-
-  /* ---------- 棱柱 ---------- */
-
-  _svg_prism3(c, d, l){
-    var top = this._polyPts(70, 35, 40, 3, -Math.PI / 2, 14);
-    var bot = this._polyPts(70, 100, 40, 3, -Math.PI / 2, 14);
-    var e = '';
-    for(var i = 0; i < 3; i++){
-      e += '<line x1="' + top[i].split(',')[0] + '" y1="35" x2="' + bot[i].split(',')[0] + '" y2="100" stroke="#000" stroke-width="1.5"/>';
-    }
-    return '<polygon points="' + top.join(' ') + '" fill="' + l + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>' +
-      '<polygon points="' + bot.join(' ') + '" fill="' + d + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>' + e;
+  _svg_dome(c, d, l){
+    return '<path d="M25 90 A45 45 0 0 1 115 90 Z" fill="' + c + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>' +
+      '<circle cx="55" cy="65" r="6" fill="' + l + '" opacity="0.7"/>';
   },
 
-  _svg_prism4(c, d, l){
-    var top = this._polyPts(70, 38, 38, 4, -Math.PI / 2 + Math.PI / 4, 14);
-    var bot = this._polyPts(70, 100, 38, 4, -Math.PI / 2 + Math.PI / 4, 14);
+  /* 棱柱 */
+  _svg_prism(c, d, l, n){
+    var top = this._polyPts(70, 38, 38, n, -Math.PI / 2, 14);
+    var bot = this._polyPts(70, 100, 38, n, -Math.PI / 2, 14);
     var e = '';
-    for(var i = 0; i < 4; i++){
-      e += '<line x1="' + top[i].split(',')[0] + '" y1="38" x2="' + bot[i].split(',')[0] + '" y2="100" stroke="#000" stroke-width="1.5"/>';
+    for(var i = 0; i < n; i++){
+      e += '<line x1="' + top[i].split(',')[0] + '" y1="38" x2="' + bot[i].split(',')[0] + '" y2="100" stroke="#000" stroke-width="1.2"/>';
     }
-    return '<polygon points="' + top.join(' ') + '" fill="' + l + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>' +
-      '<polygon points="' + bot.join(' ') + '" fill="' + d + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>' + e;
+    return '<polygon points="' + top.join(' ') + '" fill="' + l + '" stroke="#000" stroke-width="1.5"/>' +
+      '<polygon points="' + bot.join(' ') + '" fill="' + d + '" stroke="#000" stroke-width="1.5"/>' + e;
   },
+  _svg_prism3(c, d, l){ return this._svg_prism(c, d, l, 3); },
+  _svg_prism4(c, d, l){ return this._svg_prism(c, d, l, 4); },
+  _svg_prism5(c, d, l){ return this._svg_prism(c, d, l, 5); },
+  _svg_prism6(c, d, l){ return this._svg_prism(c, d, l, 6); },
+  _svg_prism8(c, d, l){ return this._svg_prism(c, d, l, 8); },
+  _svg_prism12(c, d, l){ return this._svg_prism(c, d, l, 12); },
+  _svg_prism16(c, d, l){ return this._svg_prism(c, d, l, 16); },
 
-  _svg_prism5(c, d, l){
-    var top = this._polyPts(70, 38, 40, 5, -Math.PI / 2, 14);
-    var bot = this._polyPts(70, 100, 40, 5, -Math.PI / 2, 14);
-    var e = '';
-    for(var i = 0; i < 5; i++){
-      e += '<line x1="' + top[i].split(',')[0] + '" y1="38" x2="' + bot[i].split(',')[0] + '" y2="100" stroke="#000" stroke-width="1.5"/>';
-    }
-    return '<polygon points="' + top.join(' ') + '" fill="' + l + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>' +
-      '<polygon points="' + bot.join(' ') + '" fill="' + d + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>' + e;
-  },
-
-  _svg_prism6(c, d, l){
-    var top = this._polyPts(70, 38, 40, 6, 0, 14);
-    var bot = this._polyPts(70, 100, 40, 6, 0, 14);
-    var e = '';
-    for(var i = 0; i < 6; i++){
-      e += '<line x1="' + top[i].split(',')[0] + '" y1="38" x2="' + bot[i].split(',')[0] + '" y2="100" stroke="#000" stroke-width="1.5"/>';
-    }
-    return '<polygon points="' + top.join(' ') + '" fill="' + l + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>' +
-      '<polygon points="' + bot.join(' ') + '" fill="' + d + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>' + e;
-  },
-
-  _svg_prism8(c, d, l){
-    var top = this._polyPts(70, 38, 40, 8, Math.PI / 8, 14);
-    var bot = this._polyPts(70, 100, 40, 8, Math.PI / 8, 14);
-    var e = '';
-    for(var i = 0; i < 8; i++){
-      e += '<line x1="' + top[i].split(',')[0] + '" y1="38" x2="' + bot[i].split(',')[0] + '" y2="100" stroke="#000" stroke-width="1.5"/>';
-    }
-    return '<polygon points="' + top.join(' ') + '" fill="' + l + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>' +
-      '<polygon points="' + bot.join(' ') + '" fill="' + d + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>' + e;
-  },
-
-  _svg_prism12(c, d, l){
-    var top = this._polyPts(70, 38, 42, 12, 0, 15);
-    var bot = this._polyPts(70, 100, 42, 12, 0, 15);
-    var e = '';
-    for(var i = 0; i < 12; i++){
-      e += '<line x1="' + top[i].split(',')[0] + '" y1="38" x2="' + bot[i].split(',')[0] + '" y2="100" stroke="#000" stroke-width="1"/>';
-    }
-    return '<polygon points="' + top.join(' ') + '" fill="' + l + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>' +
-      '<polygon points="' + bot.join(' ') + '" fill="' + d + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>' + e;
-  },
-
-  _svg_prism16(c, d, l){
-    var top = this._polyPts(70, 38, 42, 16, 0, 15);
-    var bot = this._polyPts(70, 100, 42, 16, 0, 15);
-    var e = '';
-    for(var i = 0; i < 16; i++){
-      e += '<line x1="' + top[i].split(',')[0] + '" y1="38" x2="' + bot[i].split(',')[0] + '" y2="100" stroke="#000" stroke-width="1"/>';
-    }
-    return '<polygon points="' + top.join(' ') + '" fill="' + l + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>' +
-      '<polygon points="' + bot.join(' ') + '" fill="' + d + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>' + e;
-  },
-
-  /* ---------- 棱锥 ---------- */
-
-  _svg_pyramid3(c, d, l){
-    var base = this._polyPts(70, 105, 40, 3, Math.PI / 2, 15);
+  /* 棱锥 */
+  _svg_pyramid(c, d, l, n){
+    var base = this._polyPts(70, 105, 40, n, Math.PI / 2, 15);
     var apex = '70,25';
     var faces = '';
-    for(var i = 0; i < 3; i++){
+    for(var i = 0; i < n; i++){
       var b1 = base[i];
-      var b2 = base[(i + 1) % 3];
-      var fill = (i === 0) ? l : (i === 1 ? c : d);
-      faces += '<polygon points="' + apex + ' ' + b1 + ' ' + b2 + '" fill="' + fill + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>';
-    }
-    return faces;
-  },
-
-  _svg_pyramid4(c, d, l){
-    var base = this._polyPts(70, 105, 42, 4, Math.PI / 4, 16);
-    var apex = '70,22';
-    var faces = '';
-    for(var i = 0; i < 4; i++){
-      var b1 = base[i];
-      var b2 = base[(i + 1) % 4];
+      var b2 = base[(i + 1) % n];
       var fill = (i % 2 === 0) ? l : c;
-      faces += '<polygon points="' + apex + ' ' + b1 + ' ' + b2 + '" fill="' + fill + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>';
+      faces += '<polygon points="' + apex + ' ' + b1 + ' ' + b2 + '" fill="' + fill + '" stroke="#000" stroke-width="1.2"/>';
     }
     return faces;
   },
-
-  _svg_pyramid5(c, d, l){
-    var base = this._polyPts(70, 105, 42, 5, -Math.PI / 2, 16);
-    var apex = '70,22';
-    var faces = '';
-    for(var i = 0; i < 5; i++){
-      var b1 = base[i];
-      var b2 = base[(i + 1) % 5];
-      var fill = (i % 2 === 0) ? l : c;
-      faces += '<polygon points="' + apex + ' ' + b1 + ' ' + b2 + '" fill="' + fill + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>';
-    }
-    return faces;
+  _svg_pyramid3(c, d, l){ return this._svg_pyramid(c, d, l, 3); },
+  _svg_pyramid4(c, d, l){ return this._svg_pyramid(c, d, l, 4); },
+  _svg_pyramid5(c, d, l){ return this._svg_pyramid(c, d, l, 5); },
+  _svg_pyramid6(c, d, l){ return this._svg_pyramid(c, d, l, 6); },
+  _svg_pyramid8(c, d, l){ return this._svg_pyramid(c, d, l, 8); },
+  _svg_pyramid12(c, d, l){ return this._svg_pyramid(c, d, l, 12); },
+  _svg_pyramid16(c, d, l){ return this._svg_pyramid(c, d, l, 16); },
+  _svg_pyramid_truncated(c, d, l){
+    return '<path d="M45 35 L95 35 L105 105 L35 105 Z" fill="' + c + '" stroke="#000" stroke-width="1.5"/>' +
+      '<ellipse cx="70" cy="35" rx="25" ry="9" fill="' + l + '" stroke="#000" stroke-width="1.5"/>' +
+      '<ellipse cx="70" cy="105" rx="35" ry="12" fill="' + d + '" stroke="#000" stroke-width="1.5"/>';
   },
 
-  _svg_pyramid6(c, d, l){
-    var base = this._polyPts(70, 105, 42, 6, 0, 16);
-    var apex = '70,22';
-    var faces = '';
-    for(var i = 0; i < 6; i++){
-      var b1 = base[i];
-      var b2 = base[(i + 1) % 6];
-      var fill = (i % 2 === 0) ? l : c;
-      faces += '<polygon points="' + apex + ' ' + b1 + ' ' + b2 + '" fill="' + fill + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>';
-    }
-    return faces;
-  },
-
-  _svg_pyramid8(c, d, l){
-    var base = this._polyPts(70, 105, 42, 8, Math.PI / 8, 16);
-    var apex = '70,22';
-    var faces = '';
-    for(var i = 0; i < 8; i++){
-      var b1 = base[i];
-      var b2 = base[(i + 1) % 8];
-      var fill = (i % 2 === 0) ? l : c;
-      faces += '<polygon points="' + apex + ' ' + b1 + ' ' + b2 + '" fill="' + fill + '" stroke="#000" stroke-width="1.2" stroke-linejoin="round"/>';
-    }
-    return faces;
-  },
-
-  _svg_pyramid12(c, d, l){
-    var base = this._polyPts(70, 105, 42, 12, 0, 16);
-    var apex = '70,22';
-    var faces = '';
-    for(var i = 0; i < 12; i++){
-      var b1 = base[i];
-      var b2 = base[(i + 1) % 12];
-      var fill = (i % 2 === 0) ? l : c;
-      faces += '<polygon points="' + apex + ' ' + b1 + ' ' + b2 + '" fill="' + fill + '" stroke="#000" stroke-width="1" stroke-linejoin="round"/>';
-    }
-    return faces;
-  },
-
-  _svg_pyramid16(c, d, l){
-    var base = this._polyPts(70, 105, 42, 16, 0, 16);
-    var apex = '70,22';
-    var faces = '';
-    for(var i = 0; i < 16; i++){
-      var b1 = base[i];
-      var b2 = base[(i + 1) % 16];
-      var fill = (i % 2 === 0) ? l : c;
-      faces += '<polygon points="' + apex + ' ' + b1 + ' ' + b2 + '" fill="' + fill + '" stroke="#000" stroke-width="0.8" stroke-linejoin="round"/>';
-    }
-    return faces;
-  },
-
-  /* ---------- 圆柱 / 圆锥 / 圆盘 ---------- */
-
+  /* 圆柱/圆锥/圆盘 */
   _svg_cylinder(c, d, l){
-    return '' +
-      '<rect x="35" y="35" width="70" height="70" fill="' + c + '" stroke="#000" stroke-width="1.5"/>' +
+    return '<rect x="35" y="35" width="70" height="70" fill="' + c + '" stroke="#000" stroke-width="1.5"/>' +
       '<ellipse cx="70" cy="35" rx="35" ry="12" fill="' + l + '" stroke="#000" stroke-width="1.5"/>' +
-      '<ellipse cx="70" cy="105" rx="35" ry="12" fill="' + d + '" stroke="#000" stroke-width="1.5"/>' +
-      '<line x1="35" y1="35" x2="35" y2="105" stroke="#000" stroke-width="1.5"/>' +
-      '<line x1="105" y1="35" x2="105" y2="105" stroke="#000" stroke-width="1.5"/>';
+      '<ellipse cx="70" cy="105" rx="35" ry="12" fill="' + d + '" stroke="#000" stroke-width="1.5"/>';
   },
-
   _svg_cylinder_hollow(c, d, l){
-    /* 真正的空心圆柱：外圆 + 内圆，中间有空隙 */
-    return '' +
-      '<rect x="30" y="30" width="80" height="80" fill="' + c + '" stroke="#000" stroke-width="1.5"/>' +
+    return '<rect x="30" y="30" width="80" height="80" fill="' + c + '" stroke="#000" stroke-width="1.5"/>' +
       '<ellipse cx="70" cy="30" rx="40" ry="14" fill="' + l + '" stroke="#000" stroke-width="1.5"/>' +
       '<ellipse cx="70" cy="30" rx="20" ry="7" fill="#1f2123" stroke="#000" stroke-width="1.5"/>' +
       '<ellipse cx="70" cy="110" rx="40" ry="14" fill="' + d + '" stroke="#000" stroke-width="1.5"/>' +
@@ -967,302 +825,164 @@ TBOX.SpawnMenu = {
       '<line x1="30" y1="30" x2="30" y2="110" stroke="#000" stroke-width="1.5"/>' +
       '<line x1="110" y1="30" x2="110" y2="110" stroke="#000" stroke-width="1.5"/>';
   },
-
   _svg_cone(c, d, l){
-    return '' +
-      '<path d="M70 20 L105 105 L35 105 Z" fill="' + c + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>' +
+    return '<path d="M70 20 L105 105 L35 105 Z" fill="' + c + '" stroke="#000" stroke-width="1.5"/>' +
       '<ellipse cx="70" cy="105" rx="35" ry="12" fill="' + d + '" stroke="#000" stroke-width="1.5"/>';
   },
-
   _svg_cone_truncated(c, d, l){
-    return '' +
-      '<path d="M45 35 L95 35 L105 105 L35 105 Z" fill="' + c + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>' +
+    return '<path d="M45 35 L95 35 L105 105 L35 105 Z" fill="' + c + '" stroke="#000" stroke-width="1.5"/>' +
       '<ellipse cx="70" cy="35" rx="25" ry="9" fill="' + l + '" stroke="#000" stroke-width="1.5"/>' +
       '<ellipse cx="70" cy="105" rx="35" ry="12" fill="' + d + '" stroke="#000" stroke-width="1.5"/>';
   },
-
-  _svg_disc(c, d, l){
-    return '' +
-      '<ellipse cx="70" cy="70" rx="42" ry="14" fill="' + c + '" stroke="#000" stroke-width="1.5"/>' +
-      '<ellipse cx="70" cy="70" rx="30" ry="10" fill="none" stroke="#000" stroke-width="0.8" opacity="0.35"/>';
+  _svg_cone_hollow(c, d, l){
+    return '<path d="M70 20 L105 105 L35 105 Z" fill="' + c + '" stroke="#000" stroke-width="1.5"/>' +
+      '<ellipse cx="70" cy="105" rx="35" ry="12" fill="' + d + '" stroke="#000" stroke-width="1.5"/>' +
+      '<ellipse cx="70" cy="105" rx="20" ry="6" fill="#1f2123" stroke="#000" stroke-width="1.5"/>';
   },
-
+  _svg_disc(c, d, l){
+    return '<ellipse cx="70" cy="70" rx="42" ry="14" fill="' + c + '" stroke="#000" stroke-width="1.5"/>';
+  },
   _svg_disc_thick(c, d, l){
-    return '' +
-      '<ellipse cx="70" cy="60" rx="42" ry="14" fill="' + l + '" stroke="#000" stroke-width="1.5"/>' +
-      '<path d="M28 60 L28 80 A42 14 0 0 0 112 80 L112 60 Z" fill="' + c + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>' +
+    return '<ellipse cx="70" cy="60" rx="42" ry="14" fill="' + l + '" stroke="#000" stroke-width="1.5"/>' +
+      '<path d="M28 60 L28 80 A42 14 0 0 0 112 80 L112 60 Z" fill="' + c + '" stroke="#000" stroke-width="1.5"/>' +
       '<ellipse cx="70" cy="80" rx="42" ry="14" fill="' + d + '" stroke="#000" stroke-width="1.5"/>';
   },
-
   _svg_disc_hollow(c, d, l){
-    /* 带孔圆盘：外圆 + 内孔（真正透明） */
-    return '' +
-      '<ellipse cx="70" cy="70" rx="42" ry="14" fill="' + c + '" stroke="#000" stroke-width="1.5"/>' +
-      '<ellipse cx="70" cy="70" rx="18" ry="6" fill="#1f2123" stroke="#000" stroke-width="1.5"/>' +
-      '<ellipse cx="70" cy="70" rx="42" ry="14" fill="none" stroke="#000" stroke-width="1.5"/>';
+    return '<ellipse cx="70" cy="70" rx="42" ry="14" fill="' + c + '" stroke="#000" stroke-width="1.5"/>' +
+      '<ellipse cx="70" cy="70" rx="18" ry="6" fill="#1f2123" stroke="#000" stroke-width="1.5"/>';
   },
-
   _svg_torus(c, d, l){
-    /* 立体甜甜圈 */
-    return '' +
-      '<ellipse cx="70" cy="70" rx="45" ry="22" fill="none" stroke="' + c + '" stroke-width="20"/>' +
+    return '<ellipse cx="70" cy="70" rx="45" ry="22" fill="none" stroke="' + c + '" stroke-width="20"/>' +
       '<ellipse cx="70" cy="70" rx="45" ry="22" fill="none" stroke="#000" stroke-width="1.5"/>' +
       '<ellipse cx="70" cy="70" rx="35" ry="16" fill="none" stroke="' + l + '" stroke-width="2" opacity="0.6"/>';
   },
-
   _svg_torus_thick(c, d, l){
-    return '' +
-      '<ellipse cx="70" cy="70" rx="40" ry="18" fill="none" stroke="' + c + '" stroke-width="26"/>' +
-      '<ellipse cx="70" cy="70" rx="40" ry="18" fill="none" stroke="#000" stroke-width="1.5"/>' +
-      '<ellipse cx="70" cy="70" rx="28" ry="12" fill="none" stroke="' + l + '" stroke-width="2" opacity="0.5"/>';
+    return '<ellipse cx="70" cy="70" rx="40" ry="18" fill="none" stroke="' + c + '" stroke-width="26"/>' +
+      '<ellipse cx="70" cy="70" rx="40" ry="18" fill="none" stroke="#000" stroke-width="1.5"/>';
   },
-
   _svg_torus_half(c, d, l){
-    return '' +
-      '<path d="M25 70 A45 22 0 0 1 115 70" fill="none" stroke="' + c + '" stroke-width="20" stroke-linecap="round"/>' +
-      '<path d="M25 70 A45 22 0 0 1 115 70" fill="none" stroke="#000" stroke-width="1.5" stroke-linecap="round" opacity="0.4"/>';
+    return '<path d="M25 70 A45 22 0 0 1 115 70" fill="none" stroke="' + c + '" stroke-width="20" stroke-linecap="round"/>' +
+      '<path d="M25 70 A45 22 0 0 1 115 70" fill="none" stroke="#000" stroke-width="1.5" opacity="0.4"/>';
+  },
+  _svg_torus_major(c, d, l){
+    return '<ellipse cx="70" cy="70" rx="48" ry="24" fill="none" stroke="' + c + '" stroke-width="22"/>' +
+      '<ellipse cx="70" cy="70" rx="48" ry="24" fill="none" stroke="#000" stroke-width="1.5"/>';
+  },
+  _svg_torus_minor(c, d, l){
+    return '<ellipse cx="70" cy="70" rx="32" ry="20" fill="none" stroke="' + c + '" stroke-width="26"/>' +
+      '<ellipse cx="70" cy="70" rx="32" ry="20" fill="none" stroke="#000" stroke-width="1.5"/>';
   },
 
-  /* ---------- 楔形 / 斜坡 / 台阶 ---------- */
-
+  /* 楔形/斜坡/台阶 */
   _svg_wedge(c, d, l){
-    return '' +
-      '<path d="M25 100 L25 70 L110 100 Z" fill="' + c + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>' +
-      '<path d="M25 70 L110 100 L25 100 Z" fill="' + d + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round" opacity="0.6"/>';
+    return '<path d="M25 100 L25 70 L110 100 Z" fill="' + c + '" stroke="#000" stroke-width="1.5"/>' +
+      '<path d="M25 70 L25 100 L110 100 L110 70 Z" fill="' + d + '" stroke="#000" stroke-width="1.5" opacity="0.6"/>';
   },
-
   _svg_wedge_curved(c, d, l){
-    return '' +
-      '<path d="M25 100 L25 70 Q70 50 110 100 Z" fill="' + c + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>' +
+    return '<path d="M25 100 L25 70 Q70 50 110 100 Z" fill="' + c + '" stroke="#000" stroke-width="1.5"/>' +
       '<path d="M25 70 Q70 50 110 100" fill="none" stroke="' + l + '" stroke-width="2"/>';
   },
-
   _svg_ramp(c, d, l){
-    return '' +
-      '<path d="M20 100 L120 100 L120 40 Z" fill="' + c + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>' +
+    return '<path d="M20 100 L120 100 L120 40 Z" fill="' + c + '" stroke="#000" stroke-width="1.5"/>' +
       '<path d="M20 100 L120 40" fill="none" stroke="' + l + '" stroke-width="2"/>';
   },
-
   _svg_ramp_curved(c, d, l){
-    return '' +
-      '<path d="M20 100 L120 100 L120 40 Q70 60 20 100 Z" fill="' + c + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>' +
+    return '<path d="M20 100 L120 100 L120 40 Q70 60 20 100 Z" fill="' + c + '" stroke="#000" stroke-width="1.5"/>' +
       '<path d="M20 100 Q70 60 120 40" fill="none" stroke="' + l + '" stroke-width="2"/>';
   },
-
   _svg_step(c, d, l){
-    return '' +
-      '<path d="M25 100 L25 80 L55 80 L55 60 L85 60 L85 40 L115 40 L115 100 Z" fill="' + c + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>' +
-      '<line x1="25" y1="80" x2="55" y2="80" stroke="#000" stroke-width="1"/>' +
-      '<line x1="55" y1="60" x2="85" y2="60" stroke="#000" stroke-width="1"/>' +
-      '<line x1="85" y1="40" x2="115" y2="40" stroke="#000" stroke-width="1"/>';
+    return '<path d="M25 100 L25 80 L55 80 L55 60 L85 60 L85 40 L115 40 L115 100 Z" fill="' + c + '" stroke="#000" stroke-width="1.5"/>';
   },
-
   _svg_stair(c, d, l){
-    return '' +
-      '<path d="M20 110 L20 95 L40 95 L40 80 L60 80 L60 65 L80 65 L80 50 L100 50 L100 35 L120 35 L120 110 Z" fill="' + c + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>' +
-      '<path d="M20 95 L120 95" fill="none" stroke="' + l + '" stroke-width="1.5" opacity="0.5"/>' +
-      '<path d="M20 80 L120 80" fill="none" stroke="' + l + '" stroke-width="1.5" opacity="0.5"/>' +
-      '<path d="M20 65 L120 65" fill="none" stroke="' + l + '" stroke-width="1.5" opacity="0.5"/>';
+    return '<path d="M20 110 L20 95 L40 95 L40 80 L60 80 L60 65 L80 65 L80 50 L100 50 L100 35 L120 35 L120 110 Z" fill="' + c + '" stroke="#000" stroke-width="1.5"/>';
   },
-
   _svg_stair_spiral(c, d, l){
-    return '' +
-      '<path d="M70 110 Q30 110 30 90 Q30 70 70 70 Q110 70 110 50 Q110 30 70 30" fill="none" stroke="' + c + '" stroke-width="16" stroke-linecap="round"/>' +
-      '<path d="M70 110 Q30 110 30 90 Q30 70 70 70 Q110 70 110 50 Q110 30 70 30" fill="none" stroke="#000" stroke-width="1.5" stroke-linecap="round" opacity="0.5"/>';
+    return '<path d="M70 110 Q30 110 30 90 Q30 70 70 70 Q110 70 110 50 Q110 30 70 30" fill="none" stroke="' + c + '" stroke-width="16" stroke-linecap="round"/>';
   },
-
   _svg_arch(c, d, l){
-    return '' +
-      '<path d="M25 100 L25 70 Q70 20 115 70 L115 100 L90 100 L90 70 Q70 45 50 70 L50 100 Z" fill="' + c + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>' +
-      '<path d="M50 70 Q70 45 90 70" fill="none" stroke="' + d + '" stroke-width="1.5"/>';
+    return '<path d="M25 100 L25 70 Q70 20 115 70 L115 100 L90 100 L90 70 Q70 45 50 70 L50 100 Z" fill="' + c + '" stroke="#000" stroke-width="1.5"/>';
   },
-
   _svg_arch_half(c, d, l){
-    return '' +
-      '<path d="M25 100 L25 70 Q70 20 70 70 L70 100 Z" fill="' + c + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>' +
-      '<path d="M50 70 Q70 45 70 70" fill="none" stroke="' + d + '" stroke-width="1.5"/>';
+    return '<path d="M25 100 L25 70 Q70 20 70 70 L70 100 Z" fill="' + c + '" stroke="#000" stroke-width="1.5"/>';
   },
 
-  /* ---------- 特殊形状 ---------- */
-
-  _svg_cross(c, d, l){
-    /* 实心十字 */
-    return '' +
-      '<rect x="55" y="20" width="30" height="100" fill="' + c + '" stroke="#000" stroke-width="1.5"/>' +
-      '<rect x="20" y="55" width="100" height="30" fill="' + c + '" stroke="#000" stroke-width="1.5"/>' +
-      '<rect x="55" y="55" width="30" height="30" fill="' + l + '" stroke="#000" stroke-width="1.5"/>' +
-      '<rect x="55" y="20" width="30" height="35" fill="' + l + '" opacity="0.5"/>';
+  /* 特殊形状 */
+  _svg_cross_x(c, d, l){
+    return '<path d="M25 25 L115 115" stroke="' + c + '" stroke-width="18" stroke-linecap="round"/>' +
+      '<path d="M115 25 L25 115" stroke="' + c + '" stroke-width="18" stroke-linecap="round"/>';
   },
-
-  _svg_star3(c, d, l){
-    var pts = [];
-    for(var i = 0; i < 6; i++){
-      var a = -Math.PI / 2 + i * Math.PI / 3;
-      var r = (i % 2 === 0) ? 45 : 18;
-      pts.push((70 + Math.cos(a) * r).toFixed(1) + ',' + (70 + Math.sin(a) * r).toFixed(1));
-    }
-    return '<polygon points="' + pts.join(' ') + '" fill="' + c + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>';
-  },
-
-  _svg_star4(c, d, l){
-    var pts = [];
-    for(var i = 0; i < 8; i++){
-      var a = -Math.PI / 2 + i * Math.PI / 4;
-      var r = (i % 2 === 0) ? 45 : 16;
-      pts.push((70 + Math.cos(a) * r).toFixed(1) + ',' + (70 + Math.sin(a) * r).toFixed(1));
-    }
-    return '<polygon points="' + pts.join(' ') + '" fill="' + c + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>';
-  },
-
-  _svg_star5(c, d, l){
-    var pts = [];
-    for(var i = 0; i < 10; i++){
-      var a = -Math.PI / 2 + i * Math.PI / 5;
-      var r = (i % 2 === 0) ? 45 : 18;
-      pts.push((70 + Math.cos(a) * r).toFixed(1) + ',' + (70 + Math.sin(a) * r).toFixed(1));
-    }
-    return '<polygon points="' + pts.join(' ') + '" fill="' + c + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>';
-  },
-
-  _svg_star6(c, d, l){
-    var pts = [];
-    for(var i = 0; i < 12; i++){
-      var a = -Math.PI / 2 + i * Math.PI / 6;
-      var r = (i % 2 === 0) ? 45 : 20;
-      pts.push((70 + Math.cos(a) * r).toFixed(1) + ',' + (70 + Math.sin(a) * r).toFixed(1));
-    }
-    return '<polygon points="' + pts.join(' ') + '" fill="' + c + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>';
-  },
-
-  _svg_star8(c, d, l){
-    var pts = [];
-    for(var i = 0; i < 16; i++){
-      var a = -Math.PI / 2 + i * Math.PI / 8;
-      var r = (i % 2 === 0) ? 45 : 22;
-      pts.push((70 + Math.cos(a) * r).toFixed(1) + ',' + (70 + Math.sin(a) * r).toFixed(1));
-    }
-    return '<polygon points="' + pts.join(' ') + '" fill="' + c + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>';
-  },
-
-  _svg_ring(c, d, l){
-    /* 细圆环 */
-    return '' +
-      '<ellipse cx="70" cy="70" rx="45" ry="22" fill="none" stroke="' + c + '" stroke-width="10"/>' +
-      '<ellipse cx="70" cy="70" rx="45" ry="22" fill="none" stroke="#000" stroke-width="1.5"/>' +
-      '<ellipse cx="70" cy="70" rx="38" ry="17" fill="none" stroke="' + l + '" stroke-width="1.5" opacity="0.6"/>';
-  },
-
-  _svg_ring_square(c, d, l){
-    return '' +
-      '<rect x="25" y="25" width="90" height="90" fill="' + c + '" stroke="#000" stroke-width="1.5"/>' +
-      '<rect x="50" y="50" width="40" height="40" fill="#1f2123" stroke="#000" stroke-width="1.5"/>' +
-      '<rect x="25" y="25" width="90" height="10" fill="' + l + '" opacity="0.4"/>';
-  },
-
-  /* ★ 字母 A（像素风） */
-  _svg_A(c, d, l){
-    return '' +
-      '<path d="M30 110 L30 40 L50 30 L90 30 L110 40 L110 110 L90 110 L90 80 L50 80 L50 110 Z" fill="' + c + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>' +
-      '<rect x="50" y="50" width="40" height="20" fill="#1f2123" stroke="#000" stroke-width="1.5"/>' +
-      '<path d="M30 40 L50 30 L90 30 L110 40 L110 50 L90 40 L50 40 L30 50 Z" fill="' + l + '" opacity="0.5"/>';
-  },
-
-  /* ★ 字母 B（像素风） */
-  _svg_B(c, d, l){
-    return '' +
-      '<path d="M30 30 L90 30 L105 45 L105 60 L95 70 L105 80 L105 95 L90 110 L30 110 Z" fill="' + c + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>' +
-      '<rect x="50" y="45" width="40" height="15" fill="#1f2123" stroke="#000" stroke-width="1.5"/>' +
-      '<rect x="50" y="80" width="40" height="15" fill="#1f2123" stroke="#000" stroke-width="1.5"/>' +
-      '<path d="M30 30 L90 30 L105 45 L105 50 L90 40 L30 40 Z" fill="' + l + '" opacity="0.5"/>';
-  },
-
-  _svg_U_shape(c, d, l){
-    return '' +
-      '<path d="M25 25 L55 25 L55 85 L85 85 L85 25 L115 25 L115 115 L25 115 Z" fill="' + c + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>' +
-      '<path d="M25 25 L55 25 L55 40 L40 40 L40 115 L25 115 Z" fill="' + l + '" opacity="0.4"/>';
-  },
-
-  _svg_H_shape(c, d, l){
-    return '' +
-      '<path d="M25 25 L55 25 L55 60 L85 60 L85 25 L115 25 L115 115 L85 115 L85 80 L55 80 L55 115 L25 115 Z" fill="' + c + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>' +
-      '<path d="M25 25 L55 25 L55 40 L40 40 L40 115 L25 115 Z" fill="' + l + '" opacity="0.4"/>';
-  },
-
-  _svg_I_shape(c, d, l){
-    return '' +
-      '<path d="M35 25 L105 25 L105 45 L80 45 L80 95 L105 95 L105 115 L35 115 L35 95 L60 95 L60 45 L35 45 Z" fill="' + c + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>' +
-      '<path d="M35 25 L105 25 L105 35 L35 35 Z" fill="' + l + '" opacity="0.4"/>';
-  },
-
-  _svg_plus(c, d, l){
-    /* 空心加号：中间真的镂空 */
-    return '' +
-      '<path d="M55 25 L85 25 L85 55 L115 55 L115 85 L85 85 L85 115 L55 115 L55 85 L25 85 L25 55 L55 55 Z" fill="' + c + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>' +
+  _svg_plus_hollow(c, d, l){
+    return '<path d="M55 25 L85 25 L85 55 L115 55 L115 85 L85 85 L85 115 L55 115 L55 85 L25 85 L25 55 L55 55 Z" fill="' + c + '" stroke="#000" stroke-width="1.5"/>' +
       '<rect x="60" y="60" width="20" height="20" fill="#1f2123" stroke="#000" stroke-width="1.5"/>';
   },
-
-  _svg_minus(c, d, l){
-    return '' +
-      '<rect x="25" y="55" width="90" height="30" fill="' + c + '" stroke="#000" stroke-width="1.5"/>' +
-      '<rect x="25" y="55" width="90" height="10" fill="' + l + '" opacity="0.4"/>';
+  _svg_star(c, n){
+    var pts = [];
+    for(var i = 0; i < n * 2; i++){
+      var a = -Math.PI / 2 + i * Math.PI / n;
+      var r = (i % 2 === 0) ? 45 : 18;
+      pts.push((70 + Math.cos(a) * r).toFixed(1) + ',' + (70 + Math.sin(a) * r).toFixed(1));
+    }
+    return '<polygon points="' + pts.join(' ') + '" fill="' + c + '" stroke="#000" stroke-width="1.5"/>';
   },
-
-  _svg_slash(c, d, l){
-    return '' +
-      '<path d="M25 115 L35 115 L115 25 L105 25 Z" fill="' + c + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>';
-  },
-
-  _svg_backslash(c, d, l){
-    return '' +
-      '<path d="M25 25 L35 25 L115 115 L105 115 Z" fill="' + c + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>';
-  },
-
-  /* ---------- 薄片 / 面板 ---------- */
-
-  _svg_plate_square(c, d, l){
-    return '' +
-      '<path d="M70 40 L115 60 L70 80 L25 60 Z" fill="' + l + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>' +
-      '<path d="M25 60 L70 80 L70 95 L25 75 Z" fill="' + c + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>' +
-      '<path d="M115 60 L115 75 L70 95 L70 80 Z" fill="' + d + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>';
-  },
-
-  _svg_plate_rect(c, d, l){
-    return '' +
-      '<path d="M70 45 L125 62 L70 79 L15 62 Z" fill="' + l + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>' +
-      '<path d="M15 62 L70 79 L70 92 L15 75 Z" fill="' + c + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>' +
-      '<path d="M125 62 L125 75 L70 92 L70 79 Z" fill="' + d + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>';
-  },
-
-  _svg_plate_tri(c, d, l){
-    return '' +
-      '<path d="M70 40 L115 90 L25 90 Z" fill="' + l + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>' +
-      '<path d="M25 90 L115 90 L115 100 L25 100 Z" fill="' + c + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>';
-  },
-
-  _svg_plate_hex(c, d, l){
-    var pts = this._polyPts(70, 70, 42, 6, 0, 22);
-    return '<polygon points="' + pts.join(' ') + '" fill="' + c + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>';
-  },
-
-  _svg_plate_oct(c, d, l){
-    var pts = this._polyPts(70, 70, 42, 8, Math.PI / 8, 22);
-    return '<polygon points="' + pts.join(' ') + '" fill="' + c + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>';
-  },
-
-  _svg_plate_circle(c, d, l){
-    return '' +
-      '<ellipse cx="70" cy="70" rx="45" ry="22" fill="' + c + '" stroke="#000" stroke-width="1.5"/>' +
-      '<ellipse cx="70" cy="70" rx="30" ry="14" fill="none" stroke="#000" stroke-width="0.8" opacity="0.3"/>';
-  },
-
-  _svg_plate_ring(c, d, l){
-    /* 薄环片：内外圈 + 上下环形面 */
-    return '' +
-      '<ellipse cx="70" cy="70" rx="45" ry="22" fill="' + c + '" stroke="#000" stroke-width="1.5"/>' +
-      '<ellipse cx="70" cy="70" rx="22" ry="11" fill="#1f2123" stroke="#000" stroke-width="1.5"/>' +
+  _svg_ring(c, d, l){
+    return '<ellipse cx="70" cy="70" rx="45" ry="22" fill="none" stroke="' + c + '" stroke-width="10"/>' +
       '<ellipse cx="70" cy="70" rx="45" ry="22" fill="none" stroke="#000" stroke-width="1.5"/>';
   },
+  _svg_spiral(c, d, l){
+    return '<path d="M70 110 Q30 110 30 80 Q30 50 70 50 Q110 50 110 20" fill="none" stroke="' + c + '" stroke-width="12" stroke-linecap="round"/>';
+  },
+  _svg_column(c, d, l){
+    return '<rect x="55" y="20" width="30" height="100" fill="' + c + '" stroke="#000" stroke-width="1.5"/>' +
+      '<ellipse cx="70" cy="20" rx="15" ry="5" fill="' + l + '" stroke="#000" stroke-width="1"/>' +
+      '<ellipse cx="70" cy="120" rx="15" ry="5" fill="' + d + '" stroke="#000" stroke-width="1"/>';
+  },
+  _svg_rail(c, d, l){
+    return '<rect x="20" y="60" width="100" height="15" fill="' + c + '" stroke="#000" stroke-width="1.5"/>' +
+      '<rect x="30" y="75" width="10" height="25" fill="' + d + '" stroke="#000" stroke-width="1"/>' +
+      '<rect x="100" y="75" width="10" height="25" fill="' + d + '" stroke="#000" stroke-width="1"/>';
+  },
+  _svg_letter(c, letter){
+    return '<text x="70" y="100" text-anchor="middle" fill="' + c + '" font-family="Oswald, sans-serif" font-weight="700" font-size="90" stroke="#000" stroke-width="2">' + letter + '</text>';
+  },
+  _svg_minus(c, d, l){
+    return '<rect x="25" y="55" width="90" height="30" fill="' + c + '" stroke="#000" stroke-width="1.5"/>';
+  },
+  _svg_slash(c, d, l){
+    return '<path d="M25 115 L35 115 L115 25 L105 25 Z" fill="' + c + '" stroke="#000" stroke-width="1.5"/>';
+  },
+  _svg_backslash(c, d, l){
+    return '<path d="M25 25 L35 25 L115 115 L105 115 Z" fill="' + c + '" stroke="#000" stroke-width="1.5"/>';
+  },
 
+  /* 薄片 */
+  _svg_plate_square(c, d, l){
+    return '<path d="M70 40 L115 60 L70 80 L25 60 Z" fill="' + l + '" stroke="#000" stroke-width="1.5"/>' +
+      '<path d="M25 60 L70 80 L70 95 L25 75 Z" fill="' + c + '" stroke="#000" stroke-width="1.5"/>' +
+      '<path d="M115 60 L115 75 L70 95 L70 80 Z" fill="' + d + '" stroke="#000" stroke-width="1.5"/>';
+  },
+  _svg_plate_rect(c, d, l){
+    return '<path d="M70 45 L125 62 L70 79 L15 62 Z" fill="' + l + '" stroke="#000" stroke-width="1.5"/>' +
+      '<path d="M15 62 L70 79 L70 92 L15 75 Z" fill="' + c + '" stroke="#000" stroke-width="1.5"/>' +
+      '<path d="M125 62 L125 75 L70 92 L70 79 Z" fill="' + d + '" stroke="#000" stroke-width="1.5"/>';
+  },
+  _svg_plate_tri(c, d, l){
+    return '<path d="M70 40 L115 90 L25 90 Z" fill="' + c + '" stroke="#000" stroke-width="1.5"/>';
+  },
+  _svg_plate_hex(c, d, l){
+    var pts = this._polyPts(70, 70, 42, 6, 0, 22);
+    return '<polygon points="' + pts.join(' ') + '" fill="' + c + '" stroke="#000" stroke-width="1.5"/>';
+  },
+  _svg_plate_oct(c, d, l){
+    var pts = this._polyPts(70, 70, 42, 8, Math.PI / 8, 22);
+    return '<polygon points="' + pts.join(' ') + '" fill="' + c + '" stroke="#000" stroke-width="1.5"/>';
+  },
+  _svg_plate_circle(c, d, l){
+    return '<ellipse cx="70" cy="70" rx="45" ry="22" fill="' + c + '" stroke="#000" stroke-width="1.5"/>';
+  },
+  _svg_plate_ring(c, d, l){
+    return '<ellipse cx="70" cy="70" rx="45" ry="22" fill="' + c + '" stroke="#000" stroke-width="1.5"/>' +
+      '<ellipse cx="70" cy="70" rx="22" ry="11" fill="#1f2123" stroke="#000" stroke-width="1.5"/>';
+  },
   _svg_plate_star(c, d, l){
     var pts = [];
     for(var i = 0; i < 10; i++){
@@ -1270,73 +990,44 @@ TBOX.SpawnMenu = {
       var r = (i % 2 === 0) ? 45 : 20;
       pts.push((70 + Math.cos(a) * r).toFixed(1) + ',' + (70 + Math.sin(a) * r * 0.5).toFixed(1));
     }
-    return '<polygon points="' + pts.join(' ') + '" fill="' + c + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>';
+    return '<polygon points="' + pts.join(' ') + '" fill="' + c + '" stroke="#000" stroke-width="1.5"/>';
   },
 
-  /* ---------- 细杆 / 管 ---------- */
-
+  /* 细杆 */
   _svg_rod(c, d, l){
-    return '' +
-      '<rect x="55" y="20" width="30" height="100" fill="' + c + '" stroke="#000" stroke-width="1.5"/>' +
+    return '<rect x="55" y="20" width="30" height="100" fill="' + c + '" stroke="#000" stroke-width="1.5"/>' +
       '<ellipse cx="70" cy="20" rx="15" ry="5" fill="' + l + '" stroke="#000" stroke-width="1"/>' +
       '<ellipse cx="70" cy="120" rx="15" ry="5" fill="' + d + '" stroke="#000" stroke-width="1"/>';
   },
-
-  _svg_rod_square(c, d, l){
-    return '' +
-      '<path d="M55 20 L85 20 L85 120 L55 120 Z" fill="' + c + '" stroke="#000" stroke-width="1.5"/>' +
-      '<path d="M55 20 L70 15 L85 20 L85 120 L70 125 L55 120 Z" fill="' + c + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>';
-  },
-
   _svg_rod_hex(c, d, l){
-    return '' +
-      '<path d="M55 20 L70 12 L85 20 L85 120 L70 128 L55 120 Z" fill="' + c + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>' +
-      '<line x1="70" y1="12" x2="70" y2="128" stroke="#000" stroke-width="0.8" opacity="0.5"/>';
+    return '<path d="M55 20 L70 12 L85 20 L85 120 L70 128 L55 120 Z" fill="' + c + '" stroke="#000" stroke-width="1.5"/>';
   },
-
   _svg_tube(c, d, l){
-    /* 真正空心管：外圈 + 内孔 */
-    return '' +
-      '<ellipse cx="70" cy="20" rx="22" ry="8" fill="' + c + '" stroke="#000" stroke-width="1.5"/>' +
+    return '<ellipse cx="70" cy="20" rx="22" ry="8" fill="' + c + '" stroke="#000" stroke-width="1.5"/>' +
       '<ellipse cx="70" cy="20" rx="11" ry="4" fill="#1f2123" stroke="#000" stroke-width="1"/>' +
       '<rect x="48" y="20" width="44" height="100" fill="' + c + '" stroke="#000" stroke-width="1.5"/>' +
       '<rect x="59" y="20" width="22" height="100" fill="#1f2123" stroke="#000" stroke-width="1"/>' +
       '<ellipse cx="70" cy="120" rx="22" ry="8" fill="' + d + '" stroke="#000" stroke-width="1.5"/>' +
       '<ellipse cx="70" cy="120" rx="11" ry="4" fill="#1f2123" stroke="#000" stroke-width="1"/>';
   },
-
   _svg_tube_square(c, d, l){
-    return '' +
-      '<path d="M48 20 L92 20 L92 120 L48 120 Z" fill="' + c + '" stroke="#000" stroke-width="1.5"/>' +
+    return '<path d="M48 20 L92 20 L92 120 L48 120 Z" fill="' + c + '" stroke="#000" stroke-width="1.5"/>' +
       '<path d="M60 20 L80 20 L80 120 L60 120 Z" fill="#1f2123" stroke="#000" stroke-width="1"/>';
   },
-
   _svg_tube_hex(c, d, l){
-    return '' +
-      '<path d="M48 20 L70 12 L92 20 L92 120 L70 128 L48 120 Z" fill="' + c + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>' +
+    return '<path d="M48 20 L70 12 L92 20 L92 120 L70 128 L48 120 Z" fill="' + c + '" stroke="#000" stroke-width="1.5"/>' +
       '<path d="M58 20 L70 15 L82 20 L82 120 L70 125 L58 120 Z" fill="#1f2123" stroke="#000" stroke-width="1"/>';
   },
-
   _svg_frame(c, d, l){
-    return '' +
-      '<rect x="25" y="30" width="90" height="80" fill="none" stroke="' + c + '" stroke-width="12"/>' +
+    return '<rect x="25" y="30" width="90" height="80" fill="none" stroke="' + c + '" stroke-width="12"/>' +
       '<rect x="25" y="30" width="90" height="80" fill="none" stroke="#000" stroke-width="1.5"/>';
   },
-
-  _svg_frame_square(c, d, l){
-    return '' +
-      '<rect x="30" y="30" width="80" height="80" fill="none" stroke="' + c + '" stroke-width="12"/>' +
-      '<rect x="30" y="30" width="80" height="80" fill="none" stroke="#000" stroke-width="1.5"/>';
-  },
-
   _svg_frame_circle(c, d, l){
-    return '' +
-      '<circle cx="70" cy="70" r="40" fill="none" stroke="' + c + '" stroke-width="12"/>' +
+    return '<circle cx="70" cy="70" r="40" fill="none" stroke="' + c + '" stroke-width="12"/>' +
       '<circle cx="70" cy="70" r="40" fill="none" stroke="#000" stroke-width="1.5"/>';
   },
 
-  /* ---------- 复杂组合体 ---------- */
-
+  /* 复杂组合体 */
   _svg_gear(c, d, l){
     var path = '';
     var cx = 70, cy = 70, R = 50, r = 38, teeth = 12;
@@ -1346,11 +1037,9 @@ TBOX.SpawnMenu = {
       path += (i === 0 ? 'M' : 'L') + (cx + Math.cos(ang) * rad).toFixed(1) + ' ' + (cy + Math.sin(ang) * rad).toFixed(1) + ' ';
     }
     path += 'Z';
-    return '' +
-      '<path d="' + path + '" fill="' + c + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>' +
+    return '<path d="' + path + '" fill="' + c + '" stroke="#000" stroke-width="1.5"/>' +
       '<circle cx="70" cy="70" r="14" fill="#1f2123" stroke="#000" stroke-width="1.5"/>';
   },
-
   _svg_gear_thick(c, d, l){
     var path = '';
     var cx = 70, cy = 70, R = 50, r = 34, teeth = 16;
@@ -1360,99 +1049,50 @@ TBOX.SpawnMenu = {
       path += (i === 0 ? 'M' : 'L') + (cx + Math.cos(ang) * rad).toFixed(1) + ' ' + (cy + Math.sin(ang) * rad).toFixed(1) + ' ';
     }
     path += 'Z';
-    return '' +
-      '<path d="' + path + '" fill="' + c + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>' +
+    return '<path d="' + path + '" fill="' + c + '" stroke="#000" stroke-width="1.5"/>' +
       '<circle cx="70" cy="70" r="18" fill="#1f2123" stroke="#000" stroke-width="1.5"/>';
   },
-
   _svg_wheel(c, d, l){
-    /* 实心圆 + 中心孔 + 辐条 */
-    return '' +
-      '<circle cx="70" cy="70" r="45" fill="' + c + '" stroke="#000" stroke-width="1.5"/>' +
-      '<circle cx="70" cy="70" r="14" fill="#1f2123" stroke="#000" stroke-width="1.5"/>' +
-      '<line x1="70" y1="25" x2="70" y2="115" stroke="#000" stroke-width="2" opacity="0.5"/>' +
-      '<line x1="25" y1="70" x2="115" y2="70" stroke="#000" stroke-width="2" opacity="0.5"/>';
+    return '<circle cx="70" cy="70" r="45" fill="' + c + '" stroke="#000" stroke-width="1.5"/>' +
+      '<circle cx="70" cy="70" r="14" fill="#1f2123" stroke="#000" stroke-width="1.5"/>';
   },
-
   _svg_wheel_spoke(c, d, l){
-    /* 圆环 + 十字辐条 + 中心孔 */
-    return '' +
-      '<circle cx="70" cy="70" r="45" fill="none" stroke="' + c + '" stroke-width="12"/>' +
+    return '<circle cx="70" cy="70" r="45" fill="none" stroke="' + c + '" stroke-width="12"/>' +
       '<circle cx="70" cy="70" r="45" fill="none" stroke="#000" stroke-width="1.5"/>' +
       '<circle cx="70" cy="70" r="14" fill="' + c + '" stroke="#000" stroke-width="1.5"/>' +
       '<line x1="70" y1="25" x2="70" y2="115" stroke="#000" stroke-width="3"/>' +
       '<line x1="25" y1="70" x2="115" y2="70" stroke="#000" stroke-width="3"/>';
   },
-
   _svg_bar(c, d, l){
-    return '' +
-      '<rect x="20" y="55" width="100" height="30" fill="' + c + '" stroke="#000" stroke-width="1.5"/>' +
-      '<rect x="20" y="55" width="100" height="8" fill="' + l + '" opacity="0.5"/>';
+    return '<rect x="20" y="55" width="100" height="30" fill="' + c + '" stroke="#000" stroke-width="1.5"/>';
   },
-
   _svg_bar_curved(c, d, l){
-    return '' +
-      '<path d="M25 100 Q70 30 115 100" fill="none" stroke="' + c + '" stroke-width="22" stroke-linecap="round"/>' +
-      '<path d="M25 100 Q70 30 115 100" fill="none" stroke="#000" stroke-width="1.5" stroke-linecap="round" opacity="0.5"/>';
+    return '<path d="M25 95 Q70 35 115 95" fill="none" stroke="' + c + '" stroke-width="22" stroke-linecap="round"/>' +
+      '<path d="M25 95 Q70 35 115 95" fill="none" stroke="#000" stroke-width="1.5" opacity="0.4"/>';
   },
-
   _svg_beam(c, d, l){
-    return '' +
-      '<rect x="15" y="60" width="110" height="20" fill="' + c + '" stroke="#000" stroke-width="1.5"/>' +
+    return '<rect x="15" y="60" width="110" height="20" fill="' + c + '" stroke="#000" stroke-width="1.5"/>' +
       '<rect x="15" y="58" width="10" height="24" fill="' + d + '" stroke="#000" stroke-width="1"/>' +
       '<rect x="115" y="58" width="10" height="24" fill="' + d + '" stroke="#000" stroke-width="1"/>';
   },
-
   _svg_beam_curved(c, d, l){
-    return '' +
-      '<path d="M20 105 Q70 25 120 105" fill="none" stroke="' + c + '" stroke-width="26" stroke-linecap="round"/>' +
-      '<path d="M20 105 Q70 25 120 105" fill="none" stroke="#000" stroke-width="1.5" stroke-linecap="round" opacity="0.5"/>';
+    return '<path d="M20 105 Q70 25 120 105" fill="none" stroke="' + c + '" stroke-width="26" stroke-linecap="round"/>' +
+      '<path d="M20 105 Q70 25 120 105" fill="none" stroke="#000" stroke-width="1.5" opacity="0.4"/>';
   },
-
   _svg_panel(c, d, l){
-    return '' +
-      '<rect x="35" y="20" width="70" height="100" fill="' + c + '" stroke="#000" stroke-width="1.5"/>' +
-      '<rect x="35" y="20" width="70" height="8" fill="' + l + '" opacity="0.5"/>';
+    return '<rect x="35" y="20" width="70" height="100" fill="' + c + '" stroke="#000" stroke-width="1.5"/>';
   },
-
   _svg_panel_curved(c, d, l){
-    return '' +
-      '<path d="M25 110 Q70 20 115 110 L110 110 Q70 40 30 110 Z" fill="' + c + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>' +
-      '<path d="M25 110 Q70 20 115 110" fill="none" stroke="#000" stroke-width="1.5"/>';
+    return '<path d="M25 110 Q70 20 115 110 L110 110 Q70 40 30 110 Z" fill="' + c + '" stroke="#000" stroke-width="1.5"/>';
   },
 
-  _svg_bracket(c, d, l){
-    return '' +
-      '<path d="M30 30 L50 30 L50 80 L100 80 L100 100 L30 100 Z" fill="' + c + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>' +
-      '<path d="M30 30 L50 30 L50 40 L40 40 L40 100 L30 100 Z" fill="' + l + '" opacity="0.4"/>';
-  },
-
-  _svg_bracket_L(c, d, l){
-    return '' +
-      '<path d="M30 30 L55 30 L55 90 L110 90 L110 110 L30 110 Z" fill="' + c + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>' +
-      '<path d="M30 30 L55 30 L55 45 L45 45 L45 110 L30 110 Z" fill="' + l + '" opacity="0.4"/>';
-  },
-
-  _svg_bracket_T(c, d, l){
-    return '' +
-      '<path d="M20 30 L120 30 L120 50 L80 50 L80 115 L60 115 L60 50 L20 50 Z" fill="' + c + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>' +
-      '<path d="M20 30 L120 30 L120 40 L20 40 Z" fill="' + l + '" opacity="0.4"/>';
-  },
-
-  /* ---------- 颜色工具 ---------- */
   _darken(hex, amt){
-    var c = this._hexToRgb(hex);
-    if(!c) return hex;
-    return this._rgbToHex(Math.max(0, c.r * (1 - amt)), Math.max(0, c.g * (1 - amt)), Math.max(0, c.b * (1 - amt)));
+    var c = this._hexToRgb(hex); if(!c) return hex;
+    return this._rgbToHex(Math.max(0, c.r*(1-amt)), Math.max(0, c.g*(1-amt)), Math.max(0, c.b*(1-amt)));
   },
   _lighten(hex, amt){
-    var c = this._hexToRgb(hex);
-    if(!c) return hex;
-    return this._rgbToHex(
-      Math.min(255, c.r + (255 - c.r) * amt),
-      Math.min(255, c.g + (255 - c.g) * amt),
-      Math.min(255, c.b + (255 - c.b) * amt)
-    );
+    var c = this._hexToRgb(hex); if(!c) return hex;
+    return this._rgbToHex(Math.min(255, c.r + (255-c.r)*amt), Math.min(255, c.g + (255-c.g)*amt), Math.min(255, c.b + (255-c.b)*amt));
   },
   _hexToRgb(hex){
     if(!hex) return null;
@@ -1460,16 +1100,13 @@ TBOX.SpawnMenu = {
     if(hex.length === 3) hex = hex.split('').map(function(x){ return x + x; }).join('');
     var num = parseInt(hex, 16);
     if(isNaN(num)) return null;
-    return { r: (num >> 16) & 255, g: (num >> 8) & 255, b: num & 255 };
+    return { r: (num>>16)&255, g: (num>>8)&255, b: num&255 };
   },
   _rgbToHex(r, g, b){
-    function h(v){ var s = Math.round(v).toString(16); return s.length === 1 ? '0' + s : s; }
+    function h(v){ var s = Math.round(v).toString(16); return s.length===1?'0'+s:s; }
     return '#' + h(r) + h(g) + h(b);
   },
 
-  /* ============================================================
-   * 生成 / 删除
-   * ============================================================ */
   _spawn(item){
     if(!item) return;
     if(TBOX.Engine && TBOX.Engine.spawnProp){
@@ -1481,7 +1118,6 @@ TBOX.SpawnMenu = {
         colorHex: item.colorHex,
         label: item.label
       });
-      this._updateCount();
     }
   },
 
@@ -1493,7 +1129,7 @@ TBOX.SpawnMenu = {
       ['生成', function(){ self._spawn(item); }],
       ['复制名称', function(){ if(navigator.clipboard) navigator.clipboard.writeText(item.label); }],
       null,
-      ['删除所有', function(){ if(TBOX.Engine && TBOX.Engine.clearProps) TBOX.Engine.clearProps(); self._updateCount(); }]
+      ['删除所有', function(){ if(TBOX.Engine && TBOX.Engine.clearProps) TBOX.Engine.clearProps(); }]
     ];
     items.forEach(function(it){
       if(it === null){ self.ctx.appendChild(document.createElement('hr')); return; }
@@ -1505,13 +1141,6 @@ TBOX.SpawnMenu = {
     this.ctx.style.left = Math.min(x, window.innerWidth - 185) + 'px';
     this.ctx.style.top = Math.min(y, window.innerHeight - 218) + 'px';
     this.ctx.style.display = 'block';
-  },
-
-  _updateCount(){
-    if(!this.countEl) return;
-    var n = 0;
-    if(TBOX.Engine && TBOX.Engine.props) n = TBOX.Engine.props.length;
-    this.countEl.textContent = n;
   },
 
   open(){
@@ -1526,7 +1155,6 @@ TBOX.SpawnMenu = {
     }
     if(this.currentNode) this._buildList(this.currentNode);
     this._renderGrid();
-    this._updateCount();
   },
 
   close(){
